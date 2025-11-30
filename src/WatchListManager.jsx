@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import TmdbSearch from "./TmdbSearch";
 import {
   Trash2,
@@ -24,6 +24,7 @@ const WatchListManager = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
+  const dragActiveRef = useRef(false);
 
   useEffect(() => {
     loadData();
@@ -214,8 +215,17 @@ const WatchListManager = () => {
   };
 
   const addReference = (refListName) => {
-    if (isListLocked) return;
+    if (isListLocked || !refListName) return;
     if (!selectedList || refListName === selectedList) return;
+    const currentListItems = lists[selectedList] || [];
+    const isDuplicate = currentListItems.some(item => 
+        item.type === 'reference' && item.ref === refListName
+    );
+
+    if (isDuplicate) {
+        alert(`The list "${refListName}" is already included as a reference in "${selectedList}".`);
+        return;
+    }
     const newLists = { ...lists };
     newLists[selectedList] = [
       ...newLists[selectedList],
@@ -236,7 +246,10 @@ const WatchListManager = () => {
   };
 
   const handleDragStart = (e, index) => {
-    if (isListLocked) return;
+    if (!dragActiveRef.current) {
+      e.preventDefault();
+      return;
+    }
     setDraggedItem(index);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -257,6 +270,7 @@ const WatchListManager = () => {
     if (isListLocked) return;
     setDraggedItem(null);
     saveData(lists, selectedList);
+    dragActiveRef.current = false;
   };
   const toggleRefExpand = (itemId) => {
     setExpandedRefs((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
@@ -273,18 +287,26 @@ const WatchListManager = () => {
       return (
         <div key={item.id} className="mb-2">
           <div
-            draggable={!isListLocked}
+            draggable={!isListLocked} // Keeps drag properties present
             onDragStart={(e) => handleDragStart(e, index)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
             className={`flex items-center gap-2 p-3 border-l-4 border-purple-500 rounded transition-colors bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-900/40 ${
-              isListLocked ? "cursor-default opacity-80" : "cursor-move"
+              isListLocked ? "cursor-default opacity-80" : "cursor-default"
             }`}
           >
             <GripVertical
-              size={16}
+              size={20}
+              onMouseDown={() => {
+                dragActiveRef.current = true;
+              }}
+              onMouseUp={() => {
+                dragActiveRef.current = false;
+              }}
               className={`text-gray-400 dark:text-gray-500 ${
-                isListLocked ? "opacity-40" : "opacity-100"
+                isListLocked
+                  ? "opacity-40 cursor-default"
+                  : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400"
               }`}
             />
             <button
@@ -299,7 +321,7 @@ const WatchListManager = () => {
             </button>
             <Link size={16} className="text-purple-600" />
             <span className="flex-1 font-medium text-purple-900 dark:text-purple-300">
-              Reference: {item.ref} ({refList.length} items)
+              {item.ref} ({refList.length} items)
             </span>
             {/* Delete Button (Hidden if locked) */}
             {!isListLocked && (
@@ -311,7 +333,7 @@ const WatchListManager = () => {
                 }}
                 className="text-red-500 hover:text-red-700"
               >
-                <Trash2 size={16} />
+                <Trash2 size={20} />
               </button>
             )}
           </div>
@@ -345,45 +367,53 @@ const WatchListManager = () => {
     // ------------------------------------------------------------------
     // 2. TMDB ITEM RENDERING (Default/Only Non-Reference Type)
     // ------------------------------------------------------------------
-    return (
-      <div
-        key={item.id}
-        draggable={!isListLocked}
-        onDragStart={(e) => handleDragStart(e, index)}
-        onDragOver={(e) => handleDragOver(e, index)}
-        onDragEnd={handleDragEnd}
-        className={`flex items-center gap-2 p-3 border rounded transition-colors bg-white border-gray-200 hover:border-blue-400 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-blue-500 ${
-          isListLocked ? "cursor-default opacity-80" : "cursor-move"
-        }`}
-      >
-        {/* Grip Icon */}
+    const mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
+    const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
+
+    const itemContent = (
+      <>
+        {/* Grip Icon (Only visible/active if unlocked) */}
         <GripVertical
-          size={16}
+          size={20}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onMouseDown={() => {
+            dragActiveRef.current = true;
+          }}
+          onMouseUp={() => {
+            dragActiveRef.current = false;
+          }}
           className={`text-gray-400 dark:text-gray-500 ${
-            isListLocked ? "opacity-40" : "opacity-100"
+            isListLocked
+              ? "opacity-40 cursor-default"
+              : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400" // 🛑 NEW: Cursor change on hover
           }`}
         />
 
-        {/* Display Item Text & TMDB Label */}
+        {/* Display Item Text & Type Label */}
         <span className="flex-1 text-gray-800 dark:text-gray-200">
-          {/* Item title (e.g., "Inception") */}
           {item.text}
 
-          {/* TMDB Label for visual distinction */}
+          {/* Display TMDB label and media type */}
           <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400">
-            {item.media_type}
+            {item.media_type || "movie"}
           </span>
         </span>
 
-        {/* Delete Button (Hidden if locked) */}
+        {/* Delete Button (Only visible if unlocked) */}
         {!isListLocked && (
           <button
-            onClick={() => {
+            // Use onMouseDown to prevent the <a> click from triggering when deleting
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault(); // Stop the <a> tag from navigating
               if (
                 window.confirm(
                   `Delete item: "${item.text.substring(0, 30)}${
                     item.text.length > 30 ? "..." : ""
-                  }"?`
+                  }?"`
                 )
               ) {
                 deleteItem(item.id);
@@ -391,11 +421,38 @@ const WatchListManager = () => {
             }}
             className="text-red-500 hover:text-red-700"
           >
-            <Trash2 size={16} />
+            <Trash2 size={20} />
           </button>
         )}
-      </div>
+      </>
     );
+
+    if (isListLocked) {
+      return (
+        <div
+          key={item.id}
+          className="flex items-center gap-2 p-3 border rounded transition-colors bg-white border-gray-200 cursor-default opacity-80 dark:bg-gray-700 dark:border-gray-600"
+        >
+          {itemContent}
+        </div>
+      );
+    } else {
+      return (
+        <a
+          key={item.id}
+          href={tmdbLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          draggable={true} // Keeps drag properties present
+          onDragStart={(e) => handleDragStart(e, index)}
+          onDragOver={(e) => handleDragOver(e, index)}
+          onDragEnd={handleDragEnd}
+          className="flex items-center gap-2 p-3 border rounded transition-colors no-underline cursor-pointer hover:border-blue-500 bg-white border-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-blue-500"
+        >
+          {itemContent}
+        </a>
+      );
+    }
   };
 
   return (
@@ -571,7 +628,7 @@ const WatchListManager = () => {
                               }`}
                               title="Rename List"
                             >
-                              <Edit2 size={16} />
+                              <Edit2 size={20} />
                             </button>
                           )}
 
@@ -585,7 +642,7 @@ const WatchListManager = () => {
                               }}
                               className="text-red-500 hover:text-red-700 ml-2"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={20} />
                             </button>
                           )}
                         </>
