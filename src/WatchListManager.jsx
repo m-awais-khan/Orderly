@@ -17,33 +17,43 @@ const WatchListManager = () => {
     loadDarkMode();
   }, []);
 
-  const loadData = async () => {
+  const loadData = () => {
     try {
-      const result = await window.storage.get('watchlists-data');
-      if (result && result.value) {
-        const data = JSON.parse(result.value);
+      const saveData = localStorage.getItem('watchlists-data');
+      if (saveData) {
+        const data = JSON.parse(saveData);
         setLists(data.lists || {});
         setSelectedList(data.selectedList || null);
       }
-    } catch {
+    } catch (error) {
       console.log('No saved data found');
     }
   };
 
-  const loadDarkMode = async () => {
+  const loadDarkMode = () => {
     try {
-      const result = await window.storage.get('watchlists-darkmode');
-      if (result && result.value) setDarkMode(JSON.parse(result.value));
-    } catch {
+      const saveData = localStorage.getItem('watchlists-darkmode');
+      if (saveData) {
+        const isDark = JSON.parse(saveData);
+        setDarkMode(isDark);
+      }
+    } catch (error) {
       console.log('No dark mode preference found');
     }
   };
 
-  const toggleDarkMode = async () => {
+  const toggleDarkMode = () => {
     const newMode = !darkMode;
     setDarkMode(newMode);
+
+    if (newMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
     try {
-      await window.storage.set('watchlists-darkmode', JSON.stringify(newMode));
+      localStorage.setItem('watchlists-darkmode', JSON.stringify(newMode));
     } catch (error) {
       console.error('Failed to save dark mode preference:', error);
     }
@@ -51,7 +61,7 @@ const WatchListManager = () => {
 
   const saveData = async (newLists, newSelected) => {
     try {
-      await window.storage.set('watchlists-data', JSON.stringify({ lists: newLists, selectedList: newSelected }));
+      localStorage.setItem('watchlists-data', JSON.stringify({ lists: newLists, selectedList: newSelected }));
     } catch (error) {
       console.error('Failed to save data:', error);
     }
@@ -70,6 +80,14 @@ const WatchListManager = () => {
   const deleteList = (listName) => {
     const newLists = { ...lists };
     delete newLists[listName];
+    Object.keys(newLists).forEach(key => {
+      newLists[key] = newLists[key].filter((item) => {
+        if (item.type === 'reference' && item.ref === listName) {
+          return false;
+        }
+        return true;
+      });
+    });
     const newSelected = selectedList === listName ? Object.keys(newLists)[0] || null : selectedList;
     setLists(newLists);
     setSelectedList(newSelected);
