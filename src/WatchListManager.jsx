@@ -206,6 +206,11 @@ const WatchListManager = () => {
       type: "tmdb",
       // Store the media type (movie, tv, anime)
       media_type: itemData.media_type,
+      year:
+        (itemData.release_date || itemData.first_air_date)?.slice(0, 4) || null,
+      image: itemData.poster_path
+        ? `https://image.tmdb.org/t/p/w92${itemData.poster_path}`
+        : "placeholder_url",
     };
 
     const newLists = { ...lists };
@@ -218,13 +223,15 @@ const WatchListManager = () => {
     if (isListLocked || !refListName) return;
     if (!selectedList || refListName === selectedList) return;
     const currentListItems = lists[selectedList] || [];
-    const isDuplicate = currentListItems.some(item => 
-        item.type === 'reference' && item.ref === refListName
+    const isDuplicate = currentListItems.some(
+      (item) => item.type === "reference" && item.ref === refListName
     );
 
     if (isDuplicate) {
-        alert(`The list "${refListName}" is already included as a reference in "${selectedList}".`);
-        return;
+      alert(
+        `The list "${refListName}" is already included as a reference in "${selectedList}".`
+      );
+      return;
     }
     const newLists = { ...lists };
     newLists[selectedList] = [
@@ -276,6 +283,98 @@ const WatchListManager = () => {
     setExpandedRefs((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
+  // WatchListManager.jsx
+
+  const exportData = () => {
+    // 1. Package all critical state data
+    const exportObject = {
+      appVersion: "1.0", // A version stamp for future compatibility checks
+      timestamp: new Date().toISOString(),
+      lists: lists,
+      selectedList: selectedList,
+      isListLocked: isListLocked, // Include lock state
+    };
+
+    // 2. Convert to JSON string
+    const dataStr = JSON.stringify(exportObject, null, 2); // '2' for pretty formatting
+
+    // 3. Create a Blob and a download link
+    const dataUri =
+      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+
+    const exportFileDefaultName = `watch_list_backup_${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+
+    // Create a temporary link element for downloading
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", dataUri);
+    linkElement.setAttribute("download", exportFileDefaultName);
+
+    // Simulate a click to trigger download
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    document.body.removeChild(linkElement);
+
+    alert("Your watch list data has been successfully exported!");
+  };
+
+  // WatchListManager.jsx
+
+  const importData = (dataText) => {
+    try {
+      // 1. Parse the JSON data
+      const importedObject = JSON.parse(dataText);
+
+      // 2. Basic Validation (check for required structure)
+      if (
+        !importedObject.lists ||
+        !importedObject.selectedList ||
+        importedObject.isListLocked === undefined
+      ) {
+        alert(
+          "Import failed: The file does not appear to be a valid Watch List backup."
+        );
+        return;
+      }
+
+      // 3. 🛑 CRITICAL WARNING AND CONFIRMATION
+      if (
+        !window.confirm(
+          "WARNING: Importing new data will permanently ERASE all current lists and settings. Do you want to continue?"
+        )
+      ) {
+        return; // User cancelled the import
+      }
+
+      // 4. Update State and Local Storage (Maintaining the same order and state)
+
+      // Update main list state
+      setLists(importedObject.lists);
+
+      // Update selected list state
+      setSelectedList(importedObject.selectedList);
+
+      // Update lock state
+      setIsListLocked(importedObject.isListLocked);
+
+      // 5. Update Local Storage to match the imported state
+      localStorage.setItem("watchLists", JSON.stringify(importedObject.lists));
+      localStorage.setItem("selectedWatchList", importedObject.selectedList);
+      localStorage.setItem(
+        "watchListLock",
+        JSON.stringify(importedObject.isListLocked)
+      );
+
+      alert(
+        "Data imported successfully! Your application state has been fully restored."
+      );
+    } catch (e) {
+      console.error("Import Error:", e);
+      alert("Import failed: Could not read or parse the JSON file.");
+    }
+  };
+
   const renderItem = (item, index) => {
     // ------------------------------------------------------------------
     // 1. REFERENCE ITEM RENDERING (type: 'reference')
@@ -291,8 +390,9 @@ const WatchListManager = () => {
             onDragStart={(e) => handleDragStart(e, index)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
+            onClick={() => toggleRefExpand(item.id)}
             className={`flex items-center gap-2 p-3 border-l-4 border-purple-500 rounded transition-colors bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-900/40 ${
-              isListLocked ? "cursor-default opacity-80" : "cursor-default"
+              isListLocked ? "cursor-default opacity-80" : "cursor-pointer"
             }`}
           >
             <GripVertical
@@ -309,19 +409,17 @@ const WatchListManager = () => {
                   : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400"
               }`}
             />
-            <button
-              onClick={() => toggleRefExpand(item.id)}
-              className="text-purple-600 hover:text-purple-800"
-            >
+            <span className="text-purple-600 hover:text-purple-300">
               {isExpanded ? (
-                <ChevronDown size={16} />
+                <ChevronDown size={20} />
               ) : (
-                <ChevronRight size={16} />
+                <ChevronRight size={20} />
               )}
-            </button>
-            <Link size={16} className="text-purple-600" />
+            </span>
+
+            <Link size={16} className="text-purple-600 hover:text-purple-300" />
             <span className="flex-1 font-medium text-purple-900 dark:text-purple-300">
-              {item.ref} ({refList.length} items)
+              {item.ref} ({refList.length})
             </span>
             {/* Delete Button (Hidden if locked) */}
             {!isListLocked && (
@@ -349,7 +447,7 @@ const WatchListManager = () => {
                 refList.map((refItem) => (
                   <div
                     key={refItem.id}
-                    className="mb-1 p-2 rounded text-sm bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                    className="mb-1 p-2 rounded text-sm bg-slate-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                   >
                     {/* Since we removed legacy 'text' items, we assume nested items are TMDB or References */}
                     {refItem.type === "tmdb"
@@ -394,11 +492,17 @@ const WatchListManager = () => {
 
         {/* Display Item Text & Type Label */}
         <span className="flex-1 text-gray-800 dark:text-gray-200">
+          <img
+            src={item.image}
+            alt={item.title || item.name}
+            className="inline w-14 h-20 object-cover rounded mr-1 align-middle"
+          />
           {item.text}
 
           {/* Display TMDB label and media type */}
-          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400">
+          <span className="ml-2 text-sm px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400">
             {item.media_type || "movie"}
+            {item.year ? ` • ${item.year}` : ""}
           </span>
         </span>
 
