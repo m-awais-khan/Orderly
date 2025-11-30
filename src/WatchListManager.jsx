@@ -10,6 +10,8 @@ import {
   Film,
   Moon,
   Sun,
+  Edit2,
+  X,
 } from "lucide-react";
 
 const WatchListManager = () => {
@@ -21,6 +23,7 @@ const WatchListManager = () => {
   const [showAddList, setShowAddList] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
+  const [editingListName, setEditingListName] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -80,22 +83,87 @@ const WatchListManager = () => {
   };
 
   const createList = () => {
+    // 1. Basic validation (Ensure list is unlocked and name is not empty)
     if (isListLocked) return;
     const trimmedName = newListName.trim();
-    if (!trimmedName) return;
-    if (lists.hasOwnProperty(trimmedName)) {
+
+    if (!trimmedName) {
+      alert("List name cannot be empty.");
+      return;
+    }
+
+    // 2. Case-Insensitive Duplicate Check
+    const lowerTrimmedName = trimmedName.toLowerCase();
+    const isDuplicate = Object.keys(lists).some(
+      (listName) => listName.toLowerCase() === lowerTrimmedName
+    );
+
+    if (isDuplicate) {
+      alert(`A list named "${trimmedName}" already exists (case-insensitive).`);
+      return;
+    }
+
+    // 3. Create new list and update state
+    const newLists = {
+      ...lists,
+      // Use the user's provided casing for the list key
+      [trimmedName]: [],
+    };
+
+    setLists(newLists);
+    setSelectedList(trimmedName); // Set the new list as selected
+
+    // 🛑 IMPORTANT: Clear the input state and hide the input field
+    setNewListName("");
+    setShowAddList(false);
+
+    // Save data
+    saveData(newLists, trimmedName);
+  };
+
+  const renameList = (oldName, newName) => {
+    const trimmedNewName = newName.trim();
+
+    // 1. Basic validation
+    if (!trimmedNewName || trimmedNewName === oldName) {
+      setEditingListName(null);
+      return;
+    }
+
+    // 2. 🛑 CASE-INSENSITIVE DUPLICATE CHECK
+    const lowerTrimmedNewName = trimmedNewName.toLowerCase();
+    const existingListNames = Object.keys(lists);
+
+    const isDuplicate = existingListNames.some(
+      (existingName) =>
+        // Ensure we compare against the new name only if the existing name is NOT the old name
+        existingName !== oldName &&
+        existingName.toLowerCase() === lowerTrimmedNewName
+    );
+
+    if (isDuplicate) {
       alert(
-        `A list named "${trimmedName}" already exists. Please choose a different name.`
+        `A list named "${trimmedNewName}" already exists (case-insensitive). Cannot rename.`
       );
       return;
     }
-    if (!newListName.trim()) return;
-    const newLists = { ...lists, [newListName]: [] };
+
+    // 3. Update the lists object (rename the key while preserving items)
+    const newLists = {};
+    Object.keys(lists).forEach((listName) => {
+      if (listName === oldName) {
+        // Use the new name (with user's casing) as the key
+        newLists[trimmedNewName] = lists[oldName];
+      } else {
+        newLists[listName] = lists[listName];
+      }
+    });
+
+    // 4. Update state and persistence
     setLists(newLists);
-    setSelectedList(newListName);
-    setNewListName("");
-    setShowAddList(false);
-    saveData(newLists, newListName);
+    setSelectedList(trimmedNewName); // Keep the newly named list selected
+    setEditingListName(null); // Exit editing mode
+    saveData(newLists, trimmedNewName);
   };
 
   const deleteList = (listName) => {
@@ -122,12 +190,12 @@ const WatchListManager = () => {
     if (isListLocked) return;
     if (!itemData || !itemData.id || !selectedList) return;
     const currentList = lists[selectedList];
-    const isDuplicate = currentList.some(item => 
-        item.id === itemData.id && item.type === 'tmdb'
+    const isDuplicate = currentList.some(
+      (item) => item.id === itemData.id && item.type === "tmdb"
     );
     if (isDuplicate) {
-        alert(`"${itemData.title || itemData.name}" is already in the list.`);
-        return; // Stop execution if it's a duplicate
+      alert(`"${itemData.title || itemData.name}" is already in the list.`);
+      return; // Stop execution if it's a duplicate
     }
     const newItem = {
       // Use TMDB ID as the item key for uniqueness
@@ -428,30 +496,99 @@ const WatchListManager = () => {
                   Object.keys(lists).map((listName) => (
                     <div
                       key={listName}
-                      onClick={() => setSelectedList(listName)}
-                      className={`flex items-center justify-between p-3 rounded cursor-pointer transition-colors border-2 ${
+                      onClick={() => {
+                        // Only allow selection if we are NOT currently editing a list
+                        if (editingListName !== listName) {
+                          setSelectedList(listName);
+                        }
+                      }}
+                      className={`flex justify-between items-center px-4 py-3 rounded-lg cursor-pointer transition-colors ${
                         selectedList === listName
-                          ? "bg-blue-100 border-blue-500 dark:bg-blue-900/40"
-                          : "bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 dark:border-transparent"
+                          ? "bg-blue-600 text-white dark:bg-blue-800"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200"
                       }`}
                     >
-                      <span className="font-medium flex-1 text-gray-800 dark:text-gray-200">
-                        {listName}
-                      </span>
-                      <span className="text-xs mr-2 text-gray-500 dark:text-gray-400">
-                        ({lists[listName].length})
-                      </span>
-                      {!isListLocked && ( // 🛑 NEW: Only render if NOT locked
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`Delete "${listName}"?`))
-                              deleteList(listName);
-                          }}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      {/* 🛑 CONDITIONAL RENDERING: Editing Mode vs. Read-Only Mode */}
+                      {editingListName === listName ? (
+                        // --- EDITING INPUT FIELD ---
+                        <>
+                          <input
+                            type="text"
+                            defaultValue={listName}
+                            className="flex-1 mr-2 px-1 py-0.5 border rounded text-sm text-black dark:text-white dark:bg-gray-600 focus:outline-none"
+                            autoFocus
+                            onKeyPress={(e) => {
+                              if (e.key === "Enter") {
+                                // Save on Enter
+                                renameList(listName, e.target.value);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // Save on blur (clicking away)
+                              renameList(listName, e.target.value);
+                            }}
+                          />
+                          {/* 🛑 NEW CANCEL BUTTON */}
+                          <button
+                            // Use onMouseDown to prevent the input's onBlur event from firing first
+                            onMouseDown={(e) => {
+                              e.preventDefault(); // Stop onBlur
+                              setEditingListName(null); // Cancel and exit editing mode
+                            }}
+                            className="ml-2 text-sm text-gray-300 hover:text-red-400 dark:text-gray-400 dark:hover:text-red-500"
+                            title="Cancel Renaming"
+                          >
+                            <X size={16} />
+                          </button>
+                        </>
+                      ) : (
+                        // --- READ-ONLY DISPLAY & ACTIONS ---
+                        <>
+                          <div className="flex items-center flex-1">
+                            <span className="font-medium mr-2">{listName}</span>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                selectedList === listName
+                                  ? "bg-blue-400 text-white"
+                                  : "bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300"
+                              }`}
+                            >
+                              ({lists[listName].length})
+                            </span>
+                          </div>
+
+                          {/* 🛑 EDIT BUTTON (Only visible if NOT locked) */}
+                          {!isListLocked && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); // Stop click from selecting/renaming listName
+                                setEditingListName(listName);
+                              }}
+                              className={`ml-2 text-sm ${
+                                selectedList === listName
+                                  ? "text-white hover:text-gray-200"
+                                  : "text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+                              }`}
+                              title="Rename List"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+
+                          {/* Existing Delete Button (Only visible if not locked) */}
+                          {!isListLocked && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Delete "${listName}"?`))
+                                  deleteList(listName);
+                              }}
+                              className="text-red-500 hover:text-red-700 ml-2"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   ))
@@ -466,6 +603,11 @@ const WatchListManager = () => {
               <div className="rounded-lg shadow-lg p-6 bg-white dark:bg-gray-800">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-100">
                   {selectedList}
+                  {selectedList && (
+                    <span className="ml-3 text-lg font-normal text-gray-500 dark:text-gray-400">
+                      ({(lists[selectedList] || []).length})
+                    </span>
+                  )}
                 </h2>
 
                 {/* Add Item */}
