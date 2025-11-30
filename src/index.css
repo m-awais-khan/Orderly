@@ -1,11 +1,13 @@
-@import "tailwindcss";
-/* @import "tailwindcss/components";
-@import "tailwindcss/utilities"; */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* Keep your custom styles below */
 html {
   transition: background-color 0.3s, color 0.3s;
 }
 
+/* We apply the dark/light background colors to the BODY here */
 body {
   @apply bg-blue-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100;
 }
