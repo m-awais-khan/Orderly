@@ -32,10 +32,9 @@ const WatchListManager = () => {
 
   const loadDarkMode = () => {
     try {
-      const saveData = localStorage.getItem('watchlists-darkmode');
-      if (saveData) {
-        const isDark = JSON.parse(saveData);
-        setDarkMode(isDark);
+      const savedData = localStorage.getItem('watchlists-darkmode');
+      if (savedData) {
+        setDarkMode(JSON.parse(savedData));
       }
     } catch (error) {
       console.log('No dark mode preference found');
