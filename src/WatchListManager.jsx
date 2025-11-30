@@ -72,7 +72,7 @@ const WatchListManager = () => {
     }
   };
 
-  const saveData = async (newLists, newSelected) => {
+  const saveData = (newLists, newSelected) => {
     try {
       localStorage.setItem(
         "watchlists-data",
@@ -84,6 +84,15 @@ const WatchListManager = () => {
   };
 
   const createList = () => {
+    if (isListLocked) return;
+    const trimmedName = newListName.trim();
+    if (!trimmedName) return;
+    if (lists.hasOwnProperty(trimmedName)) {
+      alert(
+        `A list named "${trimmedName}" already exists. Please choose a different name.`
+      );
+      return;
+    }
     if (!newListName.trim()) return;
     const newLists = { ...lists, [newListName]: [] };
     setLists(newLists);
@@ -226,16 +235,16 @@ const WatchListManager = () => {
               Reference: {item.ref} ({refList.length} items)
             </span>
             {!isListLocked && (
-            <button
-              onClick={() => {
-                if (window.confirm(`Delete reference to "${item.ref}"?`)) {
-                  deleteItem(item.id);
-                }
-              }}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 size={16} />
-            </button>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Delete reference to "${item.ref}"?`)) {
+                    deleteItem(item.id);
+                  }
+                }}
+                className="text-red-500 hover:text-red-700"
+              >
+                <Trash2 size={16} />
+              </button>
             )}
           </div>
 
@@ -287,23 +296,44 @@ const WatchListManager = () => {
                 <input
                   type="text"
                   defaultValue={item.text}
+                  // Focus the input immediately
+                  ref={inputref => inputref && inputref.focus()}
                   onKeyPress={(e) => {
-                    if (e.key === "Enter") updateItem(item.id, e.target.value);
+                    if (e.key === "Enter") {
+                      const newValue = e.target.value.trim();
+                      if (newValue) {
+                        // Calls the function and exits editing mode
+                        updateItem(item.id, newValue);
+                      } else {
+                        alert("Item text cannot be empty.");
+                      }
+                    }
                   }}
                   className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-600 dark:text-white dark:border-blue-500"
                   autoFocus
+                  onBlur={(e) => {
+                    const newValue = e.target.value.trim()
+                    // Only save if the value has not canged AND is not empty
+                    if (newValue && newValue !== item.text) {
+                      updateItem(item.id, newValue);
+                    } else if (newValue === "") {
+                      alert("Item name cannot be empty.");
+                      // Re-focus the element or require Cancel if they truly abandon
+                      e.target.focus();
+                    } else {
+                      // If focus is lost but nothing changed, just exit editing mode
+                      setEditingItem(null);
+                    }
+                  }}
                 />
                 <button
-                  onClick={() => {
-                    const input = document.querySelector('input[type="text"]');
-                    updateItem(item.id, input.value);
+                  // Use onMouseDown to run before onBlur
+                  onMouseDown={(e) => {
+                    // Stop the input's onBlur from firing and saving the text!
+                    e.preventDefault();
+                    // Now, safely exit editing mode, discarding any changes
+                    setEditingItem(null);
                   }}
-                  className="text-green-600 hover:text-green-800"
-                >
-                  <Save size={16} />
-                </button>
-                <button
-                  onClick={() => setEditingItem(null)}
                   className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <X size={16} />
@@ -387,9 +417,31 @@ const WatchListManager = () => {
                 <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
                   My Lists
                 </h2>
+
+                <button
+                  onClick={() => setIsListLocked(!isListLocked)}
+                  className={`px-3 py-1 text-sm rounded-full transition-colors font-medium ${
+                    isListLocked
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : "bg-green-500 text-white hover:bg-green-600"
+                  }`}
+                  title={
+                    isListLocked
+                      ? "Unlock all list actions (add, delete, reorder)"
+                      : "Lock all list actions to prevent accidental changes"
+                  }
+                >
+                  {isListLocked ? "Lists Locked 🔒" : "Lists Unlocked 🔓"}
+                </button>
+
                 <button
                   onClick={() => setShowAddList(!showAddList)}
-                  className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors"
+                  className={`p-2 rounded-full transition-colors ${
+                    isListLocked
+                      ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                  disabled={isListLocked}
                 >
                   <Plus size={20} />
                 </button>
@@ -407,7 +459,11 @@ const WatchListManager = () => {
                   />
                   <button
                     onClick={createList}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
+                    className={`px-4 py-2 rounded transition-colors ${
+                      !isListLocked
+                        ? "bg-green-600 text-white hover:bg-green-700"
+                        : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                    }`}
                   >
                     Add
                   </button>
@@ -436,16 +492,18 @@ const WatchListManager = () => {
                       <span className="text-xs mr-2 text-gray-500 dark:text-gray-400">
                         ({lists[listName].length})
                       </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm(`Delete "${listName}"?`))
-                            deleteList(listName);
-                        }}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {!isListLocked && ( // 🛑 NEW: Only render if NOT locked
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Delete "${listName}"?`))
+                              deleteList(listName);
+                          }}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -457,27 +515,9 @@ const WatchListManager = () => {
           <div className="md:col-span-2">
             {selectedList ? (
               <div className="rounded-lg shadow-lg p-6 bg-white dark:bg-gray-800">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                    {selectedList}
-                  </h2>
-
-                  <button
-                    onClick={() => setIsListLocked(!isListLocked)}
-                    className={`px-3 py-1 text-sm rounded-full transition-colors font-medium ${
-                      isListLocked
-                        ? "bg-red-500 text-white hover:bg-red-600"
-                        : "bg-green-500 text-white hover:bg-green-600"
-                    }`}
-                    title={
-                      isListLocked
-                        ? "Unlock list to enable drag and drop reordering"
-                        : "Lock list to prevent accidental reordering"
-                    }
-                  >
-                    {isListLocked ? "List Locked 🔒" : "List Unlocked 🔓"}
-                  </button>
-                </div>
+                <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-100">
+                  {selectedList}
+                </h2>
 
                 {/* Add Item */}
                 <div className="mb-6">
