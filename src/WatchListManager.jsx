@@ -1,16 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Edit2, Plus, GripVertical, Link, Save, X, ChevronDown, ChevronRight, Film, Moon, Sun } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  Trash2,
+  Edit2,
+  Plus,
+  GripVertical,
+  Link,
+  Save,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Film,
+  Moon,
+  Sun,
+} from "lucide-react";
 
 const WatchListManager = () => {
   const [lists, setLists] = useState({});
   const [selectedList, setSelectedList] = useState(null);
-  const [newListName, setNewListName] = useState('');
+  const [newListName, setNewListName] = useState("");
   const [editingItem, setEditingItem] = useState(null);
-  const [newItemText, setNewItemText] = useState('');
+  const [newItemText, setNewItemText] = useState("");
   const [draggedItem, setDraggedItem] = useState(null);
   const [expandedRefs, setExpandedRefs] = useState({});
   const [showAddList, setShowAddList] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [isListLocked, setIsListLocked] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -19,25 +33,25 @@ const WatchListManager = () => {
 
   const loadData = () => {
     try {
-      const saveData = localStorage.getItem('watchlists-data');
+      const saveData = localStorage.getItem("watchlists-data");
       if (saveData) {
         const data = JSON.parse(saveData);
         setLists(data.lists || {});
         setSelectedList(data.selectedList || null);
       }
     } catch (error) {
-      console.log('No saved data found');
+      console.log("No saved data found");
     }
   };
 
   const loadDarkMode = () => {
     try {
-      const savedData = localStorage.getItem('watchlists-darkmode');
+      const savedData = localStorage.getItem("watchlists-darkmode");
       if (savedData) {
         setDarkMode(JSON.parse(savedData));
       }
     } catch (error) {
-      console.log('No dark mode preference found');
+      console.log("No dark mode preference found");
     }
   };
 
@@ -46,23 +60,26 @@ const WatchListManager = () => {
     setDarkMode(newMode);
 
     if (newMode) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
 
     try {
-      localStorage.setItem('watchlists-darkmode', JSON.stringify(newMode));
+      localStorage.setItem("watchlists-darkmode", JSON.stringify(newMode));
     } catch (error) {
-      console.error('Failed to save dark mode preference:', error);
+      console.error("Failed to save dark mode preference:", error);
     }
   };
 
   const saveData = async (newLists, newSelected) => {
     try {
-      localStorage.setItem('watchlists-data', JSON.stringify({ lists: newLists, selectedList: newSelected }));
+      localStorage.setItem(
+        "watchlists-data",
+        JSON.stringify({ lists: newLists, selectedList: newSelected })
+      );
     } catch (error) {
-      console.error('Failed to save data:', error);
+      console.error("Failed to save data:", error);
     }
   };
 
@@ -71,7 +88,7 @@ const WatchListManager = () => {
     const newLists = { ...lists, [newListName]: [] };
     setLists(newLists);
     setSelectedList(newListName);
-    setNewListName('');
+    setNewListName("");
     setShowAddList(false);
     saveData(newLists, newListName);
   };
@@ -79,40 +96,54 @@ const WatchListManager = () => {
   const deleteList = (listName) => {
     const newLists = { ...lists };
     delete newLists[listName];
-    Object.keys(newLists).forEach(key => {
+    Object.keys(newLists).forEach((key) => {
       newLists[key] = newLists[key].filter((item) => {
-        if (item.type === 'reference' && item.ref === listName) {
+        if (item.type === "reference" && item.ref === listName) {
           return false;
         }
         return true;
       });
     });
-    const newSelected = selectedList === listName ? Object.keys(newLists)[0] || null : selectedList;
+    const newSelected =
+      selectedList === listName
+        ? Object.keys(newLists)[0] || null
+        : selectedList;
     setLists(newLists);
     setSelectedList(newSelected);
     saveData(newLists, newSelected);
   };
 
   const addItem = () => {
+    if (isListLocked) return;
     if (!newItemText.trim() || !selectedList) return;
     const newLists = { ...lists };
-    newLists[selectedList] = [...newLists[selectedList], { id: Date.now(), text: newItemText, type: 'text' }];
+    newLists[selectedList] = [
+      ...newLists[selectedList],
+      { id: Date.now(), text: newItemText, type: "text" },
+    ];
     setLists(newLists);
-    setNewItemText('');
+    setNewItemText("");
     saveData(newLists, selectedList);
   };
 
   const addReference = (refListName) => {
+    if (isListLocked) return;
     if (!selectedList || refListName === selectedList) return;
     const newLists = { ...lists };
-    newLists[selectedList] = [...newLists[selectedList], { id: Date.now(), ref: refListName, type: 'reference' }];
+    newLists[selectedList] = [
+      ...newLists[selectedList],
+      { id: Date.now(), ref: refListName, type: "reference" },
+    ];
     setLists(newLists);
     saveData(newLists, selectedList);
   };
 
   const updateItem = (itemId, newText) => {
+    if (isListLocked) return;
     const newLists = { ...lists };
-    const itemIndex = newLists[selectedList].findIndex(item => item.id === itemId);
+    const itemIndex = newLists[selectedList].findIndex(
+      (item) => item.id === itemId
+    );
     if (itemIndex !== -1) {
       newLists[selectedList][itemIndex].text = newText;
       setLists(newLists);
@@ -122,15 +153,23 @@ const WatchListManager = () => {
   };
 
   const deleteItem = (itemId) => {
+    if (isListLocked) return;
     const newLists = { ...lists };
-    newLists[selectedList] = newLists[selectedList].filter(item => item.id !== itemId);
+    newLists[selectedList] = newLists[selectedList].filter(
+      (item) => item.id !== itemId
+    );
     setLists(newLists);
     saveData(newLists, selectedList);
   };
 
-  const handleDragStart = (e, index) => { setDraggedItem(index); e.dataTransfer.effectAllowed = 'move'; };
+  const handleDragStart = (e, index) => {
+    if (isListLocked) return;
+    setDraggedItem(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
   const handleDragOver = (e, index) => {
     e.preventDefault();
+    if (isListLocked) return;
     if (draggedItem === null || draggedItem === index) return;
     const newLists = { ...lists };
     const items = [...newLists[selectedList]];
@@ -141,44 +180,80 @@ const WatchListManager = () => {
     setLists(newLists);
     setDraggedItem(index);
   };
-  const handleDragEnd = () => { setDraggedItem(null); saveData(lists, selectedList); };
-  const toggleRefExpand = (itemId) => { setExpandedRefs(prev => ({ ...prev, [itemId]: !prev[itemId] })); };
+  const handleDragEnd = () => {
+    if (isListLocked) return;
+    setDraggedItem(null);
+    saveData(lists, selectedList);
+  };
+  const toggleRefExpand = (itemId) => {
+    setExpandedRefs((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
 
   const renderItem = (item, index) => {
-    if (item.type === 'reference') {
+    if (item.type === "reference") {
       const isExpanded = expandedRefs[item.id];
       const refList = lists[item.ref] || [];
 
       return (
         <div key={item.id} className="mb-2">
           <div
-            draggable
+            draggable={!isListLocked}
             onDragStart={(e) => handleDragStart(e, index)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
-            className={`flex items-center gap-2 p-3 border-l-4 border-purple-500 rounded cursor-move transition-colors bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-900/40`}
+            className={`flex items-center gap-2 p-3 border-l-4 border-purple-500 rounded transition-colors bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-900/40 ${
+              isListLocked ? "cursor-default opacity-80" : "cursor-move"
+            }`}
           >
-            <GripVertical size={16} className="text-gray-400 dark:text-gray-500" />
-            <button onClick={() => toggleRefExpand(item.id)} className="text-purple-600 hover:text-purple-800">
-              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <GripVertical
+              size={16}
+              className={`text-gray-400 dark:text-gray-500 ${
+                isListLocked ? "opacity-40" : "opacity-100"
+              }`}
+            />
+            <button
+              onClick={() => toggleRefExpand(item.id)}
+              className="text-purple-600 hover:text-purple-800"
+            >
+              {isExpanded ? (
+                <ChevronDown size={16} />
+              ) : (
+                <ChevronRight size={16} />
+              )}
             </button>
             <Link size={16} className="text-purple-600" />
             <span className="flex-1 font-medium text-purple-900 dark:text-purple-300">
               Reference: {item.ref} ({refList.length} items)
             </span>
-            <button onClick={() => deleteItem(item.id)} className="text-red-500 hover:text-red-700">
+            {!isListLocked && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Delete reference to "${item.ref}"?`)) {
+                  deleteItem(item.id);
+                }
+              }}
+              className="text-red-500 hover:text-red-700"
+            >
               <Trash2 size={16} />
             </button>
+            )}
           </div>
 
           {isExpanded && (
             <div className="ml-8 mt-2 p-3 border-l-2 border-purple-300 rounded bg-purple-25 dark:bg-purple-900/20">
               {refList.length === 0 ? (
-                <p className="italic text-gray-500 dark:text-gray-400">Empty list</p>
+                <p className="italic text-gray-500 dark:text-gray-400">
+                  Empty list
+                </p>
               ) : (
                 refList.map((refItem) => (
-                  <div key={refItem.id} className="mb-1 p-2 rounded text-sm bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                    {refItem.type === 'text' ? refItem.text : `→ ${refItem.ref}`}
+                  <div
+                    key={refItem.id}
+                    className="mb-1 p-2 rounded text-sm bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                  >
+                    {refItem.type === "text"
+                      ? refItem.text
+                      : `→ ${refItem.ref}`}
                   </div>
                 ))
               )}
@@ -191,61 +266,116 @@ const WatchListManager = () => {
     return (
       <div
         key={item.id}
-        draggable
+        draggable={!isListLocked}
         onDragStart={(e) => handleDragStart(e, index)}
         onDragOver={(e) => handleDragOver(e, index)}
         onDragEnd={handleDragEnd}
-        className="flex items-center gap-2 p-3 border rounded cursor-move transition-colors bg-white border-gray-200 hover:border-blue-400 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-blue-500"
+        className={`flex items-center gap-2 p-3 border rounded transition-colors bg-white border-gray-200 hover:border-blue-400 dark:bg-gray-700 dark:border-gray-600 dark:hover:border-blue-500 ${
+          isListLocked ? "cursor-default opacity-80" : "cursor-move"
+        }`}
       >
-        <GripVertical size={16} className="text-gray-400 dark:text-gray-500" />
-        {editingItem === item.id ? (
+        <GripVertical
+          size={16}
+          className={`text-gray-400 dark:text-gray-500 ${
+            isListLocked ? "opacity-40" : "opacity-100"
+          }`}
+        />
+        {(!isListLocked || editingItem === item.id) && (
           <>
-            <input
-              type="text"
-              defaultValue={item.text}
-              onKeyPress={(e) => { if (e.key === 'Enter') updateItem(item.id, e.target.value); }}
-              className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-600 dark:text-white dark:border-blue-500"
-              autoFocus
-            />
-            <button onClick={() => { const input = document.querySelector('input[type="text"]'); updateItem(item.id, input.value); }} className="text-green-600 hover:text-green-800">
-              <Save size={16} />
-            </button>
-            <button onClick={() => setEditingItem(null)} className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
-              <X size={16} />
-            </button>
+            {editingItem === item.id ? (
+              <>
+                <input
+                  type="text"
+                  defaultValue={item.text}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") updateItem(item.id, e.target.value);
+                  }}
+                  className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-600 dark:text-white dark:border-blue-500"
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    const input = document.querySelector('input[type="text"]');
+                    updateItem(item.id, input.value);
+                  }}
+                  className="text-green-600 hover:text-green-800"
+                >
+                  <Save size={16} />
+                </button>
+                <button
+                  onClick={() => setEditingItem(null)}
+                  className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <X size={16} />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 text-gray-800 dark:text-gray-200">
+                  {item.text}
+                </span>
+                <button
+                  onClick={() => setEditingItem(item.id)}
+                  className="text-blue-600 hover:text-blue-800"
+                  disabled={isListLocked}
+                >
+                  <Edit2 size={16} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete item: "${item.text.substring(0, 30)}${
+                          item.text.length > 30 ? "..." : ""
+                        }"?`
+                      )
+                    ) {
+                      deleteItem(item.id);
+                    }
+                  }}
+                  className="text-red-500 hover:text-red-700"
+                  disabled={isListLocked}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
           </>
-        ) : (
-          <>
-            <span className="flex-1 text-gray-800 dark:text-gray-200">{item.text}</span>
-            <button onClick={() => setEditingItem(item.id)} className="text-blue-600 hover:text-blue-800">
-              <Edit2 size={16} />
-            </button>
-            <button onClick={() => deleteItem(item.id)} className="text-red-500 hover:text-red-700">
-              <Trash2 size={16} />
-            </button>
-          </>
+        )}
+        {isListLocked && editingItem !== item.id && (
+          <span className="flex-1 text-gray-800 dark:text-gray-200">
+            {item.text}
+          </span>
         )}
       </div>
     );
   };
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} min-h-screen p-6 flex justify-center items-start bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800`}>
+    <div
+      className={`${
+        darkMode ? "dark" : ""
+      } min-h-screen p-6 flex justify-center items-start bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800`}
+    >
       <div className="w-full max-w-6xl">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
             <Film size={40} className="text-blue-600 dark:text-blue-400" />
-            <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">Watch List Manager</h1>
+            <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">
+              Watch List Manager
+            </h1>
             <button
               onClick={toggleDarkMode}
               className="ml-4 p-2 rounded-lg transition-colors bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:text-yellow-400 dark:hover:bg-gray-600"
-              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {darkMode ? <Sun size={24} /> : <Moon size={24} />}
             </button>
           </div>
-          <p className="text-gray-600 dark:text-gray-400">Organize your movies, shows, and watch history</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            Organize your movies, shows, and watch history
+          </p>
         </div>
 
         {/* Main Grid */}
@@ -254,8 +384,13 @@ const WatchListManager = () => {
           <div className="md:col-span-1">
             <div className="rounded-lg shadow-lg p-4 bg-white dark:bg-gray-800">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">My Lists</h2>
-                <button onClick={() => setShowAddList(!showAddList)} className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                  My Lists
+                </h2>
+                <button
+                  onClick={() => setShowAddList(!showAddList)}
+                  className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors"
+                >
                   <Plus size={20} />
                 </button>
               </div>
@@ -266,17 +401,24 @@ const WatchListManager = () => {
                     type="text"
                     value={newListName}
                     onChange={(e) => setNewListName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && createList()}
+                    onKeyPress={(e) => e.key === "Enter" && createList()}
                     placeholder="New list name..."
                     className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
                   />
-                  <button onClick={createList} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">Add</button>
+                  <button
+                    onClick={createList}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
+                  >
+                    Add
+                  </button>
                 </div>
               )}
 
               <div className="space-y-2">
                 {Object.keys(lists).length === 0 ? (
-                  <p className="text-center py-8 italic text-gray-500 dark:text-gray-400">No lists yet. Create one!</p>
+                  <p className="text-center py-8 italic text-gray-500 dark:text-gray-400">
+                    No lists yet. Create one!
+                  </p>
                 ) : (
                   Object.keys(lists).map((listName) => (
                     <div
@@ -284,14 +426,22 @@ const WatchListManager = () => {
                       onClick={() => setSelectedList(listName)}
                       className={`flex items-center justify-between p-3 rounded cursor-pointer transition-colors border-2 ${
                         selectedList === listName
-                          ? 'bg-blue-100 border-blue-500 dark:bg-blue-900/40'
-                          : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 dark:border-transparent'
+                          ? "bg-blue-100 border-blue-500 dark:bg-blue-900/40"
+                          : "bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 dark:border-transparent"
                       }`}
                     >
-                      <span className="font-medium flex-1 text-gray-800 dark:text-gray-200">{listName}</span>
-                      <span className="text-xs mr-2 text-gray-500 dark:text-gray-400">({lists[listName].length})</span>
+                      <span className="font-medium flex-1 text-gray-800 dark:text-gray-200">
+                        {listName}
+                      </span>
+                      <span className="text-xs mr-2 text-gray-500 dark:text-gray-400">
+                        ({lists[listName].length})
+                      </span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${listName}"?`)) deleteList(listName); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete "${listName}"?`))
+                            deleteList(listName);
+                        }}
                         className="text-red-500 hover:text-red-700"
                       >
                         <Trash2 size={16} />
@@ -307,7 +457,27 @@ const WatchListManager = () => {
           <div className="md:col-span-2">
             {selectedList ? (
               <div className="rounded-lg shadow-lg p-6 bg-white dark:bg-gray-800">
-                <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-100">{selectedList}</h2>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                    {selectedList}
+                  </h2>
+
+                  <button
+                    onClick={() => setIsListLocked(!isListLocked)}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors font-medium ${
+                      isListLocked
+                        ? "bg-red-500 text-white hover:bg-red-600"
+                        : "bg-green-500 text-white hover:bg-green-600"
+                    }`}
+                    title={
+                      isListLocked
+                        ? "Unlock list to enable drag and drop reordering"
+                        : "Lock list to prevent accidental reordering"
+                    }
+                  >
+                    {isListLocked ? "List Locked 🔒" : "List Unlocked 🔓"}
+                  </button>
+                </div>
 
                 {/* Add Item */}
                 <div className="mb-6">
@@ -316,28 +486,51 @@ const WatchListManager = () => {
                       type="text"
                       value={newItemText}
                       onChange={(e) => setNewItemText(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addItem()}
-                      placeholder="Add new item..."
+                      onKeyPress={(e) => e.key === "Enter" && addItem()}
+                      placeholder={
+                        isListLocked
+                          ? "List is locked, unlock to add items"
+                          : "Add new item..."
+                      }
                       className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
+                      disabled={isListLocked}
                     />
                     <button
                       onClick={addItem}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium dark:bg-blue-800 dark:hover:bg-blue-900"
+                      className={`px-6 py-3 rounded-lg transition-colors font-medium 
+                                ${
+                                  isListLocked
+                                    ? "bg-gray-400 text-gray-200 cursor-not-allowed" // 🎨 NEW: Locked style
+                                    : "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-900"
+                                }`}
+                      disabled={isListLocked}
                     >
                       Add Item
                     </button>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Add reference:</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Add reference:
+                    </span>
                     <select
-                      onChange={(e) => { if (e.target.value) { addReference(e.target.value); e.target.value = ''; } }}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          addReference(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
                       className="px-3 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                      disabled={isListLocked}
                     >
                       <option value="">Select a list...</option>
-                      {Object.keys(lists).filter((name) => name !== selectedList).map((name) => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
+                      {Object.keys(lists)
+                        .filter((name) => name !== selectedList)
+                        .map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>
@@ -346,17 +539,26 @@ const WatchListManager = () => {
                 <div className="space-y-2">
                   {lists[selectedList].length === 0 ? (
                     <div className="text-center py-12">
-                      <p className="italic text-gray-500 dark:text-gray-400">No items yet. Add some!</p>
+                      <p className="italic text-gray-500 dark:text-gray-400">
+                        No items yet. Add some!
+                      </p>
                     </div>
                   ) : (
-                    lists[selectedList].map((item, index) => renderItem(item, index))
+                    lists[selectedList].map((item, index) =>
+                      renderItem(item, index)
+                    )
                   )}
                 </div>
               </div>
             ) : (
               <div className="rounded-lg shadow-lg p-12 text-center bg-white dark:bg-gray-800">
-                <Film size={64} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p className="text-lg text-gray-500 dark:text-gray-400">Select a list or create a new one to get started</p>
+                <Film
+                  size={64}
+                  className="mx-auto mb-4 text-gray-300 dark:text-gray-600"
+                />
+                <p className="text-lg text-gray-500 dark:text-gray-400">
+                  Select a list or create a new one to get started
+                </p>
               </div>
             )}
           </div>
