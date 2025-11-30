@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import TmdbSearch from "./TmdbSearch";
 import {
   Trash2,
-  Edit2,
   Plus,
   GripVertical,
   Link,
-  Save,
-  X,
   ChevronDown,
   ChevronRight,
   Film,
@@ -18,8 +16,6 @@ const WatchListManager = () => {
   const [lists, setLists] = useState({});
   const [selectedList, setSelectedList] = useState(null);
   const [newListName, setNewListName] = useState("");
-  const [editingItem, setEditingItem] = useState(null);
-  const [newItemText, setNewItemText] = useState("");
   const [draggedItem, setDraggedItem] = useState(null);
   const [expandedRefs, setExpandedRefs] = useState({});
   const [showAddList, setShowAddList] = useState(false);
@@ -122,16 +118,30 @@ const WatchListManager = () => {
     saveData(newLists, newSelected);
   };
 
-  const addItem = () => {
+  const addItem = (itemData) => {
     if (isListLocked) return;
-    if (!newItemText.trim() || !selectedList) return;
+    if (!itemData || !itemData.id || !selectedList) return;
+    const currentList = lists[selectedList];
+    const isDuplicate = currentList.some(item => 
+        item.id === itemData.id && item.type === 'tmdb'
+    );
+    if (isDuplicate) {
+        alert(`"${itemData.title || itemData.name}" is already in the list.`);
+        return; // Stop execution if it's a duplicate
+    }
+    const newItem = {
+      // Use TMDB ID as the item key for uniqueness
+      id: itemData.id,
+      // Use the title/name provided by TMDB for display
+      text: itemData.title || itemData.name,
+      type: "tmdb",
+      // Store the media type (movie, tv, anime)
+      media_type: itemData.media_type,
+    };
+
     const newLists = { ...lists };
-    newLists[selectedList] = [
-      ...newLists[selectedList],
-      { id: Date.now(), text: newItemText, type: "text" },
-    ];
+    newLists[selectedList] = [...newLists[selectedList], newItem];
     setLists(newLists);
-    setNewItemText("");
     saveData(newLists, selectedList);
   };
 
@@ -145,20 +155,6 @@ const WatchListManager = () => {
     ];
     setLists(newLists);
     saveData(newLists, selectedList);
-  };
-
-  const updateItem = (itemId, newText) => {
-    if (isListLocked) return;
-    const newLists = { ...lists };
-    const itemIndex = newLists[selectedList].findIndex(
-      (item) => item.id === itemId
-    );
-    if (itemIndex !== -1) {
-      newLists[selectedList][itemIndex].text = newText;
-      setLists(newLists);
-      setEditingItem(null);
-      saveData(newLists, selectedList);
-    }
   };
 
   const deleteItem = (itemId) => {
@@ -199,6 +195,9 @@ const WatchListManager = () => {
   };
 
   const renderItem = (item, index) => {
+    // ------------------------------------------------------------------
+    // 1. REFERENCE ITEM RENDERING (type: 'reference')
+    // ------------------------------------------------------------------
     if (item.type === "reference") {
       const isExpanded = expandedRefs[item.id];
       const refList = lists[item.ref] || [];
@@ -234,6 +233,7 @@ const WatchListManager = () => {
             <span className="flex-1 font-medium text-purple-900 dark:text-purple-300">
               Reference: {item.ref} ({refList.length} items)
             </span>
+            {/* Delete Button (Hidden if locked) */}
             {!isListLocked && (
               <button
                 onClick={() => {
@@ -248,6 +248,7 @@ const WatchListManager = () => {
             )}
           </div>
 
+          {/* Expanded Reference Content */}
           {isExpanded && (
             <div className="ml-8 mt-2 p-3 border-l-2 border-purple-300 rounded bg-purple-25 dark:bg-purple-900/20">
               {refList.length === 0 ? (
@@ -260,7 +261,8 @@ const WatchListManager = () => {
                     key={refItem.id}
                     className="mb-1 p-2 rounded text-sm bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                   >
-                    {refItem.type === "text"
+                    {/* Since we removed legacy 'text' items, we assume nested items are TMDB or References */}
+                    {refItem.type === "tmdb"
                       ? refItem.text
                       : `→ ${refItem.ref}`}
                   </div>
@@ -272,6 +274,9 @@ const WatchListManager = () => {
       );
     }
 
+    // ------------------------------------------------------------------
+    // 2. TMDB ITEM RENDERING (Default/Only Non-Reference Type)
+    // ------------------------------------------------------------------
     return (
       <div
         key={item.id}
@@ -283,99 +288,43 @@ const WatchListManager = () => {
           isListLocked ? "cursor-default opacity-80" : "cursor-move"
         }`}
       >
+        {/* Grip Icon */}
         <GripVertical
           size={16}
           className={`text-gray-400 dark:text-gray-500 ${
             isListLocked ? "opacity-40" : "opacity-100"
           }`}
         />
-        {(!isListLocked || editingItem === item.id) && (
-          <>
-            {editingItem === item.id ? (
-              <>
-                <input
-                  type="text"
-                  defaultValue={item.text}
-                  // Focus the input immediately
-                  ref={inputref => inputref && inputref.focus()}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      const newValue = e.target.value.trim();
-                      if (newValue) {
-                        // Calls the function and exits editing mode
-                        updateItem(item.id, newValue);
-                      } else {
-                        alert("Item text cannot be empty.");
-                      }
-                    }
-                  }}
-                  className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-600 dark:text-white dark:border-blue-500"
-                  autoFocus
-                  onBlur={(e) => {
-                    const newValue = e.target.value.trim()
-                    // Only save if the value has not canged AND is not empty
-                    if (newValue && newValue !== item.text) {
-                      updateItem(item.id, newValue);
-                    } else if (newValue === "") {
-                      alert("Item name cannot be empty.");
-                      // Re-focus the element or require Cancel if they truly abandon
-                      e.target.focus();
-                    } else {
-                      // If focus is lost but nothing changed, just exit editing mode
-                      setEditingItem(null);
-                    }
-                  }}
-                />
-                <button
-                  // Use onMouseDown to run before onBlur
-                  onMouseDown={(e) => {
-                    // Stop the input's onBlur from firing and saving the text!
-                    e.preventDefault();
-                    // Now, safely exit editing mode, discarding any changes
-                    setEditingItem(null);
-                  }}
-                  className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <X size={16} />
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="flex-1 text-gray-800 dark:text-gray-200">
-                  {item.text}
-                </span>
-                <button
-                  onClick={() => setEditingItem(item.id)}
-                  className="text-blue-600 hover:text-blue-800"
-                  disabled={isListLocked}
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Delete item: "${item.text.substring(0, 30)}${
-                          item.text.length > 30 ? "..." : ""
-                        }"?`
-                      )
-                    ) {
-                      deleteItem(item.id);
-                    }
-                  }}
-                  className="text-red-500 hover:text-red-700"
-                  disabled={isListLocked}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </>
-            )}
-          </>
-        )}
-        {isListLocked && editingItem !== item.id && (
-          <span className="flex-1 text-gray-800 dark:text-gray-200">
-            {item.text}
+
+        {/* Display Item Text & TMDB Label */}
+        <span className="flex-1 text-gray-800 dark:text-gray-200">
+          {/* Item title (e.g., "Inception") */}
+          {item.text}
+
+          {/* TMDB Label for visual distinction */}
+          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400">
+            {item.media_type}
           </span>
+        </span>
+
+        {/* Delete Button (Hidden if locked) */}
+        {!isListLocked && (
+          <button
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Delete item: "${item.text.substring(0, 30)}${
+                    item.text.length > 30 ? "..." : ""
+                  }"?`
+                )
+              ) {
+                deleteItem(item.id);
+              }
+            }}
+            className="text-red-500 hover:text-red-700"
+          >
+            <Trash2 size={16} />
+          </button>
         )}
       </div>
     );
@@ -521,34 +470,12 @@ const WatchListManager = () => {
 
                 {/* Add Item */}
                 <div className="mb-6">
-                  <div className="flex gap-2 mb-3">
-                    <input
-                      type="text"
-                      value={newItemText}
-                      onChange={(e) => setNewItemText(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && addItem()}
-                      placeholder={
-                        isListLocked
-                          ? "List is locked, unlock to add items"
-                          : "Add new item..."
-                      }
-                      className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
-                      disabled={isListLocked}
-                    />
-                    <button
-                      onClick={addItem}
-                      className={`px-6 py-3 rounded-lg transition-colors font-medium 
-                                ${
-                                  isListLocked
-                                    ? "bg-gray-400 text-gray-200 cursor-not-allowed" // 🎨 NEW: Locked style
-                                    : "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-900"
-                                }`}
-                      disabled={isListLocked}
-                    >
-                      Add Item
-                    </button>
-                  </div>
+                  <TmdbSearch
+                    onItemSelected={addItem}
+                    disabled={isListLocked}
+                  />
 
+                  {/* Add Reference */}
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600 dark:text-gray-400">
                       Add reference:
