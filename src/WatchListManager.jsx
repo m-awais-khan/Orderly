@@ -432,7 +432,7 @@ const WatchListManager = () => {
               className={`text-gray-400 dark:text-gray-500 ${
                 isListLocked
                   ? "opacity-40 cursor-default"
-                  : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400"
+                  : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
               }`}
             />
             <span className="text-purple-600 hover:text-purple-300">
@@ -515,7 +515,7 @@ const WatchListManager = () => {
           className={`text-gray-400 dark:text-gray-500 ${
             isListLocked
               ? "opacity-40 cursor-default"
-              : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400"
+              : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
           }`}
         />
 
