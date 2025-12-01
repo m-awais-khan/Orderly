@@ -11,6 +11,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [flag, setFlag] = useState(false); // Used to trigger re-renders for focus effect
 
   const debounceRef = useRef(null);
   const inputRef = useRef(null);
@@ -41,6 +42,8 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
       );
 
       setSearchResults(filteredResults.slice(0, MAX_RESULTS)); // Limit to top 10 results
+
+      setFlag((prev) => !prev); // Toggle flag to trigger focus effect
     } catch (error) {
       console.error("TMDB API Error:", error);
       setSearchResults([]);
@@ -79,21 +82,9 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
   useEffect(() => {
     // Check if the input is not disabled AND we have a reference to the element
     if (!disabled && inputRef.current) {
-      // Get the currently active element in the entire document
-      const activeElement = document.activeElement;
-
-      // Only focus if the active element is NOT an input or textarea (i.e., we are not typing elsewhere).
-      const isAnotherInputFocused =
-        activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA");
-
-      // If the search bar itself is not the active element and no other input is active, steal focus.
-      if (activeElement !== inputRef.current && !isAnotherInputFocused) {
         inputRef.current.focus();
-      }
     }
-  }); // Runs after every render
+  }, [flag]);
 
   const handleSelect = (item) => {
     onItemSelected(item);

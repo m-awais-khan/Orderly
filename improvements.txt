@@ -1,0 +1,6 @@
+Functionality:
+1. Reference to List
+2. Add Hide button for lists
+
+Issue:
+1. Draging issue/TMDB Search focus problem
