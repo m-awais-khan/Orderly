@@ -29,6 +29,7 @@ const WatchListManager = () => {
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [newTextItem, setNewTextItem] = useState("");
   const dragActiveRef = useRef(false);
 
   useEffect(() => {
@@ -223,6 +224,68 @@ const WatchListManager = () => {
     newLists[selectedList] = [...newLists[selectedList], newItem];
     setLists(newLists);
     saveData(newLists, selectedList);
+  };
+
+  const addTextItem = () => {
+    // 1. Check if list is unlocked and selected
+    if (isListLocked) {
+      alert("List is locked. Unlock to add items.");
+      return;
+    }
+
+    if (!selectedList) {
+      alert("Please select a list first.");
+      return;
+    }
+
+    // 2. Trim and validate input
+    const trimmedText = newTextItem.trim();
+    if (!trimmedText) {
+      alert("Text cannot be empty.");
+      return;
+    }
+
+    // 3. Check for duplicates (case-insensitive)
+    const currentList = lists[selectedList] || [];
+    const isDuplicate = currentList.some(
+      (item) =>
+        item.type === "text" &&
+        item.text.toLowerCase() === trimmedText.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      alert(`"${trimmedText}" is already in the list.`);
+      return;
+    }
+
+    // 4. Create new text item
+    const newItem = {
+      id: Date.now(), // Unique ID based on timestamp
+      text: trimmedText,
+      type: "text",
+      note: "", // Empty note by default
+    };
+
+    // 5. Update state
+    const newLists = { ...lists };
+    if (!newLists[selectedList]) {
+      newLists[selectedList] = [];
+    }
+
+    newLists[selectedList] = [...newLists[selectedList], newItem];
+    setLists(newLists);
+    setNewTextItem(""); // Clear input field
+
+    // 6. Save to localStorage
+    saveData(newLists, selectedList);
+  };
+
+  const handleTextInputKeyPress = (e) => {
+    if (e.key === "Enter") {
+      addTextItem();
+    } else if (e.key === "Escape") {
+      setNewTextItem("");
+    }
   };
 
   const saveItemNote = (itemId, newNoteText) => {
@@ -484,6 +547,140 @@ const WatchListManager = () => {
               )}
             </div>
           )}
+        </div>
+      );
+    } else if (item.type === "text") {
+      // ------------------------------------------------------------------
+      // TEXT ITEM RENDERING
+      // ------------------------------------------------------------------
+      const isEditingNote = editingNoteId === item.id;
+
+      const itemContent = (
+        <>
+          <GripVertical
+            size={20}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseDown={() => {
+              dragActiveRef.current = true;
+            }}
+            onMouseUp={() => {
+              dragActiveRef.current = false;
+            }}
+            className={`text-gray-400 dark:text-gray-500 ${
+              isListLocked
+                ? "opacity-40 cursor-default"
+                : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
+            }`}
+          />
+
+          <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
+            <div className="flex items-start">
+              {/* No image for text items */}
+              <div className="flex-1 min-w-0">
+                <div className="mt-2 font-medium">{item.text}</div>
+
+                {/* Display Note */}
+                {item.note && !isEditingNote && (
+                  <div className="mt-1 text-sm text-amber-600 dark:text-amber-400 italic break-words">
+                    📝 {item.note}
+                  </div>
+                )}
+
+                {/* Edit Note Input */}
+                {isEditingNote && (
+                  <div
+                    className="mt-2 flex items-center gap-1"
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <input
+                      type="text"
+                      defaultValue={item.note || ""}
+                      autoFocus
+                      className="w-full text-sm px-2 py-1 border rounded dark:bg-gray-600 dark:text-white dark:border-gray-500"
+                      placeholder="Add a note..."
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter")
+                          saveItemNote(item.id, e.target.value);
+                      }}
+                      onBlur={(e) => {
+                        saveItemNote(item.id, e.target.value);
+                      }}
+                      onClick={(e) => e.preventDefault()}
+                    />
+                    <button
+                      onMouseDown={(e) => e.preventDefault()}
+                      className="text-green-500 hover:text-green-600"
+                    >
+                      <Check size={18} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Text item badge */}
+                <span className="mt-2 inline-block text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                  Text Item
+                </span>
+              </div>
+            </div>
+          </span>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1">
+            {/* Add/Edit Note Button */}
+            {!isListLocked && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (isEditingNote) {
+                    setEditingNoteId(null);
+                  } else {
+                    setEditingNoteId(item.id);
+                  }
+                }}
+                className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                  item.note
+                    ? "text-amber-500"
+                    : "text-gray-400 hover:text-amber-500"
+                }`}
+                title={item.note ? "Edit Note" : "Add Note"}
+              >
+                <MessageSquare size={20} />
+              </button>
+            )}
+
+            {/* Delete Button */}
+            {!isListLocked && (
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (window.confirm(`Delete text item: "${item.text}"?`)) {
+                    deleteItem(item.id);
+                  }
+                }}
+                className="p-1 text-red-500 hover:text-red-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+              >
+                <Trash2 size={20} />
+              </button>
+            )}
+          </div>
+        </>
+      );
+
+      return (
+        <div
+          key={item.id}
+          draggable={!isListLocked}
+          onDragStart={(e) => handleDragStart(e, index)}
+          onDragOver={(e) => handleDragOver(e, index)}
+          onDragEnd={handleDragEnd}
+          className="flex items-center gap-2 p-3 border rounded transition-colors bg-white border-gray-200 dark:bg-gray-700 dark:border-gray-600"
+        >
+          {itemContent}
         </div>
       );
     }
@@ -931,6 +1128,28 @@ const WatchListManager = () => {
                           </option>
                         ))}
                     </select>
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <input
+                      type="text"
+                      value={newTextItem}
+                      onChange={(e) => setNewTextItem(e.target.value)}
+                      onKeyDown={handleTextInputKeyPress}
+                      placeholder="Enter text item and press Enter..."
+                      className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                      disabled={isListLocked}
+                    />
+                    <button
+                      onClick={addTextItem}
+                      disabled={isListLocked}
+                      className={`px-4 py-2 rounded transition-colors ${
+                        !isListLocked
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                      }`}
+                    >
+                      Add Text
+                    </button>
                   </div>
                 </div>
 
