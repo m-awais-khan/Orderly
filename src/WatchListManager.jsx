@@ -14,6 +14,8 @@ import {
   X,
   Download,
   Upload,
+  MessageSquare,
+  Check,
 } from "lucide-react";
 
 const WatchListManager = () => {
@@ -26,6 +28,7 @@ const WatchListManager = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
   const dragActiveRef = useRef(false);
 
   useEffect(() => {
@@ -213,12 +216,29 @@ const WatchListManager = () => {
       image: itemData.poster_path
         ? `https://image.tmdb.org/t/p/w92${itemData.poster_path}`
         : "placeholder_url",
+      note: "",
     };
 
     const newLists = { ...lists };
     newLists[selectedList] = [...newLists[selectedList], newItem];
     setLists(newLists);
     saveData(newLists, selectedList);
+  };
+
+  const saveItemNote = (itemId, newNoteText) => {
+    const newLists = { ...lists };
+    const listItems = [...newLists[selectedList]];
+
+    // Find the item and update its note
+    const itemIndex = listItems.findIndex((item) => item.id === itemId);
+    if (itemIndex > -1) {
+      listItems[itemIndex] = { ...listItems[itemIndex], note: newNoteText };
+      newLists[selectedList] = listItems;
+
+      setLists(newLists);
+      saveData(newLists, selectedList);
+    }
+    setEditingNoteId(null); // Close the input box
   };
 
   const addReference = (refListName) => {
@@ -399,6 +419,10 @@ const WatchListManager = () => {
           >
             <GripVertical
               size={20}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               onMouseDown={() => {
                 dragActiveRef.current = true;
               }}
@@ -470,9 +494,12 @@ const WatchListManager = () => {
     const mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
     const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
 
+    // Helper to render the note input or the text
+    const isEditingNote = editingNoteId === item.id;
+
     const itemContent = (
       <>
-        {/* Grip Icon (Only visible/active if unlocked) */}
+        {/* Grip Icon */}
         <GripVertical
           size={20}
           onClick={(e) => {
@@ -488,48 +515,107 @@ const WatchListManager = () => {
           className={`text-gray-400 dark:text-gray-500 ${
             isListLocked
               ? "opacity-40 cursor-default"
-              : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400" // 🛑 NEW: Cursor change on hover
+              : "opacity-100 cursor-move hover:text-blue-500 dark:hover:text-blue-400"
           }`}
         />
 
-        {/* Display Item Text & Type Label */}
-        <span className="flex-1 text-gray-800 dark:text-gray-200">
-          <img
-            src={item.image}
-            alt={item.title || item.name}
-            className="inline w-14 h-20 object-cover rounded mr-1 align-middle"
-          />
-          {item.text}
+        <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
+          <div className="flex items-start">
+            <img
+              src={item.image}
+              alt={item.title || item.name}
+              className="w-14 h-20 object-cover rounded mr-2 flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="mt-2 font-medium truncate">{item.text}</div>
 
-          {/* Display TMDB label and media type */}
-          <span className="ml-2 text-sm px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400">
-            {item.media_type || "movie"}
-            {item.year ? ` • ${item.year}` : ""}
-          </span>
+              {/* 👇 DISPLAY NOTE (If exists) 👇 */}
+              {item.note && !isEditingNote && (
+                <div className="mt-1 text-sm text-amber-600 dark:text-amber-400 italic break-words">
+                  📝 {item.note}
+                </div>
+              )}
+
+              {/* 👇 EDIT NOTE INPUT (If editing) 👇 */}
+              {isEditingNote && (
+                <div
+                  className="mt-2 flex items-center gap-1"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <input
+                    type="text"
+                    defaultValue={item.note || ""}
+                    autoFocus
+                    className="w-full text-sm px-2 py-1 border rounded dark:bg-gray-600 dark:text-white dark:border-gray-500"
+                    placeholder="Add a note..."
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter")
+                        saveItemNote(item.id, e.target.value);
+                    }}
+                    onBlur={(e) => {
+                      // Optional: Save on blur, or just cancel. Let's save on blur for better UX
+                      saveItemNote(item.id, e.target.value);
+                    }}
+                    onClick={(e) => e.preventDefault()} // Prevent link click
+                  />
+                  <button
+                    onMouseDown={(e) => e.preventDefault()} // Prevent blur
+                    className="text-green-500 hover:text-green-600"
+                  >
+                    <Check size={18} />
+                  </button>
+                </div>
+              )}
+
+              <span className="mt-2 inline-block text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400">
+                {item.media_type || "movie"}
+                {item.year ? ` • ${item.year}` : ""}
+              </span>
+            </div>
+          </div>
         </span>
 
-        {/* Delete Button (Only visible if unlocked) */}
-        {!isListLocked && (
-          <button
-            // Use onMouseDown to prevent the <a> click from triggering when deleting
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.preventDefault(); // Stop the <a> tag from navigating
-              if (
-                window.confirm(
-                  `Delete item: "${item.text.substring(0, 30)}${
-                    item.text.length > 30 ? "..." : ""
-                  }?"`
-                )
-              ) {
-                deleteItem(item.id);
-              }
-            }}
-            className="text-red-500 hover:text-red-700"
-          >
-            <Trash2 size={20} />
-          </button>
-        )}
+        {/* Action Buttons Container */}
+        <div className="flex items-center gap-1">
+          {/* 👇 ADD/EDIT NOTE BUTTON (Only visible if unlocked) 👇 */}
+          {!isListLocked && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (isEditingNote) {
+                  setEditingNoteId(null); // Cancel if clicking again
+                } else {
+                  setEditingNoteId(item.id);
+                }
+              }}
+              className={`p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                item.note
+                  ? "text-amber-500"
+                  : "text-gray-400 hover:text-amber-500"
+              }`}
+              title={item.note ? "Edit Note" : "Add Note"}
+            >
+              <MessageSquare size={20} />
+            </button>
+          )}
+
+          {/* Delete Button */}
+          {!isListLocked && (
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                if (window.confirm(`Delete item: "${item.text}"?`)) {
+                  deleteItem(item.id);
+                }
+              }}
+              className="p-1 text-red-500 hover:text-red-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+            >
+              <Trash2 size={20} />
+            </button>
+          )}
+        </div>
       </>
     );
 
