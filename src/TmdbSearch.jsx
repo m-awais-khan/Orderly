@@ -5,6 +5,7 @@ import { Search, Loader } from "lucide-react";
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3/search/multi";
 const DEBOUNCE_DELAY = 1000;
+const MAX_RESULTS = 10;
 
 const TmdbSearch = ({ onItemSelected, disabled }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,7 +40,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
         (item) => item.media_type !== "person" && (item.title || item.name)
       );
 
-      setSearchResults(filteredResults.slice(0, 5));
+      setSearchResults(filteredResults.slice(0, MAX_RESULTS)); // Limit to top 10 results
     } catch (error) {
       console.error("TMDB API Error:", error);
       setSearchResults([]);

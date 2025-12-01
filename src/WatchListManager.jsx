@@ -15,7 +15,6 @@ import {
   Download,
   Upload,
   MessageSquare,
-  Check,
 } from "lucide-react";
 
 const WatchListManager = () => {
@@ -539,7 +538,7 @@ const WatchListManager = () => {
                     className="mb-1 p-2 rounded text-sm bg-slate-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                   >
                     {/* Since we removed legacy 'text' items, we assume nested items are TMDB or References */}
-                    {refItem.type === "tmdb"
+                    {refItem.type === "tmdb" || refItem.type === "text"
                       ? refItem.text
                       : `→ ${refItem.ref}`}
                   </div>
@@ -610,12 +609,6 @@ const WatchListManager = () => {
                       }}
                       onClick={(e) => e.preventDefault()}
                     />
-                    <button
-                      onMouseDown={(e) => e.preventDefault()}
-                      className="text-green-500 hover:text-green-600"
-                    >
-                      <Check size={18} />
-                    </button>
                   </div>
                 )}
 
@@ -755,12 +748,6 @@ const WatchListManager = () => {
                     }}
                     onClick={(e) => e.preventDefault()} // Prevent link click
                   />
-                  <button
-                    onMouseDown={(e) => e.preventDefault()} // Prevent blur
-                    className="text-green-500 hover:text-green-600"
-                  >
-                    <Check size={18} />
-                  </button>
                 </div>
               )}
 
