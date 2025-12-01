@@ -12,6 +12,8 @@ import {
   Sun,
   Edit2,
   X,
+  Download,
+  Upload,
 } from "lucide-react";
 
 const WatchListManager = () => {
@@ -586,6 +588,25 @@ const WatchListManager = () => {
           </p>
         </div>
 
+        <input
+          type="file"
+          id="import-file"
+          accept=".json"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                importData(event.target.result);
+                // Clear the file input so the same file can be imported again
+                e.target.value = null;
+              };
+              reader.readAsText(file);
+            }
+          }}
+        />
+
         {/* Main Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Lists Sidebar */}
@@ -596,33 +617,55 @@ const WatchListManager = () => {
                   My Lists
                 </h2>
 
-                <button
-                  onClick={() => setIsListLocked(!isListLocked)}
-                  className={`px-3 py-1 text-sm rounded-full transition-colors font-medium ${
-                    isListLocked
-                      ? "bg-red-500 text-white hover:bg-red-600"
-                      : "bg-green-500 text-white hover:bg-green-600"
-                  }`}
-                  title={
-                    isListLocked
-                      ? "Unlock all list actions (add, delete, reorder)"
-                      : "Lock all list actions to prevent accidental changes"
-                  }
-                >
-                  {isListLocked ? "Lists Locked 🔒" : "Lists Unlocked 🔓"}
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* Export Button */}
+                  <button
+                    onClick={exportData}
+                    className="p-2 rounded-full transition-colors bg-yellow-500 text-white hover:bg-yellow-600"
+                    title="Export Data"
+                  >
+                    <Download size={20} />
+                  </button>
 
-                <button
-                  onClick={() => setShowAddList(!showAddList)}
-                  className={`p-2 rounded-full transition-colors ${
-                    isListLocked
-                      ? "bg-gray-400 text-gray-200 cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                  disabled={isListLocked}
-                >
-                  <Plus size={20} />
-                </button>
+                  {/* Import Button (triggers the hidden file input) */}
+                  <button
+                    onClick={() =>
+                      document.getElementById("import-file").click()
+                    }
+                    className="p-2 rounded-full transition-colors bg-teal-500 text-white hover:bg-teal-600"
+                    title="Import Data (Will erase current lists)"
+                  >
+                    <Upload size={20} />
+                  </button>
+
+                  <button
+                    onClick={() => setIsListLocked(!isListLocked)}
+                    className={`p-2 rounded-full transition-colors ${
+                      isListLocked
+                        ? "bg-red-500 text-white hover:bg-red-600"
+                        : "bg-green-500 text-white hover:bg-green-600"
+                    }`}
+                    title={
+                      isListLocked
+                        ? "Unlock all list actions (add, delete, reorder)"
+                        : "Lock all list actions to prevent accidental changes"
+                    }
+                  >
+                    {isListLocked ? "🔒" : "🔓"}
+                  </button>
+
+                  <button
+                    onClick={() => setShowAddList(!showAddList)}
+                    className={`p-2 rounded-full transition-colors ${
+                      isListLocked
+                        ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
+                    disabled={isListLocked}
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
               </div>
 
               {showAddList && (
