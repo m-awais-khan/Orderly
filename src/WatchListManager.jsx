@@ -672,7 +672,14 @@ const WatchListManager = () => {
               )}
             </span>
 
-            <Link size={18} className="text-purple-600" />
+            <Link
+              size={18}
+              className="text-purple-600 cursor-pointer hover:text-purple-800 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedList(item.ref);
+              }}
+            />
             <span className="flex-1 font-semibold text-gray-800 dark:text-gray-100">
               {item.ref} <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">({refList.length} items)</span>
             </span>
@@ -1077,7 +1084,7 @@ const WatchListManager = () => {
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Sidebar */}
-          <div className="lg:col-span-4 xl:col-span-3 space-y-6 animate-slide-up">
+          <div className="lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up">
             <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100">
@@ -1347,7 +1354,7 @@ const WatchListManager = () => {
           </div>
 
           {/* Main Content */}
-          <div className="lg:col-span-8 xl:col-span-9 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <div className="lg:col-span-7 xl:col-span-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
             {selectedList ? (
               <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-8 border border-white/20 dark:border-gray-700/50 shadow-xl min-h-[600px]">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
