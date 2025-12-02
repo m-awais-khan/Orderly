@@ -5,13 +5,34 @@
 /* Keep your custom styles below */
 html {
   transition: background-color 0.3s, color 0.3s;
+  scroll-behavior: smooth;
 }
 
 /* We apply the dark/light background colors to the BODY here */
 body {
-  @apply bg-blue-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100;
+  @apply font-sans antialiased bg-gray-50 text-gray-900 dark:bg-dark-bg dark:text-gray-100;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+  background-attachment: fixed;
 }
 
 * {
   transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors;
 }

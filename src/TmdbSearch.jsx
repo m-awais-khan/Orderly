@@ -82,7 +82,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
   useEffect(() => {
     // Check if the input is not disabled AND we have a reference to the element
     if (!disabled && inputRef.current) {
-        inputRef.current.focus();
+      inputRef.current.focus();
     }
   }, [flag]);
 
@@ -108,10 +108,10 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
   };
 
   return (
-    <div className="relative mb-4">
+    <div className="relative mb-4 group z-50">
       {/* Input Field */}
-      <div className="flex items-center border rounded-lg bg-gray-100 dark:bg-gray-700">
-        <Search size={20} className="ml-3 text-gray-500 dark:text-gray-400" />
+      <div className="flex items-center bg-white dark:bg-gray-700 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:border-blue-500 transition-all duration-300">
+        <Search size={20} className="ml-4 text-gray-400 dark:text-gray-400 group-focus-within:text-blue-500 transition-colors" />
         <input
           type="text"
           ref={inputRef}
@@ -119,62 +119,70 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
           onChange={(e) => {
             setSearchTerm(e.target.value);
           }}
-          // 🛑 NEW: Attach the KeyDown handler
           onKeyDown={handleKeyDown}
           placeholder={
             disabled ? "List is locked." : "Search movie or TV show to add..."
           }
-          className="flex-1 px-4 py-3 bg-transparent focus:outline-none dark:text-white"
+          className="flex-1 px-4 py-3.5 bg-transparent focus:outline-none text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm font-medium"
           disabled={disabled || isLoading}
         />
+        {isLoading && (
+          <div className="pr-4">
+            <Loader size={20} className="animate-spin text-blue-500" />
+          </div>
+        )}
       </div>
-
-      {/* Loading Indicator */}
-      {isLoading && (
-        <div className="absolute top-0 right-0 p-3">
-          <Loader size={20} className="animate-spin text-blue-500" />
-        </div>
-      )}
 
       {/* Search Results Dropdown */}
       {searchResults.length > 0 && (
         <div
-          className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-60 overflow-y-auto"
-          // 🛑 FIX: Prevent the dropdown click from losing focus on the input
+          className="absolute z-50 w-full mt-2 bg-white/90 dark:bg-gray-800/95 backdrop-blur-xl border border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl max-h-[400px] overflow-y-auto custom-scrollbar animate-slide-up"
           onMouseDown={(e) => e.preventDefault()}
         >
-          {searchResults.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => handleSelect(item)}
-            >
-              <img
-                src={
-                  item.poster_path
-                    ? `https://image.tmdb.org/t/p/w92${item.poster_path}`
-                    : "placeholder_url"
-                }
-                alt={item.title || item.name}
-                className="w-8 h-12 object-cover rounded mr-3"
-              />
-              <div className="text-sm dark:text-gray-200">
-                <p className="font-semibold">{item.title || item.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {item.media_type === "movie"
-                    ? "Movie"
-                    : item.media_type === "tv"
-                    ? "TV Show"
-                    : "Unknown"}
-                  {(item.release_date || item.first_air_date) &&
-                    ` (${(item.release_date || item.first_air_date).substring(
-                      0,
-                      4
-                    )})`}
-                </p>
+          <div className="p-2 space-y-1">
+            {searchResults.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center p-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors group/item"
+                onClick={() => handleSelect(item)}
+              >
+                <div className="relative flex-shrink-0">
+                  <img
+                    src={
+                      item.poster_path
+                        ? `https://image.tmdb.org/t/p/w92${item.poster_path}`
+                        : "https://via.placeholder.com/92x138?text=No+Image"
+                    }
+                    alt={item.title || item.name}
+                    className="w-12 h-16 object-cover rounded-lg shadow-sm group-hover/item:shadow-md transition-all"
+                  />
+                  <div className="absolute inset-0 rounded-lg ring-1 ring-black/5 dark:ring-white/10"></div>
+                </div>
+
+                <div className="ml-4 flex-1 min-w-0">
+                  <p className="font-bold text-gray-800 dark:text-gray-100 truncate text-sm">
+                    {item.title || item.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.media_type === "movie"
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                        : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                      }`}>
+                      {item.media_type === "movie" ? "Movie" : "TV Show"}
+                    </span>
+                    {(item.release_date || item.first_air_date) && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                        {(item.release_date || item.first_air_date).substring(0, 4)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 line-clamp-1">
+                    {item.overview}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
