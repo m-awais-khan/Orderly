@@ -7,6 +7,7 @@ import {
   Link,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Film,
   Moon,
   Sun,
@@ -39,7 +40,13 @@ const WatchListManager = () => {
   const [editingInMainContent, setEditingInMainContent] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [newTextItem, setNewTextItem] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
   const dragActiveRef = useRef(false);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedList]);
 
   useEffect(() => {
     loadData();
@@ -1474,9 +1481,48 @@ const WatchListManager = () => {
                       </p>
                     </div>
                   ) : (
-                    lists[selectedList].map((item, index) =>
-                      renderItem(item, index)
-                    )
+                    <>
+                      {lists[selectedList]
+                        .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                        .map((item, index) =>
+                          renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)
+                        )}
+
+                      {/* Pagination Controls */}
+                      {lists[selectedList].length > ITEMS_PER_PAGE && (
+                        <div className="flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
+                          <button
+                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
+                              ${currentPage === 1
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
+                              }`}
+                          >
+                            <ChevronLeft size={20} />
+                            Previous
+                          </button>
+
+                          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            Page {currentPage} of {Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                          </span>
+
+                          <button
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
+                            disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
+                              ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
+                              }`}
+                          >
+                            Next
+                            <ChevronRight size={20} />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
