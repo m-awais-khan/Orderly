@@ -20,26 +20,46 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // MongoDB Connection
+let cached = global.mongoose;
+
+if (!cached) {
+    cached = global.mongoose = { conn: null, promise: null };
+}
+
 const connectDB = async () => {
-    try {
-        const conn = await mongoose.connect(process.env.MONGODB_URI);
-        console.log(`MongoDB Connected: ${conn.connection.host}`);
-    } catch (error) {
-        console.error(`Error: ${error.message}`);
-        console.log('Continuing without database connection (will fail on requests)');
+    if (cached.conn) {
+        return cached.conn;
     }
+
+    if (!cached.promise) {
+        const opts = {
+            bufferCommands: false,
+        };
+
+        cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongoose) => {
+            console.log(`MongoDB Connected: ${mongoose.connection.host}`);
+            return mongoose;
+        });
+    }
+
+    try {
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        throw e;
+    }
+
+    return cached.conn;
 };
 
+// Clean up stale indexes (Best effort, fire and forget)
 if (process.env.MONGODB_URI) {
-    connectDB().then(async () => {
-        // cleanup stale indexes from previous schema versions if they exist
+    connectDB().then(async (conn) => {
         try {
-            await mongoose.connection.collection('appdatas').dropIndex('type_1');
-            console.log('Fixed: Dropped stale unique index "type_1" that was causing signup errors.');
-        } catch (e) {
-            // Index doesn't exist or other error, ignore
-        }
-    });
+            await conn.connection.collection('appdatas').dropIndex('type_1');
+            console.log('Fixed: Dropped stale unique index "type_1"');
+        } catch (e) { }
+    }).catch(e => console.error("Initial connection attempt failed:", e));
 } else {
     console.error("CRITICAL: MONGODB_URI is missing from environment variables.");
 }
@@ -69,11 +89,17 @@ const AppData = mongoose.model('AppData', AppDataSchema);
 
 // --- Middleware ---
 
-const checkDbConnection = (req, res, next) => {
-    if (mongoose.connection.readyState !== 1) {
-        return res.status(503).json({ error: 'Service Unavailable: Database not connected.' });
+const checkDbConnection = async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        console.error("DB Connection Error in Middleware:", error);
+        return res.status(503).json({
+            error: 'Service Unavailable: Database connection failed.',
+            details: error.message
+        });
     }
-    next();
 };
 
 // Apply DB check to all API routes
