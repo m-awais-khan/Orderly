@@ -40,6 +40,8 @@ if (process.env.MONGODB_URI) {
             // Index doesn't exist or other error, ignore
         }
     });
+} else {
+    console.error("CRITICAL: MONGODB_URI is missing from environment variables.");
 }
 
 // --- Schemas ---
@@ -66,6 +68,16 @@ const AppData = mongoose.model('AppData', AppDataSchema);
 
 
 // --- Middleware ---
+
+const checkDbConnection = (req, res, next) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ error: 'Service Unavailable: Database not connected.' });
+    }
+    next();
+};
+
+// Apply DB check to all API routes
+app.use('/api', checkDbConnection);
 
 const protect = async (req, res, next) => {
     let token;
