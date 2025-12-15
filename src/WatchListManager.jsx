@@ -25,10 +25,6 @@ import {
   LogOut,
 } from "lucide-react";
 
-import { polyfill } from "mobile-drag-drop";
-import { scrollBehaviourDragImageTranslateOverride } from "mobile-drag-drop/scroll-behaviour";
-import "mobile-drag-drop/default.css";
-
 const WatchListManager = ({ token, onLogout }) => {
   const [lists, setLists] = useState({});
   const [folders, setFolders] = useState({}); // New state for folders
@@ -56,16 +52,6 @@ const WatchListManager = ({ token, onLogout }) => {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedList]);
-
-  useEffect(() => {
-    // Initialize mobile-drag-drop polyfill
-    polyfill({
-      dragImageTranslateOverride: scrollBehaviourDragImageTranslateOverride
-    });
-
-    // Listen for touch events on grip handles specifically if needed, 
-    // but the polyfill generally handles draggable="true" elements automatically.
-  }, []);
 
   useEffect(() => {
     loadData();
@@ -749,23 +735,12 @@ const WatchListManager = ({ token, onLogout }) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
               onMouseDown={() => {
                 dragActiveRef.current = true;
               }}
               onMouseUp={() => {
                 dragActiveRef.current = false;
               }}
-              onTouchStart={() => {
-                dragActiveRef.current = true;
-              }}
-              onTouchEnd={() => {
-                dragActiveRef.current = false;
-              }}
-              style={{ touchAction: "none" }}
               className={`text-gray-400 dark:text-gray-500 ${isListLocked
                 ? "opacity-40 cursor-default"
                 : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
@@ -845,26 +820,34 @@ const WatchListManager = ({ token, onLogout }) => {
               e.preventDefault();
               e.stopPropagation();
             }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
             onMouseDown={() => {
               dragActiveRef.current = true;
             }}
             onMouseUp={() => {
               dragActiveRef.current = false;
             }}
-            onTouchStart={() => {
-              dragActiveRef.current = true;
-            }}
-            onTouchEnd={() => {
-              dragActiveRef.current = false;
-            }}
-            style={{ touchAction: "none" }}
             className={`text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing hover:text-blue-500 dark:hover:text-blue-400
               ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
           />
+
+          {!isListLocked && (
+            <div className="flex flex-col gap-0.5 lg:hidden mr-1">
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveItem(index, -1); }}
+                className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
+                disabled={index === 0}
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveItem(index, 1); }}
+                className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
+                disabled={index === lists[selectedList].length - 1}
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+          )}
 
           <div className={`flex-1 min-w-0 ${isEditingNote ? "w-full" : ""}`}>
 
@@ -985,28 +968,36 @@ const WatchListManager = ({ token, onLogout }) => {
             e.preventDefault();
             e.stopPropagation();
           }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
           onMouseDown={() => {
             dragActiveRef.current = true;
           }}
           onMouseUp={() => {
             dragActiveRef.current = false;
           }}
-          onTouchStart={() => {
-            dragActiveRef.current = true;
-          }}
-          onTouchEnd={() => {
-            dragActiveRef.current = false;
-          }}
-          style={{ touchAction: "none" }}
           className={`text-gray-400 dark:text-gray-500 ${isListLocked
             ? "opacity-40 cursor-default"
             : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
             }`}
         />
+
+        {!isListLocked && (
+          <div className="flex flex-col gap-0.5 lg:hidden mr-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }}
+              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
+              disabled={index === 0}
+            >
+              <ChevronUp size={14} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); moveItem(index, 1); }}
+              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
+              disabled={index === lists[selectedList].length - 1}
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
+        )}
 
         <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
           <div className="flex items-start">
@@ -1120,25 +1111,23 @@ const WatchListManager = ({ token, onLogout }) => {
       );
     } else {
       return (
-        <a
+        <div
           key={item.id}
-          href={tmdbLink}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={(e) => {
+            // Only navigate if the click wasn't prevented (e.g. by child buttons)
+            if (!e.defaultPrevented) {
+              window.open(tmdbLink, '_blank', 'noopener,noreferrer');
+            }
+          }}
           draggable={true}
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
-          onClick={(e) => {
-            if (dragActiveRef.current) {
-              e.preventDefault();
-            }
-          }}
           className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
             bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-pointer"
         >
           {itemContent}
-        </a>
+        </div>
       );
     }
   };
