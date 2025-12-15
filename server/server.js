@@ -14,9 +14,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_change_me';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
