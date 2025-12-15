@@ -25,6 +25,10 @@ import {
   LogOut,
 } from "lucide-react";
 
+import { polyfill } from "mobile-drag-drop";
+import { scrollBehaviourDragImageTranslateOverride } from "mobile-drag-drop/scroll-behaviour";
+import "mobile-drag-drop/default.css";
+
 const WatchListManager = ({ token, onLogout }) => {
   const [lists, setLists] = useState({});
   const [folders, setFolders] = useState({}); // New state for folders
@@ -52,6 +56,16 @@ const WatchListManager = ({ token, onLogout }) => {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedList]);
+
+  useEffect(() => {
+    // Initialize mobile-drag-drop polyfill
+    polyfill({
+      dragImageTranslateOverride: scrollBehaviourDragImageTranslateOverride
+    });
+
+    // Listen for touch events on grip handles specifically if needed, 
+    // but the polyfill generally handles draggable="true" elements automatically.
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -830,25 +844,6 @@ const WatchListManager = ({ token, onLogout }) => {
               ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
           />
 
-          {!isListLocked && (
-            <div className="flex flex-col gap-0.5 lg:hidden mr-1">
-              <button
-                onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }}
-                className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-                disabled={index === 0}
-              >
-                <ChevronUp size={14} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); moveItem(index, 1); }}
-                className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-                disabled={index === lists[selectedList].length - 1}
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
-          )}
-
           <div className={`flex-1 min-w-0 ${isEditingNote ? "w-full" : ""}`}>
 
 
@@ -980,25 +975,6 @@ const WatchListManager = ({ token, onLogout }) => {
             }`}
         />
 
-        {!isListLocked && (
-          <div className="flex flex-col gap-0.5 lg:hidden mr-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }}
-              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-              disabled={index === 0}
-            >
-              <ChevronUp size={14} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); moveItem(index, 1); }}
-              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-              disabled={index === lists[selectedList].length - 1}
-            >
-              <ChevronDown size={14} />
-            </button>
-          </div>
-        )}
-
         <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
           <div className="flex items-start">
             <div className="relative group/img flex-shrink-0 mr-4">
@@ -1120,6 +1096,11 @@ const WatchListManager = ({ token, onLogout }) => {
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
+          onClick={(e) => {
+            if (dragActiveRef.current) {
+              e.preventDefault();
+            }
+          }}
           className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
             bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-pointer"
         >
