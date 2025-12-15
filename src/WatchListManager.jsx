@@ -1302,7 +1302,11 @@ const WatchListManager = ({ token, onLogout }) => {
                 <ArrowLeft size={24} />
               </button>
             )}
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white flex items-center justify-center">
+            <div
+              onClick={() => window.location.reload()}
+              className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+              title="Refresh App"
+            >
               <img src="/logo.png" alt="Orderly Logo" className="w-8 h-8 object-contain" />
             </div>
             <div>
