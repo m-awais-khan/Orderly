@@ -45,8 +45,8 @@ const AuthPage = ({ onLogin }) => {
 
                 {/* Header */}
                 <div className="text-center mb-10">
-                    <div className="w-20 h-20 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/20 rotate-3">
-                        <Film size={40} className="text-white" />
+                    <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/20 rotate-3">
+                        <img src="/logo.png" alt="Orderly" className="w-full h-full rounded-2xl object-cover" />
                     </div>
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
                         Watchlist Pro

@@ -1275,8 +1275,8 @@ const WatchListManager = ({ token, onLogout }) => {
                 <ArrowLeft size={24} />
               </button>
             )}
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white">
-              <Film size={32} />
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white flex items-center justify-center">
+              <img src="/logo.png" alt="Orderly Logo" className="w-8 h-8 object-contain" />
             </div>
             <div>
               <h1 className="text-2xl lg:text-4xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
