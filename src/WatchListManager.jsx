@@ -1005,13 +1005,13 @@ const WatchListManager = ({ token, onLogout }) => {
               <img
                 src={item.image}
                 alt={item.title || item.name}
-                className="w-16 h-24 object-cover rounded-lg shadow-md group-hover/img:shadow-lg transition-shadow"
+                className="w-12 h-18 lg:w-16 lg:h-24 object-cover rounded-lg shadow-md group-hover/img:shadow-lg transition-shadow"
               />
               <div className="absolute inset-0 rounded-lg ring-1 ring-black/5 dark:ring-white/10"></div>
             </div>
 
             <div className="flex-1 min-w-0 py-1">
-              <div className="font-bold text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
+              <div className="font-bold text-base lg:text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
 
               {item.note && !isEditingNote && (
                 <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-words bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block">
