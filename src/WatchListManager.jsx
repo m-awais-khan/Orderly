@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import TmdbSearch from "./TmdbSearch";
 import {
   Trash2,
@@ -24,7 +24,9 @@ import {
   Menu,
   LogOut,
   Share2,
-  ArrowLeft
+  ArrowLeft,
+  ArrowRight,
+  Search
 } from "lucide-react";
 
 const WatchListManager = ({ token, onLogout }) => {
@@ -39,6 +41,7 @@ const WatchListManager = ({ token, onLogout }) => {
   const [showAddFolder, setShowAddFolder] = useState(false); // State for add folder input
   const [newFolderName, setNewFolderName] = useState(""); // State for new folder name
   const [movingList, setMovingList] = useState(null); // State for list being moved
+  const [searchQuery, setSearchQuery] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
@@ -242,6 +245,30 @@ const WatchListManager = ({ token, onLogout }) => {
       console.error("Failed to save data:", error);
     }
   };
+
+  // --- Global Search Logic ---
+  const { filteredLists, filteredItems } = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 2) return { filteredLists: [], filteredItems: [] };
+
+    const query = searchQuery.toLowerCase();
+
+    // Filter Lists
+    const fLists = Object.keys(lists).filter(name => name.toLowerCase().includes(query));
+
+    // Filter Items
+    const fItems = [];
+    Object.entries(lists).forEach(([listName, items]) => {
+      items.forEach(item => {
+        // Text Match or Reference Match
+        if ((item.text && item.text.toLowerCase().includes(query)) ||
+          (item.type === 'reference' && item.ref && item.ref.toLowerCase().includes(query))) {
+          fItems.push({ ...item, listName });
+        }
+      });
+    });
+
+    return { filteredLists: fLists, filteredItems: fItems };
+  }, [lists, searchQuery]);
 
   const createList = () => {
     // 1. Basic validation (Ensure list is unlocked and name is not empty)
@@ -1288,6 +1315,18 @@ const WatchListManager = ({ token, onLogout }) => {
             </div>
           </div>
 
+          {/* Search Bar */}
+          <div className="flex-1 max-w-md w-full relative group mx-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
+            <input
+              type="text"
+              placeholder="Search lists and items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-white/20 dark:border-gray-700/50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-800 dark:text-gray-100 placeholder-gray-400 text-sm"
+            />
+          </div>
+
           <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/20 dark:border-gray-700/50 shadow-sm">
             <button
               onClick={toggleDarkMode}
@@ -1660,7 +1699,75 @@ const WatchListManager = ({ token, onLogout }) => {
               <div className="w-8" /> {/* Spacer */}
             </div>
 
-            {selectedList ? (
+            {searchQuery.length > 1 ? (
+              <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar animate-fade-in">
+                <div className="flex items-center gap-3 mb-6">
+                  <Search className="text-blue-500" size={28} />
+                  <h2 className="text-2xl font-bold font-heading text-gray-800 dark:text-gray-100">
+                    Search Results
+                  </h2>
+                </div>
+
+                {filteredLists.length === 0 && filteredItems.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                    No matches found for "{searchQuery}"
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* Lists */}
+                    {filteredLists.length > 0 && (
+                      <div className="animate-slide-up" style={{ animationDelay: '0ms' }}>
+                        <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
+                          <Folder size={18} className="text-yellow-500" /> Lists
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {filteredLists.map(listName => (
+                            <div key={listName}
+                              onClick={() => {
+                                handleNavigate(listName);
+                                setSearchQuery("");
+                              }}
+                              className="p-4 bg-white/50 dark:bg-gray-800/50 rounded-xl shadow-sm hover:shadow-md cursor-pointer border border-gray-100 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all group">
+                              <div className="font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{listName}</div>
+                              <div className="text-xs text-gray-500 mt-1">{lists[listName].length} items</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Items */}
+                    {filteredItems.length > 0 && (
+                      <div className="animate-slide-up" style={{ animationDelay: '100ms' }}>
+                        <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-2">
+                          <Film size={18} className="text-purple-500" /> Items
+                        </h3>
+                        <div className="space-y-2">
+                          {filteredItems.map((item, idx) => (
+                            <div key={`${item.listName}-${idx}`}
+                              onClick={() => {
+                                handleNavigate(item.listName);
+                                setSearchQuery("");
+                              }}
+                              className="p-3 bg-white/50 dark:bg-gray-800/50 rounded-xl shadow-sm hover:shadow-md cursor-pointer border border-gray-100 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all flex items-center justify-between group">
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-800 dark:text-gray-100">
+                                  {item.text || item.ref}
+                                </div>
+                                <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                  in <span className="font-semibold text-blue-500">{item.listName}</span>
+                                </div>
+                              </div>
+                              <ArrowRight size={16} className="text-gray-300 group-hover:text-purple-500 transition-colors" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : selectedList ? (
               <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                   <div>
