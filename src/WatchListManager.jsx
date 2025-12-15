@@ -850,17 +850,7 @@ const WatchListManager = ({ token, onLogout }) => {
           )}
 
           <div className={`flex-1 min-w-0 ${isEditingNote ? "w-full" : ""}`}>
-            onMouseDown={() => {
-              dragActiveRef.current = true;
-            }}
-            onMouseUp={() => {
-              dragActiveRef.current = false;
-            }}
-            className={`text-gray-400 dark:text-gray-500 ${isListLocked
-              ? "opacity-40 cursor-default"
-              : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
-              }`}
-            />
+
 
             <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
               <div className="flex items-start">
@@ -905,321 +895,341 @@ const WatchListManager = ({ token, onLogout }) => {
                 </div>
               </div>
             </span>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              {!isListLocked && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (isEditingNote) {
-                      setEditingNoteId(null);
-                    } else {
-                      setEditingNoteId(item.id);
-                    }
-                  }}
-                  className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
-                    ? "text-amber-500"
-                    : "text-gray-400 hover:text-amber-500"
-                    }`}
-                  title={item.note ? "Edit Note" : "Add Note"}
-                >
-                  <MessageSquare size={18} />
-                </button>
-              )}
-
-              {!isListLocked && (
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (window.confirm(`Delete text item: "${item.text}"?`)) {
-                      deleteItem(item.id);
-                    }
-                  }}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
-              )}
-            </div>
-          </>
-          );
-
-          return (
-          <div
-            key={item.id}
-            draggable={!isListLocked}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDragEnd={handleDragEnd}
-            className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
-            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-lg hover:scale-[1.01] hover:border-gray-200 dark:hover:border-gray-700"
-          >
-            {itemContent}
           </div>
-          );
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {!isListLocked && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (isEditingNote) {
+                    setEditingNoteId(null);
+                  } else {
+                    setEditingNoteId(item.id);
+                  }
+                }}
+                className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
+                  ? "text-amber-500"
+                  : "text-gray-400 hover:text-amber-500"
+                  }`}
+                title={item.note ? "Edit Note" : "Add Note"}
+              >
+                <MessageSquare size={18} />
+              </button>
+            )}
+
+            {!isListLocked && (
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (window.confirm(`Delete text item: "${item.text}"?`)) {
+                    deleteItem(item.id);
+                  }
+                }}
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+          </div>
+        </>
+      );
+
+      return (
+        <div
+          key={item.id}
+          draggable={!isListLocked}
+          onDragStart={(e) => handleDragStart(e, index)}
+          onDragOver={(e) => handleDragOver(e, index)}
+          onDragEnd={handleDragEnd}
+          className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
+            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-lg hover:scale-[1.01] hover:border-gray-200 dark:hover:border-gray-700"
+        >
+          {itemContent}
+        </div>
+      );
     }
 
-          // ------------------------------------------------------------------
-          // 2. TMDB ITEM RENDERING
-          // ------------------------------------------------------------------
-          const mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
-          const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
-          const isEditingNote = editingNoteId === item.id;
+    // ------------------------------------------------------------------
+    // 2. TMDB ITEM RENDERING
+    // ------------------------------------------------------------------
+    const mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
+    const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
+    const isEditingNote = editingNoteId === item.id;
 
-          const itemContent = (
-          <>
-            <GripVertical
-              size={20}
+    const itemContent = (
+      <>
+        <GripVertical
+          size={20}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onMouseDown={() => {
+            dragActiveRef.current = true;
+          }}
+          onMouseUp={() => {
+            dragActiveRef.current = false;
+          }}
+          className={`text-gray-400 dark:text-gray-500 ${isListLocked
+            ? "opacity-40 cursor-default"
+            : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
+            }`}
+        />
+
+        {!isListLocked && (
+          <div className="flex flex-col gap-0.5 lg:hidden mr-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }}
+              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
+              disabled={index === 0}
+            >
+              <ChevronUp size={14} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); moveItem(index, 1); }}
+              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
+              disabled={index === lists[selectedList].length - 1}
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
+        )}
+
+        <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
+          <div className="flex items-start">
+            <div className="relative group/img flex-shrink-0 mr-4">
+              <img
+                src={item.image}
+                alt={item.title || item.name}
+                className="w-16 h-24 object-cover rounded-lg shadow-md group-hover/img:shadow-lg transition-shadow"
+              />
+              <div className="absolute inset-0 rounded-lg ring-1 ring-black/5 dark:ring-white/10"></div>
+            </div>
+
+            <div className="flex-1 min-w-0 py-1">
+              <div className="font-bold text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
+
+              {item.note && !isEditingNote && (
+                <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-words bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block">
+                  📝 {item.note}
+                </div>
+              )}
+
+              {isEditingNote && (
+                <div
+                  className="mt-2 flex items-center gap-1 animate-fade-in"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <input
+                    type="text"
+                    defaultValue={item.note || ""}
+                    autoFocus
+                    className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                    placeholder="Add a note..."
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter")
+                        saveItemNote(item.id, e.target.value);
+                    }}
+                    onBlur={(e) => {
+                      saveItemNote(item.id, e.target.value);
+                    }}
+                    onClick={(e) => e.preventDefault()}
+                  />
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center gap-2">
+                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md 
+                  ${item.media_type === 'tv'
+                    ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
+                    : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'}`}>
+                  {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
+                </span>
+                {item.year && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    {item.year}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </span>
+
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {!isListLocked && (
+            <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (isEditingNote) {
+                  setEditingNoteId(null);
+                } else {
+                  setEditingNoteId(item.id);
+                }
               }}
-              onMouseDown={() => {
-                dragActiveRef.current = true;
-              }}
-              onMouseUp={() => {
-                dragActiveRef.current = false;
-              }}
-              className={`text-gray-400 dark:text-gray-500 ${isListLocked
-                ? "opacity-40 cursor-default"
-                : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
+              className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
+                ? "text-amber-500"
+                : "text-gray-400 hover:text-amber-500"
                 }`}
-            />
+              title={item.note ? "Edit Note" : "Add Note"}
+            >
+              <MessageSquare size={18} />
+            </button>
+          )}
 
-            <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
-              <div className="flex items-start">
-                <div className="relative group/img flex-shrink-0 mr-4">
-                  <img
-                    src={item.image}
-                    alt={item.title || item.name}
-                    className="w-16 h-24 object-cover rounded-lg shadow-md group-hover/img:shadow-lg transition-shadow"
-                  />
-                  <div className="absolute inset-0 rounded-lg ring-1 ring-black/5 dark:ring-white/10"></div>
-                </div>
+          {!isListLocked && (
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                if (window.confirm(`Delete item: "${item.text}"?`)) {
+                  deleteItem(item.id);
+                }
+              }}
+              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
+        </div>
+      </>
+    );
 
-                <div className="flex-1 min-w-0 py-1">
-                  <div className="font-bold text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
-
-                  {item.note && !isEditingNote && (
-                    <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-words bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block">
-                      📝 {item.note}
-                    </div>
-                  )}
-
-                  {isEditingNote && (
-                    <div
-                      className="mt-2 flex items-center gap-1 animate-fade-in"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <input
-                        type="text"
-                        defaultValue={item.note || ""}
-                        autoFocus
-                        className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
-                        placeholder="Add a note..."
-                        onKeyPress={(e) => {
-                          if (e.key === "Enter")
-                            saveItemNote(item.id, e.target.value);
-                        }}
-                        onBlur={(e) => {
-                          saveItemNote(item.id, e.target.value);
-                        }}
-                        onClick={(e) => e.preventDefault()}
-                      />
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md 
-                  ${item.media_type === 'tv'
-                        ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
-                        : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'}`}>
-                      {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
-                    </span>
-                    {item.year && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                        {item.year}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </span>
-
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              {!isListLocked && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (isEditingNote) {
-                      setEditingNoteId(null);
-                    } else {
-                      setEditingNoteId(item.id);
-                    }
-                  }}
-                  className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
-                    ? "text-amber-500"
-                    : "text-gray-400 hover:text-amber-500"
-                    }`}
-                  title={item.note ? "Edit Note" : "Add Note"}
-                >
-                  <MessageSquare size={18} />
-                </button>
-              )}
-
-              {!isListLocked && (
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (window.confirm(`Delete item: "${item.text}"?`)) {
-                      deleteItem(item.id);
-                    }
-                  }}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
-              )}
-            </div>
-          </>
-          );
-
-          if (isListLocked) {
+    if (isListLocked) {
       return (
-          <div
-            key={item.id}
-            className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
+        <div
+          key={item.id}
+          className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
             bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm opacity-90 cursor-default"
-          >
-            {itemContent}
-          </div>
-          );
+        >
+          {itemContent}
+        </div>
+      );
     } else {
       return (
-          <a
-            key={item.id}
-            href={tmdbLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            draggable={true}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDragEnd={handleDragEnd}
-            className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
+        <a
+          key={item.id}
+          href={tmdbLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          draggable={true}
+          onDragStart={(e) => handleDragStart(e, index)}
+          onDragOver={(e) => handleDragOver(e, index)}
+          onDragEnd={handleDragEnd}
+          className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
             bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-pointer"
-          >
-            {itemContent}
-          </a>
-          );
+        >
+          {itemContent}
+        </a>
+      );
     }
   };
 
-          return (
-          <div className={`min-h-screen p-6 flex justify-center items-start transition-colors duration-500
+  return (
+    <div className={`min-h-screen p-6 flex justify-center items-start transition-colors duration-500
       ${darkMode ? "bg-gray-950" : "bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50"}`}>
 
-            {/* Background decorative elements */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[100px] animate-pulse-slow"></div>
-              <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[100px] animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+      {/* Background decorative elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[100px] animate-pulse-slow"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[100px] animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+      </div>
+
+      <div className="w-full max-w-7xl relative z-10">
+        {/* Mobile Overlay */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-50 lg:hidden backdrop-blur-sm"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+        {/* Header */}
+        <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white">
+              <Film size={32} />
             </div>
+            <div>
+              <h1 className="text-2xl lg:text-4xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
+                Orderly
+              </h1>
+              <p className="text-xs lg:text-base text-gray-500 dark:text-gray-400 font-medium">
+                Curate your entertainment journey
+              </p>
+            </div>
+          </div>
 
-            <div className="w-full max-w-7xl relative z-10">
-              {/* Mobile Overlay */}
-              {isSidebarOpen && (
-                <div
-                  className="fixed inset-0 bg-black/50 z-50 lg:hidden backdrop-blur-sm"
-                  onClick={() => setIsSidebarOpen(false)}
-                />
-              )}
-              {/* Header */}
-              <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white">
-                    <Film size={32} />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl lg:text-4xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
-                      Orderly
-                    </h1>
-                    <p className="text-xs lg:text-base text-gray-500 dark:text-gray-400 font-medium">
-                      Curate your entertainment journey
-                    </p>
-                  </div>
-                </div>
+          <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/20 dark:border-gray-700/50 shadow-sm">
+            <button
+              onClick={toggleDarkMode}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:shadow-md hover:scale-105 active:scale-95"
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-blue-600" />}
+            </button>
 
-                <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/20 dark:border-gray-700/50 shadow-sm">
-                  <button
-                    onClick={toggleDarkMode}
-                    className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:shadow-md hover:scale-105 active:scale-95"
-                    title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                  >
-                    {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-blue-600" />}
-                  </button>
+            <button
+              onClick={deleteAccount}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10"
+              title="Delete Account"
+            >
+              <Trash2 size={20} />
+            </button>
 
-                  <button
-                    onClick={deleteAccount}
-                    className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10"
-                    title="Delete Account"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+            <button
+              onClick={onLogout}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
+              title="Sign Out"
+            >
+              <LogOut size={20} />
+            </button>
 
-                  <button
-                    onClick={onLogout}
-                    className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
-                    title="Sign Out"
-                  >
-                    <LogOut size={20} />
-                  </button>
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
 
-                  <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
+            <button
+              onClick={exportData}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95"
+              title="Export Data"
+            >
+              <Download size={20} />
+            </button>
 
-                  <button
-                    onClick={exportData}
-                    className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95"
-                    title="Export Data"
-                  >
-                    <Download size={20} />
-                  </button>
+            <button
+              onClick={() => document.getElementById("import-file").click()}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400 hover:shadow-md hover:scale-105 active:scale-95"
+              title="Import Data"
+            >
+              <Upload size={20} />
+            </button>
+          </div>
+        </header>
 
-                  <button
-                    onClick={() => document.getElementById("import-file").click()}
-                    className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400 hover:shadow-md hover:scale-105 active:scale-95"
-                    title="Import Data"
-                  >
-                    <Upload size={20} />
-                  </button>
-                </div>
-              </header>
+        <input
+          type="file"
+          id="import-file"
+          accept=".json"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                importData(event.target.result);
+                e.target.value = null;
+              };
+              reader.readAsText(file);
+            }
+          }}
+        />
 
-              <input
-                type="file"
-                id="import-file"
-                accept=".json"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      importData(event.target.result);
-                      e.target.value = null;
-                    };
-                    reader.readAsText(file);
-                  }
-                }}
-              />
-
-              {/* Main Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Sidebar */}
-                <div className={`
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Sidebar */}
+          <div className={`
             fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-[85vw] max-w-[300px] lg:w-auto h-full lg:h-auto
             lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up
             transform transition-transform duration-300 ease-in-out
@@ -1227,528 +1237,528 @@ const WatchListManager = ({ token, onLogout }) => {
             bg-gray-50 dark:bg-gray-900 lg:bg-transparent
             p-4 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
           `}>
-                  <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
-                        <span>Collections</span>
-                        <button
-                          onClick={() => setIsSidebarOpen(false)}
-                          className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
-                        >
-                          <X size={20} />
-                        </button>
-                      </h2>
+            <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
+                  <span>Collections</span>
+                  <button
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={20} />
+                  </button>
+                </h2>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setIsListLocked(!isListLocked)}
-                          className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
-                            ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
-                            : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
-                            }`}
-                          title={isListLocked ? "Unlock Lists" : "Lock Lists"}
-                        >
-                          {isListLocked ? "🔒" : "🔓"}
-                        </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsListLocked(!isListLocked)}
+                    className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
+                      ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
+                      : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
+                      }`}
+                    title={isListLocked ? "Unlock Lists" : "Lock Lists"}
+                  >
+                    {isListLocked ? "🔒" : "🔓"}
+                  </button>
 
-                        <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-                          <button
-                            onClick={() => setShowAddList(!showAddList)}
-                            disabled={isListLocked}
-                            className={`p-2 rounded-lg transition-all ${isListLocked
-                              ? "opacity-50 cursor-not-allowed"
-                              : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-blue-600 dark:text-blue-400"
-                              }`}
-                            title="New List"
-                          >
-                            <Plus size={18} />
-                          </button>
-                          <button
-                            onClick={() => setShowAddFolder(!showAddFolder)}
-                            disabled={isListLocked}
-                            className={`p-2 rounded-lg transition-all ${isListLocked
-                              ? "opacity-50 cursor-not-allowed"
-                              : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-yellow-600 dark:text-yellow-400"
-                              }`}
-                            title="New Folder"
-                          >
-                            <FolderPlus size={18} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                    <button
+                      onClick={() => setShowAddList(!showAddList)}
+                      disabled={isListLocked}
+                      className={`p-2 rounded-lg transition-all ${isListLocked
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-blue-600 dark:text-blue-400"
+                        }`}
+                      title="New List"
+                    >
+                      <Plus size={18} />
+                    </button>
+                    <button
+                      onClick={() => setShowAddFolder(!showAddFolder)}
+                      disabled={isListLocked}
+                      className={`p-2 rounded-lg transition-all ${isListLocked
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-yellow-600 dark:text-yellow-400"
+                        }`}
+                      title="New Folder"
+                    >
+                      <FolderPlus size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                    {/* Add Inputs */}
-                    <div className="space-y-3 mb-4">
-                      {showAddFolder && (
-                        <div className="flex gap-2 animate-fade-in">
-                          <input
-                            type="text"
-                            value={newFolderName}
-                            onChange={(e) => setNewFolderName(e.target.value)}
-                            onKeyPress={(e) => e.key === "Enter" && createFolder()}
-                            placeholder="Folder name..."
-                            className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-500/50 outline-none transition-all w-full min-w-0"
-                            autoFocus
-                          />
-                          <button
-                            onClick={createFolder}
-                            className="px-3 py-1.5 rounded-xl bg-yellow-500 text-white text-xs font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/30 whitespace-nowrap"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      )}
+              {/* Add Inputs */}
+              <div className="space-y-3 mb-4">
+                {showAddFolder && (
+                  <div className="flex gap-2 animate-fade-in">
+                    <input
+                      type="text"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && createFolder()}
+                      placeholder="Folder name..."
+                      className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-500/50 outline-none transition-all w-full min-w-0"
+                      autoFocus
+                    />
+                    <button
+                      onClick={createFolder}
+                      className="px-3 py-1.5 rounded-xl bg-yellow-500 text-white text-xs font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/30 whitespace-nowrap"
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
 
-                      {showAddList && (
-                        <div className="flex gap-2 animate-fade-in">
-                          <input
-                            type="text"
-                            value={newListName}
-                            onChange={(e) => setNewListName(e.target.value)}
-                            onKeyPress={(e) => e.key === "Enter" && createList()}
-                            placeholder="List name..."
-                            className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all w-full min-w-0"
-                            autoFocus
-                          />
-                          <button
-                            onClick={createList}
-                            className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 whitespace-nowrap"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                {showAddList && (
+                  <div className="flex gap-2 animate-fade-in">
+                    <input
+                      type="text"
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && createList()}
+                      placeholder="List name..."
+                      className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all w-full min-w-0"
+                      autoFocus
+                    />
+                    <button
+                      onClick={createList}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 whitespace-nowrap"
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
+              </div>
 
-                    <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
-                      {/* 1. Render Folders */}
-                      {Object.keys(folders).map((folderName) => (
-                        <div key={folderName} className="group/folder">
-                          <div
-                            className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
+              <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
+                {/* 1. Render Folders */}
+                {Object.keys(folders).map((folderName) => (
+                  <div key={folderName} className="group/folder">
+                    <div
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
                         ${editingListName === `folder:${folderName}` ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`}
-                            onClick={() => toggleFolderExpand(folderName)}
+                      onClick={() => toggleFolderExpand(folderName)}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`p-1.5 rounded-lg transition-colors ${expandedFolders[folderName] ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 group-hover/folder:text-yellow-500'}`}>
+                          {expandedFolders[folderName] ? <FolderOpen size={16} /> : <Folder size={16} />}
+                        </div>
+
+                        {editingListName === `folder:${folderName}` ? (
+                          <input
+                            type="text"
+                            defaultValue={folderName}
+                            className="flex-1 min-w-0 px-2 py-1 text-sm bg-white dark:bg-gray-700 rounded border border-blue-300 focus:outline-none"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyPress={(e) => e.key === "Enter" && renameFolder(folderName, e.target.value)}
+                            onBlur={(e) => renameFolder(folderName, e.target.value)}
+                          />
+                        ) : (
+                          <span className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
+                            {folderName}
+                          </span>
+                        )}
+                      </div>
+
+                      {!isListLocked && (
+                        <div className="flex items-center opacity-0 group-hover/folder:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingListName(`folder:${folderName}`);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
                           >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className={`p-1.5 rounded-lg transition-colors ${expandedFolders[folderName] ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 group-hover/folder:text-yellow-500'}`}>
-                                {expandedFolders[folderName] ? <FolderOpen size={16} /> : <Folder size={16} />}
-                              </div>
+                            <Edit2 size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteFolder(folderName);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
-                              {editingListName === `folder:${folderName}` ? (
-                                <input
-                                  type="text"
-                                  defaultValue={folderName}
-                                  className="flex-1 min-w-0 px-2 py-1 text-sm bg-white dark:bg-gray-700 rounded border border-blue-300 focus:outline-none"
-                                  autoFocus
-                                  onClick={(e) => e.stopPropagation()}
-                                  onKeyPress={(e) => e.key === "Enter" && renameFolder(folderName, e.target.value)}
-                                  onBlur={(e) => renameFolder(folderName, e.target.value)}
-                                />
-                              ) : (
-                                <span className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
-                                  {folderName}
-                                </span>
-                              )}
-                            </div>
-
+                    {/* Folder Contents */}
+                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedFolders[folderName] ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                      <div className="ml-4 pl-3 border-l-2 border-gray-100 dark:border-gray-800 space-y-1 py-1">
+                        {folders[folderName].map((listName) => (
+                          <div
+                            key={listName}
+                            onClick={() => {
+                              if (editingListName !== listName) setSelectedList(listName);
+                            }}
+                            className={`group/list flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
+                              ${selectedList === listName
+                                ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                                : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
+                              }`}
+                          >
+                            <span className="truncate flex-1">{listName}</span>
                             {!isListLocked && (
-                              <div className="flex items-center opacity-0 group-hover/folder:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setEditingListName(`folder:${folderName}`);
+                                    setMovingList(listName);
                                   }}
-                                  className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                  className={`p-1 rounded transition-all ${selectedList === listName ? 'text-blue-200 hover:text-white hover:bg-blue-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                  title="Move List"
                                 >
-                                  <Edit2 size={12} />
+                                  <MoreVertical size={12} />
                                 </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    deleteFolder(folderName);
+                                    if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
                                   }}
-                                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                  className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                                  title="Delete List"
                                 >
                                   <Trash2 size={12} />
                                 </button>
                               </div>
                             )}
                           </div>
-
-                          {/* Folder Contents */}
-                          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedFolders[folderName] ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                            <div className="ml-4 pl-3 border-l-2 border-gray-100 dark:border-gray-800 space-y-1 py-1">
-                              {folders[folderName].map((listName) => (
-                                <div
-                                  key={listName}
-                                  onClick={() => {
-                                    if (editingListName !== listName) setSelectedList(listName);
-                                  }}
-                                  className={`group/list flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
-                              ${selectedList === listName
-                                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
-                                    }`}
-                                >
-                                  <span className="truncate flex-1">{listName}</span>
-                                  {!isListLocked && (
-                                    <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setMovingList(listName);
-                                        }}
-                                        className={`p-1 rounded transition-all ${selectedList === listName ? 'text-blue-200 hover:text-white hover:bg-blue-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                                        title="Move List"
-                                      >
-                                        <MoreVertical size={12} />
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
-                                        }}
-                                        className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
-                                        title="Delete List"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {folders[folderName].length === 0 && (
-                                <div className="px-3 py-2 text-xs text-gray-400 italic">Empty folder</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* 2. Render Root Lists */}
-                      {Object.keys(lists)
-                        .filter((listName) => !Object.values(folders).some((folderLists) => folderLists.includes(listName)))
-                        .map((listName) => (
-                          <div
-                            key={listName}
-                            onClick={() => {
-                              if (editingListName !== listName) setSelectedList(listName);
-                            }}
-                            className={`group flex justify-between items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
-                        ${selectedList === listName
-                                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25 scale-[1.02]"
-                                : "bg-white dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white hover:shadow-md dark:hover:bg-gray-800 hover:scale-[1.01]"
-                              }`}
-                          >
-                            {editingListName === listName ? (
-                              <div className="flex items-center w-full gap-2">
-                                <input
-                                  type="text"
-                                  defaultValue={listName}
-                                  className="flex-1 px-2 py-1 text-sm rounded text-black outline-none ring-2 ring-blue-400"
-                                  autoFocus
-                                  onKeyPress={(e) => e.key === "Enter" && renameList(listName, e.target.value)}
-                                  onBlur={(e) => renameList(listName, e.target.value)}
-                                />
-                                <button
-                                  onMouseDown={(e) => { e.preventDefault(); setEditingListName(null); }}
-                                  className="text-white/80 hover:text-white"
-                                >
-                                  <X size={16} />
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex items-center flex-1 min-w-0 gap-3">
-                                  <span className="font-medium truncate">{listName}</span>
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-                                    {lists[listName].length}
-                                  </span>
-                                </div>
-
-                                {!isListLocked && (
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setMovingList(listName); }}
-                                      className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-blue-500 text-blue-100 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-gray-700'}`}
-                                      title="Move List"
-                                    >
-                                      <MoreVertical size={14} />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${listName}"?`)) deleteList(listName); }}
-                                      className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-red-500 text-red-100 hover:text-white' : 'hover:bg-red-50 text-gray-400 hover:text-red-500 dark:hover:bg-red-900/20'}`}
-                                      title="Delete List"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
                         ))}
-
-                      {Object.keys(lists).length === 0 && (
-                        <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
-                            No lists yet. <br /> Create one to get started!
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Content */}
-                <div className="lg:col-span-7 xl:col-span-8 h-full overflow-hidden flex flex-col">
-                  {/* Mobile Header */}
-                  <div className="lg:hidden flex justify-between items-center mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-md p-4 rounded-2xl border border-white/20 dark:border-gray-700">
-                    <button
-                      onClick={() => setIsSidebarOpen(true)}
-                      className="p-2 -ml-2 text-gray-700 dark:text-gray-200"
-                    >
-                      <Menu size={24} />
-                    </button>
-                    <span className="font-bold text-lg">
-                      {selectedList || "Watchlist"}
-                    </span>
-                    <div className="w-8" /> {/* Spacer */}
-                  </div>
-
-                  {selectedList ? (
-                    <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                        <div>
-                          <h2 className="group text-xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
-                            {editingInMainContent ? (
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  defaultValue={selectedList}
-                                  className="px-3 py-2 rounded-lg border-2 border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[200px]"
-                                  autoFocus
-                                  onKeyPress={(e) => {
-                                    if (e.key === "Enter") {
-                                      renameList(selectedList, e.target.value);
-                                      setEditingInMainContent(false);
-                                    }
-                                  }}
-                                  onBlur={(e) => {
-                                    renameList(selectedList, e.target.value);
-                                    setEditingInMainContent(false);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                <button
-                                  onClick={() => setEditingInMainContent(false)}
-                                  className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
-                                  title="Cancel"
-                                >
-                                  <X size={20} />
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <span>{selectedList}</span>
-                                {!isListLocked && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      setEditingInMainContent(true);
-                                    }}
-                                    className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
-                                    title="Rename List"
-                                    type="button"
-                                  >
-                                    <Edit2 size={20} />
-                                  </button>
-                                )}
-                              </>
-                            )}
-                            <span className="text-sm font-normal px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
-                              {lists[selectedList]?.length || 0} items
-                            </span>
-                          </h2>
-                          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                            Manage and track your items in this list
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Add Item Area */}
-                      <div className="mb-8 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50">
-                        <TmdbSearch
-                          onItemSelected={addItem}
-                          disabled={isListLocked}
-                        />
-
-                        <div className="flex flex-col md:flex-row gap-4 mt-4">
-                          {/* Add Text Item */}
-                          <div className="flex-1 flex gap-2">
-                            <input
-                              type="text"
-                              value={newTextItem}
-                              onChange={(e) => setNewTextItem(e.target.value)}
-                              onKeyDown={handleTextInputKeyPress}
-                              placeholder="Add a text note..."
-                              className="flex-1 px-4 py-2.5 rounded-xl border-none bg-white dark:bg-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500/50 outline-none text-sm transition-all"
-                              disabled={isListLocked}
-                            />
-                            <button
-                              onClick={addTextItem}
-                              disabled={isListLocked}
-                              className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
-                                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20"
-                                : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none dark:bg-gray-700 dark:text-gray-500"
-                                }`}
-                            >
-                              Add Text
-                            </button>
-                          </div>
-
-                          {/* Add Reference */}
-                          <div className="flex items-center gap-3 bg-white dark:bg-gray-700 px-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
-                            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                              Link List:
-                            </span>
-                            <select
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  addReference(e.target.value);
-                                  e.target.value = "";
-                                }
-                              }}
-                              className="py-2 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
-                              disabled={isListLocked}
-                            >
-                              <option value="">Select...</option>
-                              {Object.keys(lists)
-                                .filter((name) => name !== selectedList)
-                                .map((name) => (
-                                  <option key={name} value={name}>
-                                    {name}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Items Grid/List */}
-                      <div className="space-y-1">
-                        {lists[selectedList].length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
-                            <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                              <Film size={40} className="text-gray-400" />
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">It's quiet here...</h3>
-                            <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1">
-                              Start building your collection by searching for movies or adding notes above.
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            {lists[selectedList]
-                              .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
-                              .map((item, index) =>
-                                renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)
-                              )}
-
-                            {/* Pagination Controls */}
-                            {lists[selectedList].length > ITEMS_PER_PAGE && (
-                              <div className="flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
-                                <button
-                                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                                  disabled={currentPage === 1}
-                                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
-                              ${currentPage === 1
-                                      ? "text-gray-400 cursor-not-allowed"
-                                      : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
-                                    }`}
-                                >
-                                  <ChevronLeft size={20} />
-                                  Previous
-                                </button>
-
-                                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                                  Page {currentPage} of {Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
-                                </span>
-
-                                <button
-                                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
-                                  disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
-                                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
-                              ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
-                                      ? "text-gray-400 cursor-not-allowed"
-                                      : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
-                                    }`}
-                                >
-                                  Next
-                                  <ChevronRight size={20} />
-                                </button>
-                              </div>
-                            )}
-                          </>
+                        {folders[folderName].length === 0 && (
+                          <div className="px-3 py-2 text-xs text-gray-400 italic">Empty folder</div>
                         )}
                       </div>
                     </div>
-                  ) : (
-                    <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/20 dark:border-gray-700/50 border-dashed">
-                      <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mb-6 animate-pulse-slow">
-                        <Film size={64} className="text-blue-500/50 dark:text-blue-400/50" />
+                  </div>
+                ))}
+
+                {/* 2. Render Root Lists */}
+                {Object.keys(lists)
+                  .filter((listName) => !Object.values(folders).some((folderLists) => folderLists.includes(listName)))
+                  .map((listName) => (
+                    <div
+                      key={listName}
+                      onClick={() => {
+                        if (editingListName !== listName) setSelectedList(listName);
+                      }}
+                      className={`group flex justify-between items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
+                        ${selectedList === listName
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25 scale-[1.02]"
+                          : "bg-white dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white hover:shadow-md dark:hover:bg-gray-800 hover:scale-[1.01]"
+                        }`}
+                    >
+                      {editingListName === listName ? (
+                        <div className="flex items-center w-full gap-2">
+                          <input
+                            type="text"
+                            defaultValue={listName}
+                            className="flex-1 px-2 py-1 text-sm rounded text-black outline-none ring-2 ring-blue-400"
+                            autoFocus
+                            onKeyPress={(e) => e.key === "Enter" && renameList(listName, e.target.value)}
+                            onBlur={(e) => renameList(listName, e.target.value)}
+                          />
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); setEditingListName(null); }}
+                            className="text-white/80 hover:text-white"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center flex-1 min-w-0 gap-3">
+                            <span className="font-medium truncate">{listName}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                              {lists[listName].length}
+                            </span>
+                          </div>
+
+                          {!isListLocked && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMovingList(listName); }}
+                                className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-blue-500 text-blue-100 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-gray-700'}`}
+                                title="Move List"
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${listName}"?`)) deleteList(listName); }}
+                                className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-red-500 text-red-100 hover:text-white' : 'hover:bg-red-50 text-gray-400 hover:text-red-500 dark:hover:bg-red-900/20'}`}
+                                title="Delete List"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+
+                {Object.keys(lists).length === 0 && (
+                  <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      No lists yet. <br /> Create one to get started!
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-7 xl:col-span-8 h-full overflow-hidden flex flex-col">
+            {/* Mobile Header */}
+            <div className="lg:hidden flex justify-between items-center mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-md p-4 rounded-2xl border border-white/20 dark:border-gray-700">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2 -ml-2 text-gray-700 dark:text-gray-200"
+              >
+                <Menu size={24} />
+              </button>
+              <span className="font-bold text-lg">
+                {selectedList || "Watchlist"}
+              </span>
+              <div className="w-8" /> {/* Spacer */}
+            </div>
+
+            {selectedList ? (
+              <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                  <div>
+                    <h2 className="group text-xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
+                      {editingInMainContent ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            defaultValue={selectedList}
+                            className="px-3 py-2 rounded-lg border-2 border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[200px]"
+                            autoFocus
+                            onKeyPress={(e) => {
+                              if (e.key === "Enter") {
+                                renameList(selectedList, e.target.value);
+                                setEditingInMainContent(false);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              renameList(selectedList, e.target.value);
+                              setEditingInMainContent(false);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={() => setEditingInMainContent(false)}
+                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
+                            title="Cancel"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span>{selectedList}</span>
+                          {!isListLocked && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setEditingInMainContent(true);
+                              }}
+                              className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                              title="Rename List"
+                              type="button"
+                            >
+                              <Edit2 size={20} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                      <span className="text-sm font-normal px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                        {lists[selectedList]?.length || 0} items
+                      </span>
+                    </h2>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                      Manage and track your items in this list
+                    </p>
+                  </div>
+                </div>
+
+                {/* Add Item Area */}
+                <div className="mb-8 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50">
+                  <TmdbSearch
+                    onItemSelected={addItem}
+                    disabled={isListLocked}
+                  />
+
+                  <div className="flex flex-col md:flex-row gap-4 mt-4">
+                    {/* Add Text Item */}
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="text"
+                        value={newTextItem}
+                        onChange={(e) => setNewTextItem(e.target.value)}
+                        onKeyDown={handleTextInputKeyPress}
+                        placeholder="Add a text note..."
+                        className="flex-1 px-4 py-2.5 rounded-xl border-none bg-white dark:bg-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500/50 outline-none text-sm transition-all"
+                        disabled={isListLocked}
+                      />
+                      <button
+                        onClick={addTextItem}
+                        disabled={isListLocked}
+                        className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
+                          ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none dark:bg-gray-700 dark:text-gray-500"
+                          }`}
+                      >
+                        Add Text
+                      </button>
+                    </div>
+
+                    {/* Add Reference */}
+                    <div className="flex items-center gap-3 bg-white dark:bg-gray-700 px-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
+                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        Link List:
+                      </span>
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            addReference(e.target.value);
+                            e.target.value = "";
+                          }
+                        }}
+                        className="py-2 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
+                        disabled={isListLocked}
+                      >
+                        <option value="">Select...</option>
+                        {Object.keys(lists)
+                          .filter((name) => name !== selectedList)
+                          .map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items Grid/List */}
+                <div className="space-y-1">
+                  {lists[selectedList].length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
+                      <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                        <Film size={40} className="text-gray-400" />
                       </div>
-                      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-                        Ready to Watch?
-                      </h2>
-                      <p className="text-gray-500 dark:text-gray-400 max-w-md">
-                        Select a list from the sidebar or create a new one to start organizing your movies and shows.
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">It's quiet here...</h3>
+                      <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1">
+                        Start building your collection by searching for movies or adding notes above.
                       </p>
                     </div>
+                  ) : (
+                    <>
+                      {lists[selectedList]
+                        .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                        .map((item, index) =>
+                          renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)
+                        )}
+
+                      {/* Pagination Controls */}
+                      {lists[selectedList].length > ITEMS_PER_PAGE && (
+                        <div className="flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
+                          <button
+                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
+                              ${currentPage === 1
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
+                              }`}
+                          >
+                            <ChevronLeft size={20} />
+                            Previous
+                          </button>
+
+                          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            Page {currentPage} of {Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                          </span>
+
+                          <button
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
+                            disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
+                              ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
+                              }`}
+                          >
+                            Next
+                            <ChevronRight size={20} />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
-            </div>
-
-            {/* Move List Modal */}
-            {movingList && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-96 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
-                  <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                    <Folder size={24} className="text-blue-500" />
-                    Move "{movingList}"
-                  </h3>
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                    <button
-                      onClick={() => moveListToFolder(movingList, null)}
-                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
-                    >
-                      (Root Level)
-                    </button>
-                    {Object.keys(folders).map((folderName) => (
-                      <button
-                        key={folderName}
-                        onClick={() => moveListToFolder(movingList, folderName)}
-                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/10 text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors border border-transparent hover:border-yellow-200 dark:hover:border-yellow-900/30"
-                      >
-                        <Folder size={18} className="text-yellow-500" />
-                        {folderName}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setMovingList(null)}
-                    className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
+            ) : (
+              <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/20 dark:border-gray-700/50 border-dashed">
+                <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mb-6 animate-pulse-slow">
+                  <Film size={64} className="text-blue-500/50 dark:text-blue-400/50" />
                 </div>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+                  Ready to Watch?
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 max-w-md">
+                  Select a list from the sidebar or create a new one to start organizing your movies and shows.
+                </p>
               </div>
             )}
           </div>
-          );
+        </div>
+      </div>
+
+      {/* Move List Modal */}
+      {movingList && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-96 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+            <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Folder size={24} className="text-blue-500" />
+              Move "{movingList}"
+            </h3>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+              <button
+                onClick={() => moveListToFolder(movingList, null)}
+                className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+              >
+                (Root Level)
+              </button>
+              {Object.keys(folders).map((folderName) => (
+                <button
+                  key={folderName}
+                  onClick={() => moveListToFolder(movingList, folderName)}
+                  className="w-full text-left px-4 py-3 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/10 text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors border border-transparent hover:border-yellow-200 dark:hover:border-yellow-900/30"
+                >
+                  <Folder size={18} className="text-yellow-500" />
+                  {folderName}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setMovingList(null)}
+              className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
-          export default WatchListManager;
+export default WatchListManager;
