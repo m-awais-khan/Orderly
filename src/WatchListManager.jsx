@@ -43,6 +43,7 @@ const WatchListManager = ({ token, onLogout }) => {
   const [movingList, setMovingList] = useState(null); // State for list being moved
   const [movingFolder, setMovingFolder] = useState(null); // State for folder being moved
   const [searchQuery, setSearchQuery] = useState("");
+  const [visibleNotes, setVisibleNotes] = useState({}); // State to track visible notes
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
@@ -1166,9 +1167,19 @@ const WatchListManager = ({ token, onLogout }) => {
                   <div className="mt-1 font-medium text-lg">{item.text}</div>
 
                   {/* Display Note */}
-                  {item.note && !isEditingNote && (
-                    <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full">
+                  {item.note && visibleNotes[item.id] && !isEditingNote && (
+                    <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
                       📝 {item.note}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingNoteId(item.id);
+                        }}
+                        className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
+                        title="Edit Note"
+                      >
+                        <Edit2 size={14} />
+                      </button>
                     </div>
                   )}
 
@@ -1178,16 +1189,11 @@ const WatchListManager = ({ token, onLogout }) => {
                       className="mt-2 flex items-center gap-1 animate-fade-in"
                       onClick={(e) => e.preventDefault()}
                     >
-                      <input
-                        type="text"
+                      <textarea
                         defaultValue={item.note || ""}
                         autoFocus
-                        className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                        className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm min-h-[80px]"
                         placeholder="Add a note..."
-                        onKeyPress={(e) => {
-                          if (e.key === "Enter")
-                            saveItemNote(item.id, e.target.value);
-                        }}
                         onBlur={(e) => {
                           saveItemNote(item.id, e.target.value);
                         }}
@@ -1212,17 +1218,21 @@ const WatchListManager = ({ token, onLogout }) => {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (isEditingNote) {
-                    setEditingNoteId(null);
+                  if (item.note) {
+                    // Toggle Visibility
+                    setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                   } else {
+                    // Enter Edit Mode
                     setEditingNoteId(item.id);
+                    // Allow visibility immediately
+                    setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
                   }
                 }}
                 className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
-                  ? "text-amber-500"
+                  ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10"
                   : "text-gray-400 hover:text-amber-500"
                   }`}
-                title={item.note ? "Edit Note" : "Add Note"}
+                title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
               >
                 <MessageSquare size={18} />
               </button>
@@ -1321,9 +1331,19 @@ const WatchListManager = ({ token, onLogout }) => {
             <div className="flex-1 min-w-0 py-1">
               <div className="font-bold text-base lg:text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
 
-              {item.note && !isEditingNote && (
-                <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full">
+              {item.note && visibleNotes[item.id] && !isEditingNote && (
+                <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
                   📝 {item.note}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingNoteId(item.id);
+                    }}
+                    className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
+                    title="Edit Note"
+                  >
+                    <Edit2 size={14} />
+                  </button>
                 </div>
               )}
 
@@ -1332,16 +1352,11 @@ const WatchListManager = ({ token, onLogout }) => {
                   className="mt-2 flex items-center gap-1 animate-fade-in"
                   onClick={(e) => e.preventDefault()}
                 >
-                  <input
-                    type="text"
+                  <textarea
                     defaultValue={item.note || ""}
                     autoFocus
-                    className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                    className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm min-h-[80px]"
                     placeholder="Add a note..."
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter")
-                        saveItemNote(item.id, e.target.value);
-                    }}
                     onBlur={(e) => {
                       saveItemNote(item.id, e.target.value);
                     }}
@@ -1373,17 +1388,18 @@ const WatchListManager = ({ token, onLogout }) => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (isEditingNote) {
-                  setEditingNoteId(null);
+                if (item.note) {
+                  setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                 } else {
                   setEditingNoteId(item.id);
+                  setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
                 }
               }}
               className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
-                ? "text-amber-500"
+                ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10"
                 : "text-gray-400 hover:text-amber-500"
                 }`}
-              title={item.note ? "Edit Note" : "Add Note"}
+              title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
             >
               <MessageSquare size={18} />
             </button>
