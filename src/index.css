@@ -10,7 +10,10 @@ html {
 
 /* We apply the dark/light background colors to the BODY here */
 body {
-  @apply font-sans antialiased bg-gray-50 text-gray-900 dark:bg-dark-bg dark:text-gray-100;
+  @apply font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100;
+}
+
+html:not(.dark) body {
   background-image: 
     radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),

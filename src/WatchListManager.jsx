@@ -20,9 +20,11 @@ import {
   FolderOpen,
   FolderPlus,
   MoreVertical,
+  Menu,
+  LogOut,
 } from "lucide-react";
 
-const WatchListManager = () => {
+const WatchListManager = ({ token, onLogout }) => {
   const [lists, setLists] = useState({});
   const [folders, setFolders] = useState({}); // New state for folders
   const [selectedList, setSelectedList] = useState(null);
@@ -37,7 +39,9 @@ const WatchListManager = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
+
   const [editingInMainContent, setEditingInMainContent] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [newTextItem, setNewTextItem] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,7 +59,11 @@ const WatchListManager = () => {
 
   const loadData = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/data');
+      const response = await fetch('/api/data', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await response.json();
 
       // Migration: If server data is empty, check localStorage
@@ -82,14 +90,43 @@ const WatchListManager = () => {
 
   const loadDarkMode = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/darkmode');
+      const response = await fetch('/api/darkmode', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const mode = await response.json();
       setDarkMode(mode);
       if (mode) {
         document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
       }
     } catch (error) {
       console.error("Failed to load dark mode:", error);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (window.confirm("Are you sure you want to delete your account? This action cannot be undone and all your data will be lost.")) {
+      try {
+        const res = await fetch('/api/auth/delete', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          onLogout();
+        } else {
+          const data = await res.json();
+          alert(data.error || "Failed to delete account");
+        }
+      } catch (err) {
+        console.error("Failed to delete account:", err);
+        alert("Error deleting account");
+      }
     }
   };
 
@@ -104,10 +141,11 @@ const WatchListManager = () => {
     }
 
     try {
-      fetch('http://localhost:3001/api/darkmode', {
+      fetch('/api/darkmode', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(newMode),
       });
@@ -118,10 +156,11 @@ const WatchListManager = () => {
 
   const saveData = async (newLists, newSelected, newFolders) => {
     try {
-      await fetch('http://localhost:3001/api/data', {
+      await fetch('/api/data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           lists: newLists,
@@ -1030,13 +1069,21 @@ const WatchListManager = () => {
 
   return (
     <div className={`min-h-screen p-6 flex justify-center items-start transition-colors duration-500
-      ${darkMode ? "dark bg-dark-bg" : "bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50"}`}>
+      ${darkMode ? "bg-gray-950" : "bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50"}`}>
 
       {/* Background decorative elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[100px] animate-pulse-slow"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[100px] animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
       </div>
+
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 lg:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
       <div className="w-full max-w-7xl relative z-10">
         {/* Header */}
@@ -1062,6 +1109,22 @@ const WatchListManager = () => {
               title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-blue-600" />}
+            </button>
+
+            <button
+              onClick={deleteAccount}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10"
+              title="Delete Account"
+            >
+              <Trash2 size={20} />
+            </button>
+
+            <button
+              onClick={onLogout}
+              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
+              title="Sign Out"
+            >
+              <LogOut size={20} />
             </button>
 
             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
@@ -1105,11 +1168,24 @@ const WatchListManager = () => {
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Sidebar */}
-          <div className="lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up">
+          <div className={`
+            fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-80 lg:w-auto h-full lg:h-auto
+            lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up
+            transform transition-transform duration-300 ease-in-out
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            bg-gray-50 dark:bg-gray-900 lg:bg-transparent
+            p-6 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
+          `}>
             <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100">
-                  Collections
+                <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
+                  <span>Collections</span>
+                  <button
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={20} />
+                  </button>
                 </h2>
 
                 <div className="flex items-center gap-2">
@@ -1375,12 +1451,26 @@ const WatchListManager = () => {
           </div>
 
           {/* Main Content */}
-          <div className="lg:col-span-7 xl:col-span-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <div className="lg:col-span-7 xl:col-span-8 h-full overflow-hidden flex flex-col">
+            {/* Mobile Header */}
+            <div className="lg:hidden flex justify-between items-center mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-md p-4 rounded-2xl border border-white/20 dark:border-gray-700">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2 -ml-2 text-gray-700 dark:text-gray-200"
+              >
+                <Menu size={24} />
+              </button>
+              <span className="font-bold text-lg">
+                {selectedList || "Watchlist"}
+              </span>
+              <div className="w-8" /> {/* Spacer */}
+            </div>
+
             {selectedList ? (
-              <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-8 border border-white/20 dark:border-gray-700/50 shadow-xl min-h-[600px]">
+              <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                   <div>
-                    <h2 className="group text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
+                    <h2 className="group text-2xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
                       {editingInMainContent ? (
                         <div className="flex items-center gap-2">
                           <input
