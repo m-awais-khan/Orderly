@@ -859,7 +859,7 @@ const WatchListManager = ({ token, onLogout }) => {
 
                   {/* Display Note */}
                   {item.note && !isEditingNote && (
-                    <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-words bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block">
+                    <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full">
                       📝 {item.note}
                     </div>
                   )}
@@ -1014,7 +1014,7 @@ const WatchListManager = ({ token, onLogout }) => {
               <div className="font-bold text-base lg:text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
 
               {item.note && !isEditingNote && (
-                <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-words bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block">
+                <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full">
                   📝 {item.note}
                 </div>
               )}
@@ -1230,10 +1230,10 @@ const WatchListManager = ({ token, onLogout }) => {
         />
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 items-start">
           {/* Sidebar */}
           <div className={`
-            fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-[85vw] max-w-[300px] lg:w-auto h-full lg:h-auto
+            fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-[85vw] max-w-[340px] lg:w-auto h-full lg:h-auto
             lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up
             transform transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
