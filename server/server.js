@@ -13,6 +13,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_change_me';
 
@@ -79,9 +81,14 @@ const User = mongoose.model('User', UserSchema);
 const AppDataSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     lists: { type: Object, default: {} },
-    folders: { type: Object, default: {} },
+    folders: { type: Map, of: [String], default: {} },
     selectedList: { type: String, default: null },
-    darkMode: { type: Boolean, default: false }
+    darkMode: { type: Boolean, default: false },
+    sharedLists: [{
+        listName: String,
+        shareId: String,
+        createdAt: { type: Date, default: Date.now }
+    }]
 }, { timestamps: true });
 
 const AppData = mongoose.model('AppData', AppDataSchema);
@@ -213,6 +220,128 @@ app.delete('/api/auth/delete', protect, async (req, res) => {
     }
 });
 
+// ------------------------------------------------------------------
+// SHARE LIST ROUTES
+// ------------------------------------------------------------------
+
+// 1. Generate Share Link (POST /api/share/:listName)
+app.post('/api/share/:listName', checkDbConnection, protect, async (req, res) => {
+    try {
+        const listName = req.params.listName;
+        const userId = req.user.id;
+
+        const appData = await AppData.findOne({ userId });
+        if (!appData) {
+            return res.status(404).json({ error: 'Data not found' });
+        }
+
+        if (!appData.lists[listName]) {
+            return res.status(404).json({ error: 'List not found' });
+        }
+
+        // Check if already shared
+        let shareEntry = appData.sharedLists.find(s => s.listName === listName);
+
+        if (!shareEntry) {
+            // Generate unique Share ID (using builtin crypto or math if simple)
+            const { randomBytes } = await import('crypto');
+            const shareId = randomBytes(8).toString('hex'); // 16 params chars
+
+            shareEntry = { listName, shareId };
+            appData.sharedLists.push(shareEntry);
+            await appData.save();
+        }
+
+        // Return the full share URL or just the ID (frontend constructs URL)
+        res.json({ shareId: shareEntry.shareId });
+
+    } catch (error) {
+        console.error('Share Error:', error);
+        res.status(500).json({ error: 'Failed to share list' });
+    }
+});
+
+// 2. Revoke Share Link (DELETE /api/share/:listName)
+app.delete('/api/share/:listName', checkDbConnection, protect, async (req, res) => {
+    try {
+        const listName = req.params.listName;
+        const userId = req.user.id;
+
+        const appData = await AppData.findOne({ userId });
+        if (!appData) {
+            return res.status(404).json({ error: 'Data not found' });
+        }
+
+        appData.sharedLists = appData.sharedLists.filter(s => s.listName !== listName);
+        await appData.save();
+
+        res.json({ message: 'Share link revoked' });
+
+    } catch (error) {
+        console.error('Revoke Share Error:', error);
+        res.status(500).json({ error: 'Failed to revoke share' });
+    }
+});
+
+// 3. Get Shared List (GET /api/share/:shareId) - PUBLIC ROUTE
+app.get('/api/share/:shareId', checkDbConnection, async (req, res) => {
+    try {
+        const shareId = req.params.shareId;
+
+        // Find the AppData that contains this shareId
+        const appData = await AppData.findOne({ 'sharedLists.shareId': shareId }).populate('userId', 'username');
+
+        if (!appData) {
+            return res.status(404).json({ error: 'Shared list not found or link expired' });
+        }
+
+        const shareEntry = appData.sharedLists.find(s => s.shareId === shareId);
+        const listName = shareEntry.listName;
+        const rootItems = appData.lists[listName];
+
+        if (!rootItems) {
+            return res.status(404).json({ error: 'List data missing' });
+        }
+
+        // Recursive function to gather all referenced lists
+        const relatedLists = {};
+        const visited = new Set([listName]);
+
+        const collectReferences = (items) => {
+            if (!items) return;
+
+            items.forEach(item => {
+                if (item.type === 'reference' && item.ref) {
+                    const refName = item.ref;
+                    if (!visited.has(refName)) {
+                        visited.add(refName);
+                        // Add to related lists
+                        const refItems = appData.lists[refName] || [];
+                        relatedLists[refName] = refItems;
+                        // Recurse
+                        collectReferences(refItems);
+                    }
+                }
+            });
+        };
+
+        collectReferences(rootItems);
+
+        // Return the main list plus all related lists needed for rendering
+        res.json({
+            listName: listName,
+            items: rootItems,
+            relatedLists: relatedLists,
+            ownerUsername: appData.userId.username,
+            lastUpdated: shareEntry.createdAt
+        });
+
+    } catch (error) {
+        console.error('Get Shared List Error:', error);
+        res.status(500).json({ error: 'Failed to fetch shared list' });
+    }
+});
+
 // --- Data Routes (Protected) ---
 
 // GET Data
@@ -224,10 +353,11 @@ app.get('/api/data', protect, async (req, res) => {
                 lists: data.lists,
                 folders: data.folders,
                 selectedList: data.selectedList,
+                sharedLists: data.sharedLists || [],
                 darkMode: data.darkMode // Include dark mode here
             });
         } else {
-            res.json({ lists: {}, folders: {}, selectedList: null, darkMode: false });
+            res.json({ lists: {}, folders: {}, selectedList: null, darkMode: false, sharedLists: [] });
         }
     } catch (error) {
         console.error('Error reading data:', error);

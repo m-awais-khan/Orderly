@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import WatchListManager from "./WatchListManager";
 import AuthPage from "./AuthPage";
 
@@ -32,13 +33,24 @@ function App() {
   }
 
   return (
-    <div>
-      {!token ? (
-        <AuthPage onLogin={handleLogin} />
-      ) : (
-        <WatchListManager token={token} onLogout={handleLogout} />
-      )}
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/share/:shareId"
+          element={<WatchListManager />}
+        />
+        <Route
+          path="/"
+          element={
+            !!token ? (
+              <WatchListManager token={token} onLogout={handleLogout} />
+            ) : (
+              <AuthPage onLogin={handleLogin} />
+            )
+          }
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

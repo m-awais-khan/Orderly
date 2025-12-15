@@ -23,6 +23,8 @@ import {
   MoreVertical,
   Menu,
   LogOut,
+  Share2,
+  ArrowLeft
 } from "lucide-react";
 
 const WatchListManager = ({ token, onLogout }) => {
@@ -41,7 +43,11 @@ const WatchListManager = ({ token, onLogout }) => {
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
 
+  const [sharedLists, setSharedLists] = useState([]); // Array of { listName, shareId }
+  const [showShareModal, setShowShareModal] = useState(false); // Toggle for share modal
+
   const [editingInMainContent, setEditingInMainContent] = useState(false);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [newTextItem, setNewTextItem] = useState("");
@@ -54,12 +60,74 @@ const WatchListManager = ({ token, onLogout }) => {
   }, [selectedList]);
 
   useEffect(() => {
-    loadData();
-    loadDarkMode();
-  }, []);
+    // Check URL for shareId
+    const pathParts = window.location.pathname.split('/');
+    const shareIndex = pathParts.indexOf('share');
+    let shareId = null;
+    if (shareIndex !== -1 && pathParts[shareIndex + 1]) {
+      shareId = pathParts[shareIndex + 1];
+    }
+
+    if (shareId) {
+      loadSharedData(shareId);
+    } else if (token) {
+      loadData();
+      loadDarkMode();
+    }
+  }, [token]); // Re-run if token changes (though usually distinct modes)
+
+  const loadSharedData = async (shareId) => {
+    try {
+      const res = await fetch(`/api/share/${shareId}`);
+      if (!res.ok) throw new Error("Link invalid");
+      const data = await res.json();
+
+      // Construct a minimal state for the shared view
+      setLists({
+        [data.listName]: data.items,
+        ...(data.relatedLists || {})
+      });
+      setSelectedList(data.listName);
+      setFolders({});
+      setSharedLists([]); // Visitor doesn't own shares
+
+      // Force Lock Mode
+      setIsListLocked(true);
+
+      // Force Dark Mode for Shared View
+      setDarkMode(true);
+      document.documentElement.classList.add("dark");
+
+      // Hide Sidebar (or minimal) logic handled by !token usually, but let's be explicit if needed
+      // Actually, if we just restrict by !token in UI, that works. owner name is in data.ownerUsername
+
+
+    } catch (err) {
+      alert("Shared link is invalid or has been revoked.");
+      window.location.href = "/";
+    }
+  };
+
+  // --- Navigation History (Shared View) ---
+  const [navHistory, setNavHistory] = useState([]);
+
+  const handleNavigate = (targetList) => {
+    // Only track history if sidebar is likely hidden (e.g. Shared Mode or Mobile)
+    // But logic is safe generally.
+    setNavHistory((prev) => [...prev, selectedList]);
+    setSelectedList(targetList);
+  };
+
+  const handleBack = () => {
+    if (navHistory.length === 0) return;
+    const prevList = navHistory[navHistory.length - 1];
+    setNavHistory((prev) => prev.slice(0, -1));
+    setSelectedList(prevList);
+  };
 
   const loadData = async () => {
     try {
+      if (!token) return; // verification
       const response = await fetch('/api/data', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -84,6 +152,7 @@ const WatchListManager = ({ token, onLogout }) => {
       setLists(data.lists || {});
       setFolders(data.folders || {});
       setSelectedList(data.selectedList || null);
+      setSharedLists(data.sharedLists || []);
     } catch (error) {
       console.error("Failed to load data:", error);
     }
@@ -615,6 +684,50 @@ const WatchListManager = ({ token, onLogout }) => {
     setExpandedRefs((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
+  const generateShareLink = async () => {
+    if (!selectedList) return;
+    try {
+      const res = await fetch(`/api/share/${encodeURIComponent(selectedList)}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Add to local state
+        setSharedLists([...sharedLists, { listName: selectedList, shareId: data.shareId }]);
+      } else {
+        alert("Failed to create share link: " + data.error);
+      }
+    } catch (error) {
+      console.error("Share gen error:", error);
+      alert("Error generating link.");
+    }
+  };
+
+  const revokeShareLink = async () => {
+    if (!selectedList) return;
+    if (!window.confirm("Are you sure? The existing link will stop working immediately.")) return;
+
+    try {
+      const res = await fetch(`/api/share/${encodeURIComponent(selectedList)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        // Remove from local state
+        setSharedLists(sharedLists.filter(s => s.listName !== selectedList));
+      } else {
+        alert("Failed to revoke link.");
+      }
+    } catch (error) {
+      console.error("Share revoke error:", error);
+    }
+  };
+
   // WatchListManager.jsx
 
   const exportData = () => {
@@ -759,7 +872,7 @@ const WatchListManager = ({ token, onLogout }) => {
               className="text-purple-600 cursor-pointer hover:text-purple-800 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedList(item.ref);
+                handleNavigate(item.ref);
               }}
             />
             <span className="flex-1 font-semibold text-gray-800 dark:text-gray-100">
@@ -1153,6 +1266,15 @@ const WatchListManager = ({ token, onLogout }) => {
         {/* Header */}
         <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in">
           <div className="flex items-center gap-4">
+            {navHistory.length > 0 && (
+              <button
+                onClick={handleBack}
+                className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:scale-105 transition-all text-gray-700 dark:text-gray-200 hover:text-blue-500"
+                title="Go Back"
+              >
+                <ArrowLeft size={24} />
+              </button>
+            )}
             <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg shadow-blue-500/30 text-white">
               <Film size={32} />
             </div>
@@ -1175,39 +1297,43 @@ const WatchListManager = ({ token, onLogout }) => {
               {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-blue-600" />}
             </button>
 
-            <button
-              onClick={deleteAccount}
-              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10"
-              title="Delete Account"
-            >
-              <Trash2 size={20} />
-            </button>
+            {token && (
+              <>
+                <button
+                  onClick={deleteAccount}
+                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10"
+                  title="Delete Account"
+                >
+                  <Trash2 size={20} />
+                </button>
 
-            <button
-              onClick={onLogout}
-              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
-              title="Sign Out"
-            >
-              <LogOut size={20} />
-            </button>
+                <button
+                  onClick={onLogout}
+                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
+                  title="Sign Out"
+                >
+                  <LogOut size={20} />
+                </button>
 
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
+                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
 
-            <button
-              onClick={exportData}
-              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95"
-              title="Export Data"
-            >
-              <Download size={20} />
-            </button>
+                <button
+                  onClick={exportData}
+                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95"
+                  title="Export Data"
+                >
+                  <Download size={20} />
+                </button>
 
-            <button
-              onClick={() => document.getElementById("import-file").click()}
-              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400 hover:shadow-md hover:scale-105 active:scale-95"
-              title="Import Data"
-            >
-              <Upload size={20} />
-            </button>
+                <button
+                  onClick={() => document.getElementById("import-file").click()}
+                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400 hover:shadow-md hover:scale-105 active:scale-95"
+                  title="Import Data"
+                >
+                  <Upload size={20} />
+                </button>
+              </>
+            )}
           </div>
         </header>
 
@@ -1230,9 +1356,10 @@ const WatchListManager = ({ token, onLogout }) => {
         />
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 lg:gap-8 items-start">
-          {/* Sidebar */}
-          <div className={`
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 items-start">
+          {/* Sidebar (Only show if authenticated/token exists) */}
+          {token && (
+            <div className={`
             fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-[85vw] max-w-[340px] lg:w-auto h-full lg:h-auto
             lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up
             transform transition-transform duration-300 ease-in-out
@@ -1240,290 +1367,293 @@ const WatchListManager = ({ token, onLogout }) => {
             bg-gray-50 dark:bg-gray-900 lg:bg-transparent
             p-4 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
           `}>
-            <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
-                  <span>Collections</span>
-                  <button
-                    onClick={() => setIsSidebarOpen(false)}
-                    className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
-                  >
-                    <X size={20} />
-                  </button>
-                </h2>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setIsListLocked(!isListLocked)}
-                    className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
-                      ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
-                      : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
-                      }`}
-                    title={isListLocked ? "Unlock Lists" : "Lock Lists"}
-                  >
-                    {isListLocked ? "🔒" : "🔓"}
-                  </button>
-
-                  <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+              <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
+                    <span>Collections</span>
                     <button
-                      onClick={() => setShowAddList(!showAddList)}
-                      disabled={isListLocked}
-                      className={`p-2 rounded-lg transition-all ${isListLocked
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-blue-600 dark:text-blue-400"
-                        }`}
-                      title="New List"
+                      onClick={() => setIsSidebarOpen(false)}
+                      className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
                     >
-                      <Plus size={18} />
+                      <X size={20} />
                     </button>
+                  </h2>
+
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowAddFolder(!showAddFolder)}
-                      disabled={isListLocked}
-                      className={`p-2 rounded-lg transition-all ${isListLocked
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-yellow-600 dark:text-yellow-400"
+                      onClick={() => setIsListLocked(!isListLocked)}
+                      className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
+                        ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
+                        : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
                         }`}
-                      title="New Folder"
+                      title={isListLocked ? "Unlock Lists" : "Lock Lists"}
                     >
-                      <FolderPlus size={18} />
+                      {isListLocked ? "🔒" : "🔓"}
                     </button>
+
+                    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                      <button
+                        onClick={() => setShowAddList(!showAddList)}
+                        disabled={isListLocked}
+                        className={`p-2 rounded-lg transition-all ${isListLocked
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-blue-600 dark:text-blue-400"
+                          }`}
+                        title="New List"
+                      >
+                        <Plus size={18} />
+                      </button>
+                      <button
+                        onClick={() => setShowAddFolder(!showAddFolder)}
+                        disabled={isListLocked}
+                        className={`p-2 rounded-lg transition-all ${isListLocked
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-yellow-600 dark:text-yellow-400"
+                          }`}
+                        title="New Folder"
+                      >
+                        <FolderPlus size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Add Inputs */}
-              <div className="space-y-3 mb-4">
-                {showAddFolder && (
-                  <div className="flex gap-2 animate-fade-in">
-                    <input
-                      type="text"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && createFolder()}
-                      placeholder="Folder name..."
-                      className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-500/50 outline-none transition-all w-full min-w-0"
-                      autoFocus
-                    />
-                    <button
-                      onClick={createFolder}
-                      className="px-3 py-1.5 rounded-xl bg-yellow-500 text-white text-xs font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/30 whitespace-nowrap"
-                    >
-                      Add
-                    </button>
-                  </div>
-                )}
+                {/* Add Inputs */}
+                <div className="space-y-3 mb-4">
+                  {showAddFolder && (
+                    <div className="flex gap-2 animate-fade-in">
+                      <input
+                        type="text"
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        onKeyPress={(e) => e.key === "Enter" && createFolder()}
+                        placeholder="Folder name..."
+                        className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-500/50 outline-none transition-all w-full min-w-0"
+                        autoFocus
+                      />
+                      <button
+                        onClick={createFolder}
+                        className="px-3 py-1.5 rounded-xl bg-yellow-500 text-white text-xs font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/30 whitespace-nowrap"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
 
-                {showAddList && (
-                  <div className="flex gap-2 animate-fade-in">
-                    <input
-                      type="text"
-                      value={newListName}
-                      onChange={(e) => setNewListName(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && createList()}
-                      placeholder="List name..."
-                      className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all w-full min-w-0"
-                      autoFocus
-                    />
-                    <button
-                      onClick={createList}
-                      className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 whitespace-nowrap"
-                    >
-                      Add
-                    </button>
-                  </div>
-                )}
-              </div>
+                  {showAddList && (
+                    <div className="flex gap-2 animate-fade-in">
+                      <input
+                        type="text"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                        onKeyPress={(e) => e.key === "Enter" && createList()}
+                        placeholder="List name..."
+                        className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all w-full min-w-0"
+                        autoFocus
+                      />
+                      <button
+                        onClick={createList}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 whitespace-nowrap"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
-                {/* 1. Render Folders */}
-                {Object.keys(folders).map((folderName) => (
-                  <div key={folderName} className="group/folder">
-                    <div
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
+                <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
+                  {/* 1. Render Folders */}
+                  {Object.keys(folders).map((folderName) => (
+                    <div key={folderName} className="group/folder">
+                      <div
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
                         ${editingListName === `folder:${folderName}` ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`}
-                      onClick={() => toggleFolderExpand(folderName)}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`p-1.5 rounded-lg transition-colors ${expandedFolders[folderName] ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 group-hover/folder:text-yellow-500'}`}>
-                          {expandedFolders[folderName] ? <FolderOpen size={16} /> : <Folder size={16} />}
-                        </div>
-
-                        {editingListName === `folder:${folderName}` ? (
-                          <input
-                            type="text"
-                            defaultValue={folderName}
-                            className="flex-1 min-w-0 px-2 py-1 text-sm bg-white dark:bg-gray-700 rounded border border-blue-300 focus:outline-none"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyPress={(e) => e.key === "Enter" && renameFolder(folderName, e.target.value)}
-                            onBlur={(e) => renameFolder(folderName, e.target.value)}
-                          />
-                        ) : (
-                          <span className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
-                            {folderName}
-                          </span>
-                        )}
-                      </div>
-
-                      {!isListLocked && (
-                        <div className="flex items-center opacity-0 group-hover/folder:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingListName(`folder:${folderName}`);
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteFolder(folderName);
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Folder Contents */}
-                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedFolders[folderName] ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                      <div className="ml-4 pl-3 border-l-2 border-gray-100 dark:border-gray-800 space-y-1 py-1">
-                        {folders[folderName].map((listName) => (
-                          <div
-                            key={listName}
-                            onClick={() => {
-                              if (editingListName !== listName) setSelectedList(listName);
-                            }}
-                            className={`group/list flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
-                              ${selectedList === listName
-                                ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                                : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
-                              }`}
-                          >
-                            <span className="truncate flex-1">{listName}</span>
-                            {!isListLocked && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setMovingList(listName);
-                                  }}
-                                  className={`p-1 rounded transition-all ${selectedList === listName ? 'text-blue-200 hover:text-white hover:bg-blue-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                                  title="Move List"
-                                >
-                                  <MoreVertical size={12} />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
-                                  }}
-                                  className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
-                                  title="Delete List"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            )}
+                        onClick={() => toggleFolderExpand(folderName)}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`p-1.5 rounded-lg transition-colors ${expandedFolders[folderName] ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 group-hover/folder:text-yellow-500'}`}>
+                            {expandedFolders[folderName] ? <FolderOpen size={16} /> : <Folder size={16} />}
                           </div>
-                        ))}
-                        {folders[folderName].length === 0 && (
-                          <div className="px-3 py-2 text-xs text-gray-400 italic">Empty folder</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
 
-                {/* 2. Render Root Lists */}
-                {Object.keys(lists)
-                  .filter((listName) => !Object.values(folders).some((folderLists) => folderLists.includes(listName)))
-                  .map((listName) => (
-                    <div
-                      key={listName}
-                      onClick={() => {
-                        if (editingListName !== listName) setSelectedList(listName);
-                      }}
-                      className={`group flex justify-between items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
-                        ${selectedList === listName
-                          ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25 scale-[1.02]"
-                          : "bg-white dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white hover:shadow-md dark:hover:bg-gray-800 hover:scale-[1.01]"
-                        }`}
-                    >
-                      {editingListName === listName ? (
-                        <div className="flex items-center w-full gap-2">
-                          <input
-                            type="text"
-                            defaultValue={listName}
-                            className="flex-1 px-2 py-1 text-sm rounded text-black outline-none ring-2 ring-blue-400"
-                            autoFocus
-                            onKeyPress={(e) => e.key === "Enter" && renameList(listName, e.target.value)}
-                            onBlur={(e) => renameList(listName, e.target.value)}
-                          />
-                          <button
-                            onMouseDown={(e) => { e.preventDefault(); setEditingListName(null); }}
-                            className="text-white/80 hover:text-white"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center flex-1 min-w-0 gap-3">
-                            <span className="font-medium truncate">{listName}</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-                              {lists[listName].length}
+                          {editingListName === `folder:${folderName}` ? (
+                            <input
+                              type="text"
+                              defaultValue={folderName}
+                              className="flex-1 min-w-0 px-2 py-1 text-sm bg-white dark:bg-gray-700 rounded border border-blue-300 focus:outline-none"
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyPress={(e) => e.key === "Enter" && renameFolder(folderName, e.target.value)}
+                              onBlur={(e) => renameFolder(folderName, e.target.value)}
+                            />
+                          ) : (
+                            <span className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
+                              {folderName}
                             </span>
-                          </div>
-
-                          {!isListLocked && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setMovingList(listName); }}
-                                className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-blue-500 text-blue-100 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-gray-700'}`}
-                                title="Move List"
-                              >
-                                <MoreVertical size={14} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${listName}"?`)) deleteList(listName); }}
-                                className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-red-500 text-red-100 hover:text-white' : 'hover:bg-red-50 text-gray-400 hover:text-red-500 dark:hover:bg-red-900/20'}`}
-                                title="Delete List"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
                           )}
-                        </>
-                      )}
+                        </div>
+
+                        {!isListLocked && (
+                          <div className="flex items-center opacity-0 group-hover/folder:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingListName(`folder:${folderName}`);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteFolder(folderName);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Folder Contents */}
+                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedFolders[folderName] ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                        <div className="ml-4 pl-3 border-l-2 border-gray-100 dark:border-gray-800 space-y-1 py-1">
+                          {folders[folderName].map((listName) => (
+                            <div
+                              key={listName}
+                              onClick={() => {
+                                if (editingListName !== listName) setSelectedList(listName);
+                              }}
+                              className={`group/list flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
+                              ${selectedList === listName
+                                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
+                                }`}
+                            >
+                              <span className="truncate flex-1">{listName}</span>
+                              {!isListLocked && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMovingList(listName);
+                                    }}
+                                    className={`p-1 rounded transition-all ${selectedList === listName ? 'text-blue-200 hover:text-white hover:bg-blue-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    title="Move List"
+                                  >
+                                    <MoreVertical size={12} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
+                                    }}
+                                    className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                                    title="Delete List"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {folders[folderName].length === 0 && (
+                            <div className="px-3 py-2 text-xs text-gray-400 italic">Empty folder</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
 
-                {Object.keys(lists).length === 0 && (
-                  <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                      No lists yet. <br /> Create one to get started!
-                    </p>
-                  </div>
-                )}
+                  {/* 2. Render Root Lists */}
+                  {Object.keys(lists)
+                    .filter((listName) => !Object.values(folders).some((folderLists) => folderLists.includes(listName)))
+                    .map((listName) => (
+                      <div
+                        key={listName}
+                        onClick={() => {
+                          if (editingListName !== listName) setSelectedList(listName);
+                        }}
+                        className={`group flex justify-between items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
+                        ${selectedList === listName
+                            ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25 scale-[1.02]"
+                            : "bg-white dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white hover:shadow-md dark:hover:bg-gray-800 hover:scale-[1.01]"
+                          }`}
+                      >
+                        {editingListName === listName ? (
+                          <div className="flex items-center w-full gap-2">
+                            <input
+                              type="text"
+                              defaultValue={listName}
+                              className="flex-1 px-2 py-1 text-sm rounded text-black outline-none ring-2 ring-blue-400"
+                              autoFocus
+                              onKeyPress={(e) => e.key === "Enter" && renameList(listName, e.target.value)}
+                              onBlur={(e) => renameList(listName, e.target.value)}
+                            />
+                            <button
+                              onMouseDown={(e) => { e.preventDefault(); setEditingListName(null); }}
+                              className="text-white/80 hover:text-white"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center flex-1 min-w-0 gap-3">
+                              <span className="font-medium truncate">{listName}</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                                {lists[listName].length}
+                              </span>
+                            </div>
+
+                            {!isListLocked && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setMovingList(listName); }}
+                                  className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-blue-500 text-blue-100 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600 dark:hover:bg-gray-700'}`}
+                                  title="Move List"
+                                >
+                                  <MoreVertical size={14} />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${listName}"?`)) deleteList(listName); }}
+                                  className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-red-500 text-red-100 hover:text-white' : 'hover:bg-red-50 text-gray-400 hover:text-red-500 dark:hover:bg-red-900/20'}`}
+                                  title="Delete List"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+
+                  {Object.keys(lists).length === 0 && (
+                    <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                        No lists yet. <br /> Create one to get started!
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Main Content */}
-          <div className="lg:col-span-7 xl:col-span-8 h-full overflow-hidden flex flex-col">
+          <div className={`${token ? 'lg:col-span-7 xl:col-span-8' : 'col-span-12 lg:col-span-12'} h-full overflow-hidden flex flex-col`}>
             {/* Mobile Header */}
             <div className="lg:hidden flex justify-between items-center mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-md p-4 rounded-2xl border border-white/20 dark:border-gray-700">
-              <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="p-2 -ml-2 text-gray-700 dark:text-gray-200"
-              >
-                <Menu size={24} />
-              </button>
+              {token && (
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="p-2 -ml-2 text-gray-700 dark:text-gray-200"
+                >
+                  <Menu size={24} />
+                </button>
+              )}
               <span className="font-bold text-lg">
                 {selectedList || "Watchlist"}
               </span>
@@ -1577,6 +1707,23 @@ const WatchListManager = ({ token, onLogout }) => {
                               type="button"
                             >
                               <Edit2 size={20} />
+                            </button>
+                          )}
+                          {/* Share Button (Only if user has token - i.e. owner) */}
+                          {token && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowShareModal(true);
+                              }}
+                              className={`p-2 rounded-lg transition-all duration-200 ${sharedLists.find(s => s.listName === selectedList)
+                                ? "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                : "text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                }`}
+                              title="Share List"
+                              type="button"
+                            >
+                              <Share2 size={20} />
                             </button>
                           )}
                         </>
@@ -1726,41 +1873,118 @@ const WatchListManager = ({ token, onLogout }) => {
       </div>
 
       {/* Move List Modal */}
-      {movingList && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-96 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
-            <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
-              <Folder size={24} className="text-blue-500" />
-              Move "{movingList}"
-            </h3>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-              <button
-                onClick={() => moveListToFolder(movingList, null)}
-                className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
-              >
-                (Root Level)
-              </button>
-              {Object.keys(folders).map((folderName) => (
+      {
+        movingList && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-96 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+              <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <Folder size={24} className="text-blue-500" />
+                Move "{movingList}"
+              </h3>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                 <button
-                  key={folderName}
-                  onClick={() => moveListToFolder(movingList, folderName)}
-                  className="w-full text-left px-4 py-3 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/10 text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors border border-transparent hover:border-yellow-200 dark:hover:border-yellow-900/30"
+                  onClick={() => moveListToFolder(movingList, null)}
+                  className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
                 >
-                  <Folder size={18} className="text-yellow-500" />
-                  {folderName}
+                  (Root Level)
                 </button>
-              ))}
+                {Object.keys(folders).map((folderName) => (
+                  <button
+                    key={folderName}
+                    onClick={() => moveListToFolder(movingList, folderName)}
+                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/10 text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors border border-transparent hover:border-yellow-200 dark:hover:border-yellow-900/30"
+                  >
+                    <Folder size={18} className="text-yellow-500" />
+                    {folderName}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setMovingList(null)}
+                className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
-            <button
-              onClick={() => setMovingList(null)}
-              className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {/* Share List Modal */}
+      {
+        showShareModal && selectedList && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fade-in" onClick={() => setShowShareModal(false)}>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-[90vw] max-w-md border border-gray-100 dark:border-gray-700 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                  <Share2 size={24} className="text-blue-500" />
+                  Share "{selectedList}"
+                </h3>
+                <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {sharedLists.find(s => s.listName === selectedList) ? (
+                <div className="space-y-4">
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
+                    <p className="text-sm text-green-700 dark:text-green-300 font-medium mb-1">
+                      ✅ This list is currently shared.
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Anyone with the link can view it (Read-Only).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Share Link</label>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={`${window.location.origin}/share/${sharedLists.find(s => s.listName === selectedList).shareId}`}
+                        className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg border-none text-gray-600 dark:text-gray-300 focus:ring-0"
+                      />
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/share/${sharedLists.find(s => s.listName === selectedList).shareId}`);
+                          alert("Link copied!");
+                        }}
+                        className="px-3 py-2 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={revokeShareLink}
+                    className="w-full py-3 mt-4 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={18} />
+                    Stop Sharing
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Share2 size={32} className="text-blue-500" />
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-300 mb-6">
+                    Create a public link for <strong>"{selectedList}"</strong> so others can view it.
+                  </p>
+                  <button
+                    onClick={generateShareLink}
+                    className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/30 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-95"
+                  >
+                    Generate Link
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 };
 
