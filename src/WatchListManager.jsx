@@ -1170,16 +1170,18 @@ const WatchListManager = ({ token, onLogout }) => {
                   {item.note && visibleNotes[item.id] && !isEditingNote && (
                     <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
                       📝 {item.note}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingNoteId(item.id);
-                        }}
-                        className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
-                        title="Edit Note"
-                      >
-                        <Edit2 size={14} />
-                      </button>
+                      {!isListLocked && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingNoteId(item.id);
+                          }}
+                          className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
+                          title="Edit Note"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -1213,7 +1215,7 @@ const WatchListManager = ({ token, onLogout }) => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {!isListLocked && (
+            {(!isListLocked || item.note) && (
               <button
                 onClick={(e) => {
                   e.preventDefault();
@@ -1221,17 +1223,18 @@ const WatchListManager = ({ token, onLogout }) => {
                   if (item.note) {
                     // Toggle Visibility
                     setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                  } else {
-                    // Enter Edit Mode
+                  } else if (!isListLocked) {
+                    // Enter Edit Mode (Only if unlocked)
                     setEditingNoteId(item.id);
                     // Allow visibility immediately
                     setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
                   }
                 }}
-                className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
-                  ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10"
-                  : "text-gray-400 hover:text-amber-500"
-                  }`}
+                disabled={isListLocked && !item.note} // Disable if locked and no note
+                className={`p-2 rounded-full transition-colors ${item.note
+                  ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  } ${isListLocked && !item.note ? "opacity-50 cursor-not-allowed" : ""}`}
                 title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
               >
                 <MessageSquare size={18} />
@@ -1334,16 +1337,18 @@ const WatchListManager = ({ token, onLogout }) => {
               {item.note && visibleNotes[item.id] && !isEditingNote && (
                 <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
                   📝 {item.note}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingNoteId(item.id);
-                    }}
-                    className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
-                    title="Edit Note"
-                  >
-                    <Edit2 size={14} />
-                  </button>
+                  {!isListLocked && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingNoteId(item.id);
+                      }}
+                      className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
+                      title="Edit Note"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1383,22 +1388,23 @@ const WatchListManager = ({ token, onLogout }) => {
         </span>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          {!isListLocked && (
+          {(!isListLocked || item.note) && (
             <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 if (item.note) {
                   setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                } else {
+                } else if (!isListLocked) {
                   setEditingNoteId(item.id);
                   setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
                 }
               }}
-              className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${item.note
-                ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10"
-                : "text-gray-400 hover:text-amber-500"
-                }`}
+              disabled={isListLocked && !item.note} // Disable if locked and no note
+              className={`p-2 rounded-full transition-colors ${item.note
+                ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
+                : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+                } ${isListLocked && !item.note ? "opacity-50 cursor-not-allowed" : ""}`}
               title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
             >
               <MessageSquare size={18} />
