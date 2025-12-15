@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useState } from 'react';
 import { Film, User, Lock, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 const AuthPage = ({ onLogin }) => {
