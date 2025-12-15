@@ -1,0 +1,966 @@
+{
+  "lists": {
+    "Movies": [
+      {
+        "id": 1764705801661,
+        "ref": "The Godfather",
+        "type": "reference"
+      }
+    ],
+    "Shows": [
+      {
+        "id": 1764706192980,
+        "ref": "Diriliş: Ertuğrul",
+        "type": "reference"
+      }
+    ],
+    "Animes": [
+      {
+        "id": 209867,
+        "text": "Frieren: Beyond Journey's End",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2023",
+        "image": "https://image.tmdb.org/t/p/w92/dqZENchTd7lp5zht7BdlqM7RBhD.jpg",
+        "note": "28 Episodes"
+      },
+      {
+        "id": 13916,
+        "text": "Death Note",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2006",
+        "image": "https://image.tmdb.org/t/p/w92/tCZFfYTIwrR7n94J6G14Y4hAFU6.jpg",
+        "note": "37 Episodes"
+      },
+      {
+        "id": 1764615983292,
+        "ref": "Attack on Titan",
+        "type": "reference"
+      },
+      {
+        "id": 12477,
+        "text": "Grave of the Fireflies",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1988",
+        "image": "https://image.tmdb.org/t/p/w92/k9tv1rXZbOhH7eiCk378x61kNQ1.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764616542797,
+        "ref": "Vinland Saga",
+        "type": "reference"
+      },
+      {
+        "id": 1764617370973,
+        "ref": "Violet Evergarden",
+        "type": "reference"
+      },
+      {
+        "id": 1764617874901,
+        "ref": "SCU",
+        "type": "reference"
+      },
+      {
+        "id": 1764618179261,
+        "ref": "Demon Slayer",
+        "type": "reference"
+      },
+      {
+        "id": 1764618395631,
+        "ref": "Jujutsu Kaisen",
+        "type": "reference"
+      },
+      {
+        "id": 1764618512501,
+        "ref": "Solo Leveling",
+        "type": "reference"
+      },
+      {
+        "id": 284445,
+        "text": "Takopi's Original Sin",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2025",
+        "image": "https://image.tmdb.org/t/p/w92/xPXDVhVKt0XM34ihoUVMHtLYTw8.jpg",
+        "note": "6 Episodes"
+      },
+      {
+        "id": 378064,
+        "text": "A Silent Voice: The Movie",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/tuFaWiqX0TXoWu7DGNcmX3UW7sT.jpg",
+        "note": ""
+      },
+      {
+        "id": 83100,
+        "text": "Dororo",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2019",
+        "image": "https://image.tmdb.org/t/p/w92/2qSzgSE80OFrfgg5UFYbATdCQ6t.jpg",
+        "note": "24 Episodes"
+      },
+      {
+        "id": 504253,
+        "text": "I Want to Eat Your Pancreas",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2018",
+        "image": "https://image.tmdb.org/t/p/w92/qDWA7fB4cZ4sBP6YgwlxvraDHi7.jpg",
+        "note": ""
+      },
+      {
+        "id": 92321,
+        "text": "Hotarubi no Mori e",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2011",
+        "image": "https://image.tmdb.org/t/p/w92/mDqzHV8UXWWNpZkoAbKmKX1ZxEE.jpg",
+        "note": ""
+      },
+      {
+        "id": 652837,
+        "text": "Josee, the Tiger and the Fish",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2020",
+        "image": "https://image.tmdb.org/t/p/w92/z1D8xi9x4uEhyFruo7uEHXUMD4K.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764619289626,
+        "ref": "Mushoku Tensei: Jobless Reincarnation",
+        "type": "reference"
+      },
+      {
+        "id": 212167,
+        "text": "Patema Inverted",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2013",
+        "image": "https://image.tmdb.org/t/p/w92/1ZpDVSY15o0TWVj7qbvFf5BU8jE.jpg",
+        "note": ""
+      },
+      {
+        "id": 128,
+        "text": "Princess Mononoke",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1997",
+        "image": "https://image.tmdb.org/t/p/w92/cMYCDADoLKLbB83g4WnJegaZimC.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764619835232,
+        "ref": "Spy x Family",
+        "type": "reference"
+      },
+      {
+        "id": 798544,
+        "text": "Summer Ghost",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2021",
+        "image": "https://image.tmdb.org/t/p/w92/mMXaAvvSw24hYNchhCtCM5z6fhB.jpg",
+        "note": ""
+      },
+      {
+        "id": 117933,
+        "text": "Summer Time Rendering",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2022",
+        "image": "https://image.tmdb.org/t/p/w92/m9e7chRW8Q8Go1Dv00RCUHbMoNe.jpg",
+        "note": "25 Episodes"
+      },
+      {
+        "id": 110420,
+        "text": "Wolf Children",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2012",
+        "image": "https://image.tmdb.org/t/p/w92/3Nllh6JgcrFdtOn6iFOWHudNInd.jpg",
+        "note": ""
+      },
+      {
+        "id": 65249,
+        "text": "ERASED",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/EljUwZJhpuYfVuSfqY8Pt1xxpH.jpg",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764620505134,
+        "ref": "Chainsaw Man",
+        "type": "reference"
+      },
+      {
+        "id": 1764620512313,
+        "ref": "I've Always Liked You",
+        "type": "reference"
+      },
+      {
+        "id": 1764620686556,
+        "ref": "The Apothecary Diaries",
+        "type": "reference"
+      },
+      {
+        "id": 271607,
+        "text": "The Fragrant Flower Blooms with Dignity",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2025",
+        "image": "https://image.tmdb.org/t/p/w92/g1sYAQt0OeCxzyfagSEqxUlsLnt.jpg",
+        "note": "13 Episodes"
+      },
+      {
+        "id": 14069,
+        "text": "The Girl Who Leapt Through Time",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2006",
+        "image": "https://image.tmdb.org/t/p/w92/xHnlWM8BmqY419YUccYy2KC5Jqo.jpg",
+        "note": ""
+      },
+      {
+        "id": 916192,
+        "text": "The Tunnel to Summer, the Exit of Goodbyes",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2022",
+        "image": "https://image.tmdb.org/t/p/w92/5AGA6pbBKXZTI8k1c6odx30JuQR.jpg",
+        "note": ""
+      },
+      {
+        "id": 667520,
+        "text": "A Whisker Away",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2020",
+        "image": "https://image.tmdb.org/t/p/w92/6inkRM1XGBG5vRhclCPWfMenp7N.jpg",
+        "note": ""
+      },
+      {
+        "id": 4935,
+        "text": "Howl's Moving Castle",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2004",
+        "image": "https://image.tmdb.org/t/p/w92/13kOl2v0nD2OLbVSHnHk8GUFEhO.jpg",
+        "note": ""
+      },
+      {
+        "id": 129,
+        "text": "Spirited Away",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2001",
+        "image": "https://image.tmdb.org/t/p/w92/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg",
+        "note": ""
+      },
+      {
+        "id": 205308,
+        "text": "Tomo-chan Is a Girl!",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2023",
+        "image": "https://image.tmdb.org/t/p/w92/h9TN2BltJ9Q7FZ5BYGQcHfYfEGp.jpg",
+        "note": "13 Episodes"
+      }
+    ],
+    "Attack on Titan": [
+      {
+        "id": 1429,
+        "text": "Attack on Titan",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2013",
+        "image": "https://image.tmdb.org/t/p/w92/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764614959362,
+        "text": "Season 1",
+        "type": "text",
+        "note": "25 Episodes"
+      },
+      {
+        "id": 1764615090953,
+        "text": "Attack on Titan: Since That Day",
+        "type": "text",
+        "note": "Special"
+      },
+      {
+        "id": 1764615370456,
+        "text": "Attack on Titan OAD/OVA",
+        "type": "text",
+        "note": "OVA (3 Episodes)"
+      },
+      {
+        "id": 1764615416409,
+        "text": "Attack on Titan: No Regrets",
+        "type": "text",
+        "note": "OVA (2 Episodes)"
+      },
+      {
+        "id": 1764615454146,
+        "text": "Season 2",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764615578074,
+        "text": "Attack on Titan: Lost Girls",
+        "type": "text",
+        "note": "OVA (3 Episodes)"
+      },
+      {
+        "id": 1764615632699,
+        "text": "Season 3: Part-1",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764615673959,
+        "text": "Season 3: Part-2",
+        "type": "text",
+        "note": "10 Episodes"
+      },
+      {
+        "id": 1764615764537,
+        "text": "Final Season: Part-1",
+        "type": "text",
+        "note": "16 Episodes"
+      },
+      {
+        "id": 1764615817856,
+        "text": "Final Season: Part-2",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764615917954,
+        "text": "Final Season - The Final Chapters",
+        "type": "text",
+        "note": "Special (2 Episodes)"
+      }
+    ],
+    "Vinland Saga": [
+      {
+        "id": 88803,
+        "text": "Vinland Saga",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2019",
+        "image": "https://image.tmdb.org/t/p/w92/vUHlpA5c1NXkds59reY3HMb4Abs.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764616473770,
+        "text": "Season 1",
+        "type": "text",
+        "note": "24 Episodes"
+      },
+      {
+        "id": 1764616497495,
+        "text": "Season 2",
+        "type": "text",
+        "note": "24 Episodes"
+      }
+    ],
+    "Violet Evergarden": [
+      {
+        "id": 75214,
+        "text": "Violet Evergarden",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2018",
+        "image": "https://image.tmdb.org/t/p/w92/61EwFPqc0r1uJo6la49J55F8bQ8.jpg",
+        "note": "13 Episodes"
+      },
+      {
+        "id": 1764617176195,
+        "text": "Violet Evergarden: The Day You Understand \"I Love You\" Will Surely Come",
+        "type": "text",
+        "note": "Special"
+      },
+      {
+        "id": 610892,
+        "text": "Violet Evergarden: Eternity and the Auto Memory Doll",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2019",
+        "image": "https://image.tmdb.org/t/p/w92/zjaSw6Ok0MhXjrruPrA27VHyUYC.jpg",
+        "note": ""
+      },
+      {
+        "id": 533514,
+        "text": "Violet Evergarden: The Movie",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2020",
+        "image": "https://image.tmdb.org/t/p/w92/4b7uAGVtgA85Yd911yOJqIsHigx.jpg",
+        "note": ""
+      }
+    ],
+    "SCU": [
+      {
+        "id": 38142,
+        "text": "5 Centimeters per Second",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2007",
+        "image": "https://image.tmdb.org/t/p/w92/dFipUR6W0y3PPkuVS8gjFd929m2.jpg",
+        "note": ""
+      },
+      {
+        "id": 79707,
+        "text": "Children Who Chase Lost Voices",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2011",
+        "image": "https://image.tmdb.org/t/p/w92/hWyBwsjMgtuZL2i1QBWQY0OCh0M.jpg",
+        "note": ""
+      },
+      {
+        "id": 198375,
+        "text": "The Garden of Words",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2013",
+        "image": "https://image.tmdb.org/t/p/w92/mXUCVq3HMtS4Y9IQ8vmEOPyN0vH.jpg",
+        "note": ""
+      },
+      {
+        "id": 372058,
+        "text": "Your Name.",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/q719jXXEzOoYaps6babgKnONONX.jpg",
+        "note": ""
+      },
+      {
+        "id": 568160,
+        "text": "Weathering with You",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2019",
+        "image": "https://image.tmdb.org/t/p/w92/qgrk7r1fV4IjuoeiGS5HOhXNdLJ.jpg",
+        "note": ""
+      },
+      {
+        "id": 916224,
+        "text": "Suzume",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2022",
+        "image": "https://image.tmdb.org/t/p/w92/yStW1TXF5s7Tbtu9KjIZEaWl6HL.jpg",
+        "note": ""
+      }
+    ],
+    "Demon Slayer": [
+      {
+        "id": 85937,
+        "text": "Demon Slayer: Kimetsu no Yaiba",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2019",
+        "image": "https://image.tmdb.org/t/p/w92/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764617982250,
+        "text": "Season 1",
+        "type": "text",
+        "note": "26 Episodes"
+      },
+      {
+        "id": 1764618065266,
+        "text": "Season 2",
+        "type": "text",
+        "note": "18 Episodes"
+      },
+      {
+        "id": 1764618112198,
+        "text": "Season 3",
+        "type": "text",
+        "note": "11 Episodes"
+      },
+      {
+        "id": 1764618134274,
+        "text": "Season 4",
+        "type": "text",
+        "note": "8 Episodes"
+      },
+      {
+        "id": 1311031,
+        "text": "Demon Slayer: Kimetsu no Yaiba Infinity Castle",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2025",
+        "image": "https://image.tmdb.org/t/p/w92/fWVSwgjpT2D78VUh6X8UBd2rorW.jpg",
+        "note": ""
+      }
+    ],
+    "Jujutsu Kaisen": [
+      {
+        "id": 95479,
+        "text": "JUJUTSU KAISEN",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2020",
+        "image": "https://image.tmdb.org/t/p/w92/fHpKWq9ayzSk8nSwqRuaAUemRKh.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764618293135,
+        "text": "Season 1",
+        "type": "text",
+        "note": "24 Episodes"
+      },
+      {
+        "id": 810693,
+        "text": "Jujutsu Kaisen 0",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2021",
+        "image": "https://image.tmdb.org/t/p/w92/23oJaeBh0FDk2mQ2P240PU9Xxfh.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764618324794,
+        "text": "Season 2",
+        "type": "text",
+        "note": "23 Episodes"
+      }
+    ],
+    "Solo Leveling": [
+      {
+        "id": 127532,
+        "text": "Solo Leveling",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2024",
+        "image": "https://image.tmdb.org/t/p/w92/geCRueV3ElhRTr0xtJuEWJt6dJ1.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764618479676,
+        "text": "Season 1",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764618491805,
+        "text": "Season 2",
+        "type": "text",
+        "note": "13 Episodes"
+      }
+    ],
+    "Mushoku Tensei: Jobless Reincarnation": [
+      {
+        "id": 94664,
+        "text": "Mushoku Tensei: Jobless Reincarnation",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2021",
+        "image": "https://image.tmdb.org/t/p/w92/gLKOYIMyKlUHW0SVdskhgf9C0yy.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764618924355,
+        "text": "Season 1: Part-1",
+        "type": "text",
+        "note": "11 Episodes"
+      },
+      {
+        "id": 1764619112762,
+        "text": "Season 1: Part-2",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1576809,
+        "text": "Mushoku Tensei: Jobless Reincarnation - Eris the Goblin Slayer",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2022",
+        "image": "https://image.tmdb.org/t/p/w92/9aQ3mybYhpomqKaM7POnJM4kng4.jpg",
+        "note": "Special"
+      },
+      {
+        "id": 1576820,
+        "text": "Mushoku Tensei: Jobless Reincarnation - Guardian Fitz",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2023",
+        "image": "https://image.tmdb.org/t/p/w92/fwznQLagI9tnNwRy7UJzctrtAMd.jpg",
+        "note": "Special"
+      },
+      {
+        "id": 1764619159059,
+        "text": "Season 2: Part-1",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764618954503,
+        "text": "Season 2: Part-2",
+        "type": "text",
+        "note": "12 Episodes"
+      }
+    ],
+    "Spy x Family": [
+      {
+        "id": 120089,
+        "text": "SPY x FAMILY",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2022",
+        "image": "https://image.tmdb.org/t/p/w92/7NAvPYPAu7MeHwP8E9sn81PqsRh.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764619708402,
+        "text": "Season 1: Part-1",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1764619780162,
+        "text": "Season 1: Part-2",
+        "type": "text",
+        "note": "13 Episodes"
+      },
+      {
+        "id": 1764619753766,
+        "text": "Season 2",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1062807,
+        "text": "SPY x FAMILY CODE: White",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2023",
+        "image": "https://image.tmdb.org/t/p/w92/xlIQf4y9eB14iYzNN142tROIWON.jpg",
+        "note": ""
+      }
+    ],
+    "Chainsaw Man": [
+      {
+        "id": 114410,
+        "text": "Chainsaw Man",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2022",
+        "image": "https://image.tmdb.org/t/p/w92/npdB6eFzizki0WaZ1OvKcJrWe97.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764620047011,
+        "text": "Season 1",
+        "type": "text",
+        "note": "12 Episodes"
+      },
+      {
+        "id": 1544513,
+        "text": "Chainsaw Man – The Compilation Part I",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2025",
+        "image": "https://image.tmdb.org/t/p/w92/39WMqexv0Jc6JvFVKMrVPTNF5y4.jpg",
+        "note": "Note: NI"
+      },
+      {
+        "id": 1544707,
+        "text": "Chainsaw Man – The Compilation Part II",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2025",
+        "image": "https://image.tmdb.org/t/p/w92/4R2ZsFIT65npwd4riS8XG3VglZS.jpg",
+        "note": "Note: NI"
+      }
+    ],
+    "I've Always Liked You": [
+      {
+        "id": 374853,
+        "text": "I've Always Liked You",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/rQDnIuWMYdZ2BXwaqy4Ird4w8Kw.jpg",
+        "note": ""
+      },
+      {
+        "id": 472516,
+        "text": "The Moment You Fall in Love",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/b3NQEmgAYKTDuAXSE0f294lrE4Q.jpg",
+        "note": ""
+      },
+      {
+        "id": 74094,
+        "text": "Our Love Has Always Been 10 Centimeters Apart.",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2017",
+        "image": "https://image.tmdb.org/t/p/w92/qJ4DavCdbDx29tQQNlGkC56jeKV.jpg",
+        "note": "6 Episodes"
+      }
+    ],
+    "The Apothecary Diaries": [
+      {
+        "id": 220542,
+        "text": "The Apothecary Diaries",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2023",
+        "image": "https://image.tmdb.org/t/p/w92/e3ojpANrFnmJCyeBNTinYwyBCIN.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764620624004,
+        "text": "Season 1",
+        "type": "text",
+        "note": "24 Episodes"
+      },
+      {
+        "id": 1764620642520,
+        "text": "Season 2",
+        "type": "text",
+        "note": "24 Episodes"
+      }
+    ],
+    "The Lion King": [
+      {
+        "id": 8587,
+        "text": "The Lion King",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1994",
+        "image": "https://image.tmdb.org/t/p/w92/sKCr78MXSLixwmZ8DyJLrpMsd15.jpg",
+        "note": ""
+      },
+      {
+        "id": 9732,
+        "text": "The Lion King II: Simba's Pride",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1998",
+        "image": "https://image.tmdb.org/t/p/w92/sWR1x6UCMCGN9xEf8RGhPS934X0.jpg",
+        "note": ""
+      },
+      {
+        "id": 11430,
+        "text": "The Lion King 1½",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2004",
+        "image": "https://image.tmdb.org/t/p/w92/sVJME5R1NmTXtbdnAxYPx7Xa7kr.jpg",
+        "note": ""
+      },
+      {
+        "id": 420818,
+        "text": "The Lion King",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2019",
+        "image": "https://image.tmdb.org/t/p/w92/dzBtMocZuJbjLOXvrl4zGYigDzh.jpg",
+        "note": ""
+      }
+    ],
+    "Animations": [
+      {
+        "id": 1764705447183,
+        "ref": "The Lion King",
+        "type": "reference"
+      },
+      {
+        "id": 1764704237717,
+        "ref": "The Jungle Book",
+        "type": "reference"
+      },
+      {
+        "id": 1764705613402,
+        "ref": "Kung Fu Panda",
+        "type": "reference"
+      }
+    ],
+    "The Jungle Book": [
+      {
+        "id": 9325,
+        "text": "The Jungle Book",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1967",
+        "image": "https://image.tmdb.org/t/p/w92/9BgcTVV43dZ8A1TpuXWkuNTXtfI.jpg",
+        "note": ""
+      },
+      {
+        "id": 14873,
+        "text": "The Jungle Book 2",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2003",
+        "image": "https://image.tmdb.org/t/p/w92/21GanxizOIL1CN0HLx7j3je8k87.jpg",
+        "note": ""
+      },
+      {
+        "id": 278927,
+        "text": "The Jungle Book",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/2Epx7F9X7DrFptn4seqn4mzBVks.jpg",
+        "note": ""
+      }
+    ],
+    "Kung Fu Panda": [
+      {
+        "id": 9502,
+        "text": "Kung Fu Panda",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2008",
+        "image": "https://image.tmdb.org/t/p/w92/wWt4JYXTg5Wr3xBW2phBrMKgp3x.jpg",
+        "note": ""
+      },
+      {
+        "id": 49444,
+        "text": "Kung Fu Panda 2",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2011",
+        "image": "https://image.tmdb.org/t/p/w92/A23nZfFBa7gFD40IsiV5gOadyIi.jpg",
+        "note": ""
+      },
+      {
+        "id": 140300,
+        "text": "Kung Fu Panda 3",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2016",
+        "image": "https://image.tmdb.org/t/p/w92/oajNi4Su39WAByHI6EONu8G8HYn.jpg",
+        "note": ""
+      },
+      {
+        "id": 1011985,
+        "text": "Kung Fu Panda 4",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "2024",
+        "image": "https://image.tmdb.org/t/p/w92/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg",
+        "note": ""
+      }
+    ],
+    "The Godfather": [
+      {
+        "id": 238,
+        "text": "The Godfather",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1972",
+        "image": "https://image.tmdb.org/t/p/w92/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
+        "note": ""
+      },
+      {
+        "id": 240,
+        "text": "The Godfather Part II",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1974",
+        "image": "https://image.tmdb.org/t/p/w92/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg",
+        "note": ""
+      },
+      {
+        "id": 242,
+        "text": "The Godfather Part III",
+        "type": "tmdb",
+        "media_type": "movie",
+        "year": "1990",
+        "image": "https://image.tmdb.org/t/p/w92/lm3pQ2QoQ16pextRsmnUbG2onES.jpg",
+        "note": ""
+      }
+    ],
+    "Diriliş: Ertuğrul": [
+      {
+        "id": 66017,
+        "text": "Resurrection: Ertugrul",
+        "type": "tmdb",
+        "media_type": "tv",
+        "year": "2014",
+        "image": "https://image.tmdb.org/t/p/w92/rOar34cNLn2sgDH5FmAa1bvMpBv.jpg",
+        "note": ""
+      },
+      {
+        "id": 1764706076338,
+        "text": "Season 1",
+        "type": "text",
+        "note": "26 Episodes"
+      },
+      {
+        "id": 1764706099574,
+        "text": "Season 2",
+        "type": "text",
+        "note": "35 Episodes"
+      },
+      {
+        "id": 1764706120571,
+        "text": "Season 3",
+        "type": "text",
+        "note": "30 Episodes"
+      },
+      {
+        "id": 1764706149798,
+        "text": "Season 4",
+        "type": "text",
+        "note": "30 Episodes"
+      },
+      {
+        "id": 1764706155003,
+        "text": "Season 5",
+        "type": "text",
+        "note": "50 Episodes"
+      }
+    ]
+  },
+  "selectedList": "Animes",
+  "folders": {
+    "Animes Folder": [
+      "Attack on Titan",
+      "Vinland Saga",
+      "Violet Evergarden",
+      "SCU",
+      "Demon Slayer",
+      "Jujutsu Kaisen",
+      "Solo Leveling",
+      "Mushoku Tensei: Jobless Reincarnation",
+      "Spy x Family",
+      "Chainsaw Man",
+      "I've Always Liked You",
+      "The Apothecary Diaries"
+    ],
+    "Movies Folder": [
+      "The Godfather"
+    ],
+    "Animations Folder": [
+      "The Lion King",
+      "The Jungle Book",
+      "Kung Fu Panda"
+    ],
+    "Shows Folder": [
+      "Diriliş: Ertuğrul"
+    ]
+  }
+}

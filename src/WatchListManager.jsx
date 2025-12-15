@@ -53,28 +53,43 @@ const WatchListManager = () => {
     loadDarkMode();
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const saveData = localStorage.getItem("watchlists-data");
-      if (saveData) {
-        const data = JSON.parse(saveData);
-        setLists(data.lists || {});
-        setFolders(data.folders || {}); // Load folders
-        setSelectedList(data.selectedList || null);
+      const response = await fetch('http://localhost:3001/api/data');
+      const data = await response.json();
+
+      // Migration: If server data is empty, check localStorage
+      if (!data || Object.keys(data).length === 0) {
+        const localData = localStorage.getItem("watchlists-data");
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          setLists(parsed.lists || {});
+          setFolders(parsed.folders || {});
+          setSelectedList(parsed.selectedList || null);
+          // Sync to server
+          saveData(parsed.lists, parsed.selectedList, parsed.folders);
+          return;
+        }
       }
+
+      setLists(data.lists || {});
+      setFolders(data.folders || {});
+      setSelectedList(data.selectedList || null);
     } catch (error) {
-      console.log("No saved data found");
+      console.error("Failed to load data:", error);
     }
   };
 
-  const loadDarkMode = () => {
+  const loadDarkMode = async () => {
     try {
-      const savedData = localStorage.getItem("watchlists-darkmode");
-      if (savedData) {
-        setDarkMode(JSON.parse(savedData));
+      const response = await fetch('http://localhost:3001/api/darkmode');
+      const mode = await response.json();
+      setDarkMode(mode);
+      if (mode) {
+        document.documentElement.classList.add("dark");
       }
     } catch (error) {
-      console.log("No dark mode preference found");
+      console.error("Failed to load dark mode:", error);
     }
   };
 
@@ -89,22 +104,31 @@ const WatchListManager = () => {
     }
 
     try {
-      localStorage.setItem("watchlists-darkmode", JSON.stringify(newMode));
+      fetch('http://localhost:3001/api/darkmode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newMode),
+      });
     } catch (error) {
       console.error("Failed to save dark mode preference:", error);
     }
   };
 
-  const saveData = (newLists, newSelected, newFolders) => {
+  const saveData = async (newLists, newSelected, newFolders) => {
     try {
-      localStorage.setItem(
-        "watchlists-data",
-        JSON.stringify({
+      await fetch('http://localhost:3001/api/data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           lists: newLists,
           selectedList: newSelected,
           folders: newFolders,
-        })
-      );
+        }),
+      });
     } catch (error) {
       console.error("Failed to save data:", error);
     }
@@ -613,10 +637,7 @@ const WatchListManager = () => {
         importedObject.selectedList,
         importedObject.folders || {}
       );
-      localStorage.setItem(
-        "watchListLock",
-        JSON.stringify(importedObject.isListLocked)
-      );
+      // localStorage.setItem("watchListLock", ...); - Removed in migration
 
       alert(
         "Data imported successfully! Your application state has been fully restored."
