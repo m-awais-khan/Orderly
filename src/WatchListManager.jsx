@@ -1092,10 +1092,10 @@ const WatchListManager = ({ token, onLogout }) => {
               <Film size={32} />
             </div>
             <div>
-              <h1 className="text-4xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
+              <h1 className="text-2xl lg:text-4xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
                 Orderly
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 font-medium">
+              <p className="text-xs lg:text-base text-gray-500 dark:text-gray-400 font-medium">
                 Curate your entertainment journey
               </p>
             </div>
@@ -1168,14 +1168,14 @@ const WatchListManager = ({ token, onLogout }) => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Sidebar */}
           <div className={`
-            fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-80 lg:w-auto h-full lg:h-auto
+            fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-[85vw] max-w-[300px] lg:w-auto h-full lg:h-auto
             lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up
             transform transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             bg-gray-50 dark:bg-gray-900 lg:bg-transparent
-            p-6 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
+            p-4 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
           `}>
-            <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
+            <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
                   <span>Collections</span>
@@ -1236,12 +1236,12 @@ const WatchListManager = ({ token, onLogout }) => {
                       onChange={(e) => setNewFolderName(e.target.value)}
                       onKeyPress={(e) => e.key === "Enter" && createFolder()}
                       placeholder="Folder name..."
-                      className="flex-1 px-3 py-2 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-500/50 outline-none transition-all"
+                      className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-yellow-500/50 outline-none transition-all w-full min-w-0"
                       autoFocus
                     />
                     <button
                       onClick={createFolder}
-                      className="px-3 py-2 rounded-xl bg-yellow-500 text-white text-sm font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/30"
+                      className="px-3 py-1.5 rounded-xl bg-yellow-500 text-white text-xs font-medium hover:bg-yellow-600 transition-colors shadow-lg shadow-yellow-500/30 whitespace-nowrap"
                     >
                       Add
                     </button>
@@ -1256,12 +1256,12 @@ const WatchListManager = ({ token, onLogout }) => {
                       onChange={(e) => setNewListName(e.target.value)}
                       onKeyPress={(e) => e.key === "Enter" && createList()}
                       placeholder="List name..."
-                      className="flex-1 px-3 py-2 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
+                      className="flex-1 px-3 py-1.5 text-sm rounded-xl border-none bg-gray-100 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all w-full min-w-0"
                       autoFocus
                     />
                     <button
                       onClick={createList}
-                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30"
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/30 whitespace-nowrap"
                     >
                       Add
                     </button>
@@ -1469,7 +1469,7 @@ const WatchListManager = ({ token, onLogout }) => {
               <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                   <div>
-                    <h2 className="group text-2xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
+                    <h2 className="group text-xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
                       {editingInMainContent ? (
                         <div className="flex items-center gap-2">
                           <input
