@@ -41,6 +41,7 @@ const WatchListManager = ({ token, onLogout }) => {
   const [showAddFolder, setShowAddFolder] = useState(false); // State for add folder input
   const [newFolderName, setNewFolderName] = useState(""); // State for new folder name
   const [movingList, setMovingList] = useState(null); // State for list being moved
+  const [movingFolder, setMovingFolder] = useState(null); // State for folder being moved
   const [searchQuery, setSearchQuery] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [isListLocked, setIsListLocked] = useState(true);
@@ -413,11 +414,178 @@ const WatchListManager = ({ token, onLogout }) => {
     saveData(lists, selectedList, newFolders);
   };
 
+  // --- Nested Folder Logic ---
+
+  const isDescendant = (parentFolder, targetFolder, currentFolders) => {
+    if (parentFolder === targetFolder) return true;
+    const children = currentFolders[parentFolder] || [];
+    for (const child of children) {
+      if (child.startsWith("folder:")) {
+        const childName = child.replace("folder:", "");
+        if (isDescendant(childName, targetFolder, currentFolders)) return true;
+      }
+    }
+    return false;
+  };
+
+  const moveFolderToFolder = (folderName, targetFolder) => {
+    // 1. Validation
+    if (folderName === targetFolder) return; // Cannot move into self
+    if (targetFolder && isDescendant(folderName, targetFolder, folders)) {
+      alert("Cannot move a folder into its own subfolder!");
+      return;
+    }
+
+    const newFolders = { ...folders };
+    const folderString = `folder:${folderName}`;
+
+    // 2. Remove from current parent (if any)
+    Object.keys(newFolders).forEach((f) => {
+      newFolders[f] = newFolders[f].filter((name) => name !== folderString);
+    });
+
+    // 3. Add to target
+    if (targetFolder) {
+      if (!newFolders[targetFolder]) newFolders[targetFolder] = [];
+      newFolders[targetFolder].push(folderString);
+    }
+
+    setFolders(newFolders);
+    setMovingFolder(null);
+    saveData(lists, selectedList, newFolders);
+  };
+
   const toggleFolderExpand = (folderName) => {
     setExpandedFolders((prev) => ({
       ...prev,
       [folderName]: !prev[folderName],
     }));
+  };
+
+  const RecursiveFolder = ({ folderName }) => {
+    const isExpanded = expandedFolders[folderName];
+    const contents = folders[folderName] || [];
+
+    return (
+      <div className="group/folder mb-2">
+        <div
+          className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
+          ${editingListName === `folder:${folderName}` ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`}
+          onClick={() => toggleFolderExpand(folderName)}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`p-1.5 rounded-lg transition-colors ${isExpanded ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 group-hover/folder:text-yellow-500'}`}>
+              {isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
+            </div>
+
+            {editingListName === `folder:${folderName}` ? (
+              <input
+                type="text"
+                defaultValue={folderName}
+                className="flex-1 min-w-0 px-2 py-1 text-sm bg-white dark:bg-gray-700 rounded border border-blue-300 focus:outline-none"
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onKeyPress={(e) => e.key === "Enter" && renameFolder(folderName, e.target.value)}
+                onBlur={(e) => renameFolder(folderName, e.target.value)}
+              />
+            ) : (
+              <span className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
+                {folderName}
+              </span>
+            )}
+          </div>
+
+          {!isListLocked && (
+            <div className="flex items-center opacity-0 group-hover/folder:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMovingFolder(folderName);
+                }}
+                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                title="Move Folder"
+              >
+                <MoreVertical size={12} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingListName(`folder:${folderName}`);
+                }}
+                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              >
+                <Edit2 size={12} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteFolder(folderName);
+                }}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Folder Contents */}
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[2000px] opacity-100 mt-1 pl-4' : 'max-h-0 opacity-0'}`}>
+          <div className="pl-2 border-l-2 border-gray-100 dark:border-gray-800 space-y-1 py-1">
+            {contents.map((item) => {
+              if (item.startsWith("folder:")) {
+                const subFolderName = item.replace("folder:", "");
+                return <RecursiveFolder key={subFolderName} folderName={subFolderName} />;
+              } else {
+                const listName = item;
+                return (
+                  <div
+                    key={listName}
+                    onClick={() => {
+                      if (editingListName !== listName) setSelectedList(listName);
+                    }}
+                    className={`group/list flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
+                      ${selectedList === listName
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
+                      }`}
+                  >
+                    <span className="truncate flex-1">{listName}</span>
+                    {!isListLocked && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMovingList(listName);
+                          }}
+                          className={`p-1 rounded transition-all ${selectedList === listName ? 'text-blue-200 hover:text-white hover:bg-blue-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                          title="Move List"
+                        >
+                          <MoreVertical size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
+                          }}
+                          className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                          title="Delete List"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+            })}
+            {contents.length === 0 && (
+              <div className="px-3 py-2 text-xs text-gray-400 italic">Empty folder</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renameList = (oldName, newName) => {
@@ -1506,108 +1674,11 @@ const WatchListManager = ({ token, onLogout }) => {
 
                 <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
                   {/* 1. Render Folders */}
-                  {Object.keys(folders).map((folderName) => (
-                    <div key={folderName} className="group/folder">
-                      <div
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
-                        ${editingListName === `folder:${folderName}` ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`}
-                        onClick={() => toggleFolderExpand(folderName)}
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`p-1.5 rounded-lg transition-colors ${expandedFolders[folderName] ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 group-hover/folder:text-yellow-500'}`}>
-                            {expandedFolders[folderName] ? <FolderOpen size={16} /> : <Folder size={16} />}
-                          </div>
-
-                          {editingListName === `folder:${folderName}` ? (
-                            <input
-                              type="text"
-                              defaultValue={folderName}
-                              className="flex-1 min-w-0 px-2 py-1 text-sm bg-white dark:bg-gray-700 rounded border border-blue-300 focus:outline-none"
-                              autoFocus
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyPress={(e) => e.key === "Enter" && renameFolder(folderName, e.target.value)}
-                              onBlur={(e) => renameFolder(folderName, e.target.value)}
-                            />
-                          ) : (
-                            <span className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
-                              {folderName}
-                            </span>
-                          )}
-                        </div>
-
-                        {!isListLocked && (
-                          <div className="flex items-center opacity-0 group-hover/folder:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingListName(`folder:${folderName}`);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                            >
-                              <Edit2 size={12} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteFolder(folderName);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Folder Contents */}
-                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedFolders[folderName] ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                        <div className="ml-4 pl-3 border-l-2 border-gray-100 dark:border-gray-800 space-y-1 py-1">
-                          {folders[folderName].map((listName) => (
-                            <div
-                              key={listName}
-                              onClick={() => {
-                                if (editingListName !== listName) setSelectedList(listName);
-                              }}
-                              className={`group/list flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
-                              ${selectedList === listName
-                                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
-                                }`}
-                            >
-                              <span className="truncate flex-1">{listName}</span>
-                              {!isListLocked && (
-                                <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setMovingList(listName);
-                                    }}
-                                    className={`p-1 rounded transition-all ${selectedList === listName ? 'text-blue-200 hover:text-white hover:bg-blue-500' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                                    title="Move List"
-                                  >
-                                    <MoreVertical size={12} />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
-                                    }}
-                                    className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
-                                    title="Delete List"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          {folders[folderName].length === 0 && (
-                            <div className="px-3 py-2 text-xs text-gray-400 italic">Empty folder</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  {Object.keys(folders)
+                    .filter(folderName => !Object.values(folders).some(items => items.includes(`folder:${folderName}`)))
+                    .map((folderName) => (
+                      <RecursiveFolder key={folderName} folderName={folderName} />
+                    ))}
 
                   {/* 2. Render Root Lists */}
                   {Object.keys(lists)
@@ -2012,6 +2083,46 @@ const WatchListManager = ({ token, onLogout }) => {
               </div>
               <button
                 onClick={() => setMovingList(null)}
+                className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Move Folder Modal */}
+      {
+        movingFolder && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-96 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+              <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <Folder size={24} className="text-blue-500" />
+                Move "{movingFolder}"
+              </h3>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                <button
+                  onClick={() => moveFolderToFolder(movingFolder, null)}
+                  className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+                >
+                  (Root Level)
+                </button>
+                {Object.keys(folders)
+                  .filter(target => target !== movingFolder && !isDescendant(movingFolder, target, folders))
+                  .map((targetName) => (
+                    <button
+                      key={targetName}
+                      onClick={() => moveFolderToFolder(movingFolder, targetName)}
+                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/10 text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors border border-transparent hover:border-yellow-200 dark:hover:border-yellow-900/30"
+                    >
+                      <Folder size={18} className="text-yellow-500" />
+                      {targetName}
+                    </button>
+                  ))}
+              </div>
+              <button
+                onClick={() => setMovingFolder(null)}
                 className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
