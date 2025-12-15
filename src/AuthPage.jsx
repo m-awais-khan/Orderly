@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Film, User, Lock, Mail, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { Film, User, Lock, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 const AuthPage = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -85,13 +87,20 @@ const AuthPage = ({ onLogin }) => {
                         <div className="relative group">
                             <Lock size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-500 transition-colors" />
                             <input
-                                type="password"
+                                type={showPassword ? 'text' : 'password'}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                className="w-full pl-10 pr-4 py-3 bg-white/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-gray-800 dark:text-gray-100 placeholder-gray-400"
+                                className="w-full pl-10 pr-12 py-3 bg-white/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-gray-800 dark:text-gray-100 placeholder-gray-400"
                                 placeholder="••••••••"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-500 transition-colors"
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
                         </div>
                         {!isLogin && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 ml-1 mt-1">
