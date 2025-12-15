@@ -1230,7 +1230,7 @@ const WatchListManager = ({ token, onLogout }) => {
         />
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 lg:gap-8 items-start">
           {/* Sidebar */}
           <div className={`
             fixed lg:relative inset-y-0 left-0 z-[60] lg:z-auto w-[85vw] max-w-[340px] lg:w-auto h-full lg:h-auto
