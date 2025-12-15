@@ -749,12 +749,23 @@ const WatchListManager = ({ token, onLogout }) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               onMouseDown={() => {
                 dragActiveRef.current = true;
               }}
               onMouseUp={() => {
                 dragActiveRef.current = false;
               }}
+              onTouchStart={() => {
+                dragActiveRef.current = true;
+              }}
+              onTouchEnd={() => {
+                dragActiveRef.current = false;
+              }}
+              style={{ touchAction: "none" }}
               className={`text-gray-400 dark:text-gray-500 ${isListLocked
                 ? "opacity-40 cursor-default"
                 : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
@@ -834,12 +845,23 @@ const WatchListManager = ({ token, onLogout }) => {
               e.preventDefault();
               e.stopPropagation();
             }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onMouseDown={() => {
               dragActiveRef.current = true;
             }}
             onMouseUp={() => {
               dragActiveRef.current = false;
             }}
+            onTouchStart={() => {
+              dragActiveRef.current = true;
+            }}
+            onTouchEnd={() => {
+              dragActiveRef.current = false;
+            }}
+            style={{ touchAction: "none" }}
             className={`text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing hover:text-blue-500 dark:hover:text-blue-400
               ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
           />
@@ -963,12 +985,23 @@ const WatchListManager = ({ token, onLogout }) => {
             e.preventDefault();
             e.stopPropagation();
           }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           onMouseDown={() => {
             dragActiveRef.current = true;
           }}
           onMouseUp={() => {
             dragActiveRef.current = false;
           }}
+          onTouchStart={() => {
+            dragActiveRef.current = true;
+          }}
+          onTouchEnd={() => {
+            dragActiveRef.current = false;
+          }}
+          style={{ touchAction: "none" }}
           className={`text-gray-400 dark:text-gray-500 ${isListLocked
             ? "opacity-40 cursor-default"
             : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
