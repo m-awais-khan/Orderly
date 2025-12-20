@@ -19,6 +19,9 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
   // ----------------------------------------------------
   // Core Search Logic
   // ----------------------------------------------------
+  // ----------------------------------------------------
+  // Core Search Logic
+  // ----------------------------------------------------
   const performSearch = async (query) => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
@@ -29,7 +32,32 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
     setIsLoading(true);
 
     try {
-      const response = await axios.get(BASE_URL, {
+      const requests = [];
+      const directResults = [];
+
+      // 1. Check if query is numeric (TMDB ID)
+      if (/^\d+$/.test(trimmedQuery)) {
+        // Try fetching as Movie
+        requests.push(
+          axios.get(`https://api.themoviedb.org/3/movie/${trimmedQuery}`, {
+            params: { api_key: API_KEY },
+          }).then(res => {
+            directResults.push({ ...res.data, media_type: 'movie' });
+          }).catch(() => { }) // Ignore 404
+        );
+
+        // Try fetching as TV Show
+        requests.push(
+          axios.get(`https://api.themoviedb.org/3/tv/${trimmedQuery}`, {
+            params: { api_key: API_KEY },
+          }).then(res => {
+            directResults.push({ ...res.data, media_type: 'tv' });
+          }).catch(() => { }) // Ignore 404
+        );
+      }
+
+      // 2. Always perform normal text search (in case "2012" is a title, etc.)
+      const searchRequest = axios.get(BASE_URL, {
         params: {
           api_key: API_KEY,
           query: trimmedQuery,
@@ -37,16 +65,47 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
         },
       });
 
-      const filteredResults = response.data.results.filter(
-        (item) => item.media_type !== "person" && (item.title || item.name)
-      );
+      requests.push(searchRequest);
 
-      setSearchResults(filteredResults.slice(0, MAX_RESULTS)); // Limit to top 10 results
+      // Wait for all (ID checks + Search)
+      const results = await Promise.allSettled(requests);
 
-      setFlag((prev) => !prev); // Toggle flag to trigger focus effect
+      // Extract search results from the last request (which is always the searchRequest)
+      // Note: Promise.allSettled returns objects with { status, value/reason }
+      // We mapped the ID requests to push to directResults array, so we only care about the last one's return for "search results"
+      const searchResponse = results[results.length - 1]; // The generic search
+
+      let apiResults = [];
+      if (searchResponse.status === "fulfilled") {
+        apiResults = searchResponse.value.data.results.filter(
+          (item) => item.media_type !== "person" && (item.title || item.name)
+        );
+      }
+
+      // 3. Combine Direct Matches + Search Results
+      // Remove duplicates if the direct match is also found in search results
+      const combined = [...directResults];
+      const existingIds = new Set(directResults.map(i => i.id));
+
+      apiResults.forEach(item => {
+        if (!existingIds.has(item.id)) {
+          combined.push(item);
+        }
+      });
+
+      setSearchResults(combined.slice(0, MAX_RESULTS));
+      setFlag((prev) => !prev);
     } catch (error) {
       console.error("TMDB API Error:", error);
       setSearchResults([]);
+      // Assuming directResults might have something even if search fails? 
+      // But here we are in the catch block of the whole try. 
+      // Since we used Promise.allSettled for individual requests inside logic? 
+      // No, we used `requests.push` then `Promise.allSettled`. 
+      // Actually `axios.get` for searchRequest might throw if not caught? 
+      // `Promise.allSettled` waits for all. The `searchRequest` promise itself isn't wrapped in a catch here, 
+      // but `Promise.allSettled` shouldn't throw.
+      // So this catch block catches synchronous errors or setup errors.
     } finally {
       setIsLoading(false);
     }
@@ -165,8 +224,8 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
                   </p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.media_type === "movie"
-                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                        : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                      : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                       }`}>
                       {item.media_type === "movie" ? "Movie" : "TV Show"}
                     </span>
