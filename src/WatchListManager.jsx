@@ -58,7 +58,13 @@ const WatchListManager = ({ token, onLogout }) => {
   const [movingFolder, setMovingFolder] = useState(null); // State for folder being moved
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleNotes, setVisibleNotes] = useState({}); // State to track visible notes
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('darkMode');
+      return saved === 'true';
+    }
+    return false;
+  });
   const [isListLocked, setIsListLocked] = useState(true);
   const [editingListName, setEditingListName] = useState(null);
 
@@ -125,7 +131,7 @@ const WatchListManager = ({ token, onLogout }) => {
       loadSharedData(shareId);
     } else if (token) {
       loadData();
-      loadDarkMode();
+      // loadDarkMode(); // Disabled to persist local preference always
     }
   }, [token]); // Re-run if token changes (though usually distinct modes)
 
@@ -148,9 +154,7 @@ const WatchListManager = ({ token, onLogout }) => {
       // Force Lock Mode
       setIsListLocked(true);
 
-      // Force Dark Mode for Shared View
-      setDarkMode(true);
-      document.documentElement.classList.add("dark");
+
 
       // Hide Sidebar (or minimal) logic handled by !token usually, but let's be explicit if needed
       // Actually, if we just restrict by !token in UI, that works. owner name is in data.ownerUsername
@@ -273,6 +277,7 @@ const WatchListManager = ({ token, onLogout }) => {
   const toggleDarkMode = () => {
     const newMode = !darkMode;
     setDarkMode(newMode);
+    localStorage.setItem('darkMode', newMode);
 
     if (newMode) {
       document.documentElement.classList.add("dark");
@@ -842,6 +847,23 @@ const WatchListManager = ({ token, onLogout }) => {
     setLists(newLists);
     saveData(newLists, selectedList, folders);
   };
+
+  // Sync Dark Mode state to DOM
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
+
+  // --- Effects ---
+  /* 
+  useEffect(() => {
+    if (!token) return;
+    // loadData(); // Redundant, handled above
+  }, [token]); 
+  */
 
   const addTextItem = () => {
     // 1. Check if list is unlocked and selected
