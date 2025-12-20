@@ -61,6 +61,10 @@ const WatchListManager = ({ token, onLogout }) => {
   const ITEMS_PER_PAGE = 50;
   const dragActiveRef = useRef(false);
 
+  // Auto-scroll refs
+  const scrollContainerRef = useRef(null);
+  const scrollIntervalRef = useRef(null);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedList]);
@@ -697,6 +701,54 @@ const WatchListManager = ({ token, onLogout }) => {
     setFolders(newFolders);
     setSelectedList(newSelected);
     saveData(newLists, newSelected, newFolders);
+  };
+
+  // --- Auto-Scroll Logic ---
+  const stopAutoScroll = () => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  };
+
+  const handleContainerDragOver = (e) => {
+    // Only engage if dragging an item (check dragActiveRef or draggedItem)
+    if (!dragActiveRef.current) return;
+
+    // e.clientY is relative to viewport
+    if (!scrollContainerRef.current) return;
+
+    const { top, bottom, height } = scrollContainerRef.current.getBoundingClientRect();
+    const mouseY = e.clientY;
+
+    // Define active zones (top 15% and bottom 15% or fixed px)
+    const threshold = 120; // 120px from edges
+
+    let direction = 0;
+    let speed = 5; // Base speed
+
+    if (mouseY < top + threshold) {
+      direction = -1; // Scroll Up
+      // Increase speed as we get closer to the edge
+      const distance = Math.max(0, mouseY - top);
+      speed = 5 + (1 - distance / threshold) * 15; // Max speed 20
+    } else if (mouseY > bottom - threshold) {
+      direction = 1; // Scroll Down
+      const distance = Math.max(0, bottom - mouseY);
+      speed = 5 + (1 - distance / threshold) * 15;
+    }
+
+    if (direction !== 0) {
+      if (!scrollIntervalRef.current) {
+        scrollIntervalRef.current = setInterval(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop += direction * speed;
+          }
+        }, 16); // ~60fps
+      }
+    } else {
+      stopAutoScroll();
+    }
   };
 
   const addItem = (itemData) => {
@@ -1883,7 +1935,13 @@ const WatchListManager = ({ token, onLogout }) => {
                 )}
               </div>
             ) : selectedList ? (
-              <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar">
+              <div
+                ref={scrollContainerRef}
+                onDragOver={handleContainerDragOver}
+                onDragLeave={stopAutoScroll}
+                onDrop={stopAutoScroll}
+                className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-8 border border-white/20 dark:border-gray-700/50 shadow-xl h-full overflow-y-auto custom-scrollbar"
+              >
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                   <div>
                     <h2 className="group text-xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
@@ -2039,6 +2097,54 @@ const WatchListManager = ({ token, onLogout }) => {
                     </div>
                   ) : (
                     <>
+                      {/* Top Pagination Controls */}
+                      {lists[selectedList].length > ITEMS_PER_PAGE && (
+                        <div className="flex justify-center items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-gray-800">
+                          <button
+                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              if (currentPage > 1) {
+                                setCurrentPage(prev => Math.max(prev - 1, 1));
+                              }
+                            }}
+                            disabled={currentPage === 1}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                               ${currentPage === 1
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
+                              }`}
+                          >
+                            <ChevronLeft size={16} />
+                            Prev
+                          </button>
+
+                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Page {currentPage} of {Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                          </span>
+
+                          <button
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              const maxPage = Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE);
+                              if (currentPage < maxPage) {
+                                setCurrentPage(prev => Math.min(prev + 1, maxPage));
+                              }
+                            }}
+                            disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                               ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
+                              }`}
+                          >
+                            Next
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      )}
+
                       {lists[selectedList]
                         .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
                         .map((item, index) =>
@@ -2050,6 +2156,14 @@ const WatchListManager = ({ token, onLogout }) => {
                         <div className="flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
                           <button
                             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              // Simple debounce check could be added if needed, but for now direct switch might be okay
+                              // or better, only switch if not already on target page
+                              if (currentPage > 1) {
+                                setCurrentPage(prev => Math.max(prev - 1, 1));
+                              }
+                            }}
                             disabled={currentPage === 1}
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
                               ${currentPage === 1
@@ -2067,6 +2181,13 @@ const WatchListManager = ({ token, onLogout }) => {
 
                           <button
                             onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              const maxPage = Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE);
+                              if (currentPage < maxPage) {
+                                setCurrentPage(prev => Math.min(prev + 1, maxPage));
+                              }
+                            }}
                             disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
                               ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
