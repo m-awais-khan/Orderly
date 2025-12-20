@@ -57,6 +57,29 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   });
 
   const [lists, setLists] = useState({});
+
+  // Smart Lists Calculation
+  const smartLists = useMemo(() => {
+    const smart = {
+      completed: [],
+      watching: [],
+      dropped: [],
+      plan_to_watch: []
+    };
+
+    Object.entries(lists).forEach(([listName, items]) => {
+      items.forEach(item => {
+        if (item.status && smart[item.status]) {
+          smart[item.status].push({ ...item, originalList: listName });
+        }
+      });
+    });
+
+    return smart;
+  }, [lists]);
+
+
+
   const [folders, setFolders] = useState({}); // New state for folders
   const [selectedList, setSelectedList] = useState(null);
   const [newListName, setNewListName] = useState("");
@@ -91,6 +114,16 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [listOwner, setListOwner] = useState(null); // Owner of the shared list
+
+  // --- Derived State ---
+  const isSmartList = selectedList?.startsWith('special:');
+  const activeDisplayItems = useMemo(() => {
+    if (!selectedList) return [];
+    if (isSmartList) {
+      return smartLists[selectedList.split(':')[1]] || [];
+    }
+    return lists[selectedList] || [];
+  }, [selectedList, lists, smartLists]);
 
   // --- UI Helpers ---
   const showToast = (message, type = 'info') => {
@@ -829,17 +862,22 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
 
   // --- Status Handling ---
   const handleStatusConfirm = (status) => {
+    const targetListName = statusModal.listName || selectedList;
+
     if (statusModal.isEditMode) {
       // Logic for editing existing item status
       const itemId = statusModal.itemData;
-      const currentListItems = [...lists[selectedList]];
+
+      if (!lists[targetListName]) return;
+
+      const currentListItems = [...lists[targetListName]];
       const updatedList = currentListItems.map(item =>
         item.id === itemId ? { ...item, status: status } : item
       );
 
-      const newLists = { ...lists, [selectedList]: updatedList };
+      const newLists = { ...lists, [targetListName]: updatedList };
       setLists(newLists);
-      saveData(newLists, selectedList, folders);
+      saveData(newLists, targetListName, folders);
       showToast("Status updated.", "success");
 
     } else {
@@ -977,18 +1015,20 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
     }
   };
 
-  const saveItemNote = (itemId, newNoteText) => {
+  const saveItemNote = (itemId, newNoteText, targetList = selectedList) => {
+    if (!lists[targetList]) return; // Guard for invalid lists
+
     const newLists = { ...lists };
-    const listItems = [...newLists[selectedList]];
+    const listItems = [...newLists[targetList]];
 
     // Find the item and update its note
     const itemIndex = listItems.findIndex((item) => item.id === itemId);
     if (itemIndex > -1) {
       listItems[itemIndex] = { ...listItems[itemIndex], note: newNoteText };
-      newLists[selectedList] = listItems;
+      newLists[targetList] = listItems;
 
       setLists(newLists);
-      saveData(newLists, selectedList, folders);
+      saveData(newLists, targetList, folders);
     }
     setEditingNoteId(null); // Close the input box
   };
@@ -1014,18 +1054,22 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
     saveData(newLists, selectedList, folders);
   };
 
-  const deleteItem = (itemId) => {
+  const deleteItem = (itemId, targetList = selectedList) => {
     if (isListLocked) return;
+    if (!lists[targetList]) return;
+
     const newLists = { ...lists };
-    newLists[selectedList] = newLists[selectedList].filter(
+    newLists[targetList] = newLists[targetList].filter(
       (item) => item.id !== itemId
     );
     setLists(newLists);
-    saveData(newLists, selectedList, folders);
+    saveData(newLists, targetList, folders);
   };
 
   const moveItem = (index, direction) => {
     if (isListLocked) return;
+    if (!lists[selectedList]) return; // Guard against Smart Lists
+
     const newLists = { ...lists };
     const items = [...newLists[selectedList]];
 
@@ -1056,6 +1100,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   const handleDragOver = (e, index) => {
     e.preventDefault();
     if (isListLocked) return;
+    if (!lists[selectedList]) return; // Guard against Smart Lists
     if (draggedItem === null || draggedItem === index) return;
     const newLists = { ...lists };
     const items = [...newLists[selectedList]];
@@ -1069,7 +1114,9 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   const handleDragEnd = () => {
     if (isListLocked) return;
     setDraggedItem(null);
-    saveData(lists, selectedList, folders);
+    if (lists[selectedList]) {
+      saveData(lists, selectedList, folders);
+    }
     dragActiveRef.current = false;
   };
   const toggleRefExpand = (itemId) => {
@@ -1400,7 +1447,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                         className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm min-h-[80px]"
                         placeholder="Add a note..."
                         onBlur={(e) => {
-                          saveItemNote(item.id, e.target.value);
+                          saveItemNote(item.id, e.target.value, item.originalList || selectedList);
                         }}
                         onClick={(e) => e.preventDefault()}
                       />
@@ -1409,7 +1456,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
 
                   {/* Text item badge */}
                   <span className="mt-3 inline-block text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                    Text Item
+                    {item.originalList ? <span>in <span className="text-blue-500">{item.originalList}</span></span> : "Text Item"}
                   </span>
                 </div>
               </div>
@@ -1428,7 +1475,8 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                   setStatusModal({
                     isOpen: true,
                     isEditMode: true,
-                    itemData: item.id
+                    itemData: item.id,
+                    listName: item.originalList || selectedList
                   });
                 }}
                 disabled={isListLocked}
@@ -1494,7 +1542,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                     message: `Delete item: "${item.text}"?`,
                     isDangerous: true,
                     confirmText: "Delete",
-                    onConfirm: () => deleteItem(item.id)
+                    onConfirm: () => deleteItem(item.id, item.originalList || selectedList)
                   });
                 }}
                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
@@ -1509,7 +1557,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       return (
         <div
           key={item.id}
-          draggable={!isListLocked}
+          draggable={!isListLocked && !item.originalList}
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
@@ -1528,7 +1576,8 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
     const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
     const isEditingNote = editingNoteId === item.id;
 
-    const itemContent = (
+    // Split content into Clickable Area and Action Buttons
+    const contentSection = (
       <>
         <GripVertical
           size={20}
@@ -1548,7 +1597,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
             }`}
         />
 
-        {!isListLocked && (
+        {!isListLocked && !isSmartList && (
           <div className="flex flex-col gap-0.5 lg:hidden mr-1">
             <button
               onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }}
@@ -1610,7 +1659,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                     className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm min-h-[80px]"
                     placeholder="Add a note..."
                     onBlur={(e) => {
-                      saveItemNote(item.id, e.target.value);
+                      saveItemNote(item.id, e.target.value, item.originalList || selectedList);
                     }}
                     onClick={(e) => e.preventDefault()}
                   />
@@ -1629,95 +1678,115 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                     {item.year}
                   </span>
                 )}
+                {item.originalList && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setSelectedList(item.originalList);
+                    }}
+                    className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    in <span className="text-blue-500">{item.originalList}</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </span>
-
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          {/* Status Icon */}
-          {!window.location.pathname.startsWith('/share/') && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (isListLocked) return;
-                setStatusModal({
-                  isOpen: true,
-                  isEditMode: true,
-                  itemData: item.id
-                });
-              }}
-              disabled={isListLocked}
-              className={`p-2 rounded-full transition-colors ${item.status && item.status !== 'none'
-                ? (() => {
-                  switch (item.status) {
-                    case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                    case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                    case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                    case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                    default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
-                  }
-                })()
-                : "text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-                } ${isListLocked ? "cursor-not-allowed opacity-70" : ""}`}
-              title={isListLocked ? item.status : "Change Status"}
-            >
-              {(() => {
-                switch (item.status) {
-                  case 'completed': return <Check size={18} />;
-                  case 'dropped': return <X size={18} />;
-                  case 'watching': return <Play size={18} />;
-                  case 'plan_to_watch': return <Clock size={18} />;
-                  default: return <MinusCircle size={18} />;
-                }
-              })()}
-            </button>
-          )}
-
-          {(!isListLocked || item.note) && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (item.note) {
-                  setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                } else if (!isListLocked) {
-                  setEditingNoteId(item.id);
-                  setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
-                }
-              }}
-              disabled={isListLocked && !item.note} // Disable if locked and no note
-              className={`p-2 rounded-full transition-colors ${item.note
-                ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
-                : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-                } ${isListLocked && !item.note ? "opacity-50 cursor-not-allowed" : ""}`}
-              title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
-            >
-              <MessageSquare size={18} />
-            </button>
-          )}
-
-          {!isListLocked && (
-            <button
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                openConfirmModal({
-                  title: "Delete Item",
-                  message: `Delete item: "${item.text}"?`,
-                  isDangerous: true,
-                  confirmText: "Delete",
-                  onConfirm: () => deleteItem(item.id)
-                });
-              }}
-              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
-            >
-              <Trash2 size={18} />
-            </button>
-          )}
-        </div>
       </>
+    );
+
+    const actionButtons = (
+      <div
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+      >
+        {/* Status Icon */}
+        {!window.location.pathname.startsWith('/share/') && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (isListLocked) return;
+              setStatusModal({
+                isOpen: true,
+                isEditMode: true,
+                itemData: item.id,
+                listName: item.originalList || selectedList
+              });
+            }}
+            disabled={isListLocked}
+            className={`p-2 rounded-full transition-colors ${item.status && item.status !== 'none'
+              ? (() => {
+                switch (item.status) {
+                  case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
+                }
+              })()
+              : "text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+              } ${isListLocked ? "cursor-not-allowed opacity-70" : ""}`}
+            title={isListLocked ? item.status : "Change Status"}
+          >
+            {(() => {
+              switch (item.status) {
+                case 'completed': return <Check size={18} />;
+                case 'dropped': return <X size={18} />;
+                case 'watching': return <Play size={18} />;
+                case 'plan_to_watch': return <Clock size={18} />;
+                default: return <MinusCircle size={18} />;
+              }
+            })()}
+          </button>
+        )}
+
+        {(!isListLocked || item.note) && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (item.note) {
+                setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+              } else if (!isListLocked) {
+                setEditingNoteId(item.id);
+                setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
+              }
+            }}
+            disabled={isListLocked && !item.note} // Disable if locked and no note
+            className={`p-2 rounded-full transition-colors ${item.note
+              ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
+              : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+              } ${isListLocked && !item.note ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
+          >
+            <MessageSquare size={18} />
+          </button>
+        )}
+
+        {!isListLocked && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              openConfirmModal({
+                title: "Delete Item",
+                message: `Delete item: "${item.text}"?`,
+                isDangerous: true,
+                confirmText: "Delete",
+                onConfirm: () => deleteItem(item.id, item.originalList || selectedList)
+              });
+            }}
+            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
+      </div>
     );
 
     if (isListLocked) {
@@ -1727,27 +1796,37 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
           className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
             bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm opacity-90 cursor-default"
         >
-          {itemContent}
+          {contentSection}
+          {actionButtons}
         </div>
       );
     } else {
       return (
         <div
           key={item.id}
-          onClick={(e) => {
-            // Only navigate if the click wasn't prevented (e.g. by child buttons)
-            if (!e.defaultPrevented) {
-              window.open(tmdbLink, '_blank', 'noopener,noreferrer');
-            }
-          }}
-          draggable={true}
+          draggable={!item.originalList}
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
           className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
-            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-pointer"
+            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-default"
         >
-          {itemContent}
+          {/* Clickable Content Area */}
+          <div
+            className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
+            onClick={(e) => {
+              if (!e.defaultPrevented) {
+                window.open(tmdbLink, '_blank', 'noopener,noreferrer');
+              }
+            }}
+          >
+            {contentSection}
+          </div>
+
+          {/* Separate Action Buttons */}
+          <div className="flex-shrink-0">
+            {actionButtons}
+          </div>
         </div>
       );
     }
@@ -1994,7 +2073,46 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                 </div>
 
                 <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
-                  {/* 1. Render Folders */}
+                  {/* 1. Smart Status Lists */}
+                  {Object.entries(smartLists).map(([key, items]) => {
+                    if (items.length === 0) return null;
+                    const config = {
+                      completed: { color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20', icon: Check, label: "Completed" },
+                      watching: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', icon: Play, label: "Watching" },
+                      dropped: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', icon: X, label: "Dropped" },
+                      plan_to_watch: { color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', icon: Clock, label: "Plan to Watch" }
+                    }[key];
+
+                    if (!config) return null;
+                    const Icon = config.icon;
+                    const isSelected = selectedList === `special:${key}`;
+
+                    return (
+                      <div
+                        key={`smart-${key}`}
+                        onClick={() => setSelectedList(`special:${key}`)}
+                        className={`group flex justify-between items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent mb-1
+                        ${isSelected
+                            ? `bg-white dark:bg-gray-800 shadow-md border-${config.color.split('-')[1]}-200 dark:border-${config.color.split('-')[1]}-800 ring-1 ring-${config.color.split('-')[1]}-500`
+                            : "bg-white dark:bg-gray-800/50 hover:bg-white hover:shadow-md dark:hover:bg-gray-800"
+                          }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-lg ${config.bg} ${config.color}`}>
+                            <Icon size={16} />
+                          </div>
+                          <span className={`font-medium ${isSelected ? config.color : 'text-gray-700 dark:text-gray-300'}`}>
+                            {config.label}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                          {items.length}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {/* 2. Render Folders */}
                   {Object.keys(folders)
                     .filter(folderName => !Object.values(folders).some(items => items.includes(`folder:${folderName}`)))
                     .map((folderName) => (
@@ -2186,147 +2304,177 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                   <div>
                     <h2 className="group text-xl lg:text-3xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center gap-3">
-                      {editingInMainContent ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            defaultValue={selectedList}
-                            className="px-3 py-2 rounded-lg border-2 border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[200px]"
-                            autoFocus
-                            onKeyPress={(e) => {
-                              if (e.key === "Enter") {
-                                renameList(selectedList, e.target.value);
-                                setEditingInMainContent(false);
-                              }
-                            }}
-                            onBlur={(e) => {
-                              renameList(selectedList, e.target.value);
-                              setEditingInMainContent(false);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <button
-                            onClick={() => setEditingInMainContent(false)}
-                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
-                            title="Cancel"
-                          >
-                            <X size={20} />
-                          </button>
-                        </div>
+                      {isSmartList ? (
+                        (() => {
+                          const key = selectedList.split(':')[1];
+                          const config = {
+                            completed: { color: 'text-green-500', icon: Check, label: "Completed Items" },
+                            watching: { color: 'text-blue-500', icon: Play, label: "Watching Items" },
+                            dropped: { color: 'text-red-500', icon: X, label: "Dropped Items" },
+                            plan_to_watch: { color: 'text-purple-500', icon: Clock, label: "Plan to Watch" }
+                          }[key];
+                          const Icon = config.icon;
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-xl ${config.color.replace('text-', 'bg-').replace('500', '100')} dark:bg-opacity-20`}>
+                                <Icon size={24} className={config.color} />
+                              </div>
+                              <span>{config.label}</span>
+                            </div>
+                          )
+                        })()
                       ) : (
+                        /* Normal List Header */
                         <>
-                          <span>{selectedList}</span>
-                          {!isListLocked && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                setEditingInMainContent(true);
-                              }}
-                              className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
-                              title="Rename List"
-                              type="button"
-                            >
-                              <Edit2 size={20} />
-                            </button>
-                          )}
-                          {/* Share Button (Only if user has token - i.e. owner) */}
-                          {token && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowShareModal(true);
-                              }}
-                              className={`p-2 rounded-lg transition-all duration-200 ${sharedLists.find(s => s.listName === selectedList)
-                                ? "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
-                                : "text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                }`}
-                              title="Share List"
-                              type="button"
-                            >
-                              <Share2 size={20} />
-                            </button>
+                          {editingInMainContent ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                defaultValue={selectedList}
+                                className="px-3 py-2 rounded-lg border-2 border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[200px]"
+                                autoFocus
+                                onKeyPress={(e) => {
+                                  if (e.key === "Enter") {
+                                    renameList(selectedList, e.target.value);
+                                    setEditingInMainContent(false);
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  renameList(selectedList, e.target.value);
+                                  setEditingInMainContent(false);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button
+                                onClick={() => setEditingInMainContent(false)}
+                                className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
+                                title="Cancel"
+                              >
+                                <X size={20} />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <span>{selectedList}</span>
+                              {!isListLocked && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setEditingInMainContent(true);
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                                  title="Rename List"
+                                  type="button"
+                                >
+                                  <Edit2 size={20} />
+                                </button>
+                              )}
+                              {/* Share Button (Only if user has token - i.e. owner) */}
+                              {token && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowShareModal(true);
+                                  }}
+                                  className={`p-2 rounded-lg transition-all duration-200 ${sharedLists.find(s => s.listName === selectedList)
+                                    ? "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                    : "text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                    }`}
+                                  title="Share List"
+                                  type="button"
+                                >
+                                  <Share2 size={20} />
+                                </button>
+                              )}
+                            </>
                           )}
                         </>
                       )}
+
                       <span className="text-sm font-normal px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
-                        {lists[selectedList]?.length || 0} items
+                        {activeDisplayItems.length} items
                       </span>
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 flex items-center gap-2">
-                      {listOwner && (
-                        <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
-                          <Share2 size={12} />
-                          Shared by {listOwner}
+
+                    {!isSmartList && (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 flex items-center gap-2">
+                        {listOwner && (
+                          <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
+                            <Share2 size={12} />
+                            Shared by {listOwner}
+                          </span>
+                        )}
+                        {!listOwner && "Manage and track your items in this list"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add Item Area (Only for Normal Lists) */}
+                {!isSmartList && (
+                  <div className="mb-8 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50">
+                    <TmdbSearch
+                      onItemSelected={addItem}
+                      disabled={isListLocked}
+                    />
+
+                    <div className="flex flex-col md:flex-row gap-4 mt-4">
+                      {/* Add Text Item */}
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="text"
+                          value={newTextItem}
+                          onChange={(e) => setNewTextItem(e.target.value)}
+                          onKeyDown={handleTextInputKeyPress}
+                          placeholder="Add a text note..."
+                          className="flex-1 px-4 py-2.5 rounded-xl border-none bg-white dark:bg-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500/50 outline-none text-sm transition-all"
+                          disabled={isListLocked}
+                        />
+                        <button
+                          onClick={addTextItem}
+                          disabled={isListLocked}
+                          className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
+                            ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20"
+                            : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none dark:bg-gray-700 dark:text-gray-500"
+                            }`}
+                        >
+                          Add Text
+                        </button>
+                      </div>
+
+                      {/* Add Reference */}
+                      <div className="flex items-center gap-3 bg-white dark:bg-gray-700 px-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          Link List:
                         </span>
-                      )}
-                      {!listOwner && "Manage and track your items in this list"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Add Item Area */}
-                <div className="mb-8 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50">
-                  <TmdbSearch
-                    onItemSelected={addItem}
-                    disabled={isListLocked}
-                  />
-
-                  <div className="flex flex-col md:flex-row gap-4 mt-4">
-                    {/* Add Text Item */}
-                    <div className="flex-1 flex gap-2">
-                      <input
-                        type="text"
-                        value={newTextItem}
-                        onChange={(e) => setNewTextItem(e.target.value)}
-                        onKeyDown={handleTextInputKeyPress}
-                        placeholder="Add a text note..."
-                        className="flex-1 px-4 py-2.5 rounded-xl border-none bg-white dark:bg-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500/50 outline-none text-sm transition-all"
-                        disabled={isListLocked}
-                      />
-                      <button
-                        onClick={addTextItem}
-                        disabled={isListLocked}
-                        className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
-                          ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20"
-                          : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none dark:bg-gray-700 dark:text-gray-500"
-                          }`}
-                      >
-                        Add Text
-                      </button>
-                    </div>
-
-                    {/* Add Reference */}
-                    <div className="flex items-center gap-3 bg-white dark:bg-gray-700 px-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
-                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                        Link List:
-                      </span>
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            addReference(e.target.value);
-                            e.target.value = "";
-                          }
-                        }}
-                        className="py-2 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
-                        disabled={isListLocked}
-                      >
-                        <option value="">Select...</option>
-                        {Object.keys(lists)
-                          .filter((name) => name !== selectedList)
-                          .map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                      </select>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              addReference(e.target.value);
+                              e.target.value = "";
+                            }
+                          }}
+                          className="py-2 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
+                          disabled={isListLocked}
+                        >
+                          <option value="">Select...</option>
+                          {Object.keys(lists)
+                            .filter((name) => name !== selectedList)
+                            .map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Items Grid/List */}
                 <div className="space-y-1">
-                  {lists[selectedList].length === 0 ? (
+                  {activeDisplayItems.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
                       <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
                         <Film size={40} className="text-gray-400" />
@@ -2339,7 +2487,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                   ) : (
                     <>
                       {/* Top Pagination Controls */}
-                      {lists[selectedList].length > ITEMS_PER_PAGE && (
+                      {activeDisplayItems.length > ITEMS_PER_PAGE && (
                         <div className="flex justify-center items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-gray-800">
                           <button
                             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -2361,21 +2509,21 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                           </button>
 
                           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Page {currentPage} of {Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            Page {currentPage} of {Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)}
                           </span>
 
                           <button
-                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)))}
                             onDragOver={(e) => {
                               e.preventDefault();
-                              const maxPage = Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE);
+                              const maxPage = Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE);
                               if (currentPage < maxPage) {
                                 setCurrentPage(prev => Math.min(prev + 1, maxPage));
                               }
                             }}
-                            disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            disabled={currentPage === Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
-                               ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
+                               ${currentPage === Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)
                                 ? "text-gray-400 cursor-not-allowed"
                                 : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
                               }`}
@@ -2386,14 +2534,14 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                         </div>
                       )}
 
-                      {lists[selectedList]
+                      {activeDisplayItems
                         .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
                         .map((item, index) =>
                           renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)
                         )}
 
                       {/* Pagination Controls */}
-                      {lists[selectedList].length > ITEMS_PER_PAGE && (
+                      {activeDisplayItems.length > ITEMS_PER_PAGE && (
                         <div className="flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
                           <button
                             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -2417,21 +2565,21 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                           </button>
 
                           <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Page {currentPage} of {Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            Page {currentPage} of {Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)}
                           </span>
 
                           <button
-                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)))}
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)))}
                             onDragOver={(e) => {
                               e.preventDefault();
-                              const maxPage = Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE);
+                              const maxPage = Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE);
                               if (currentPage < maxPage) {
                                 setCurrentPage(prev => Math.min(prev + 1, maxPage));
                               }
                             }}
-                            disabled={currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)}
+                            disabled={currentPage === Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all
-                              ${currentPage === Math.ceil(lists[selectedList].length / ITEMS_PER_PAGE)
+                              ${currentPage === Math.ceil(activeDisplayItems.length / ITEMS_PER_PAGE)
                                 ? "text-gray-400 cursor-not-allowed"
                                 : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-blue-600 dark:hover:text-blue-400"
                               }`}
