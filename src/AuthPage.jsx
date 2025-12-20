@@ -34,7 +34,8 @@ const AuthPage = ({ onLogin }) => {
 
             } catch (err) {
                 console.error(err);
-                setError("Failed to sign in. Please try again.");
+                console.error(err);
+                setError(err.message || "Failed to sign in. Please try again.");
             } finally {
                 setIsLoading(false);
             }

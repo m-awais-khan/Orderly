@@ -60,6 +60,12 @@ if (process.env.MONGODB_URI) {
             await conn.connection.collection('appdatas').dropIndex('type_1');
             console.log('Fixed: Dropped stale unique index "type_1"');
         } catch (e) { }
+
+        // Fix for E11000 duplicate key error on username
+        try {
+            await conn.connection.collection('users').dropIndex('username_1');
+            console.log('Fixed: Dropped stale unique index "username_1"');
+        } catch (e) { }
     }).catch(e => console.error("Initial connection attempt failed:", e));
 } else {
     console.error("CRITICAL: MONGODB_URI is missing from environment variables.");
@@ -187,7 +193,7 @@ app.post('/api/auth/google', async (req, res) => {
 
     } catch (error) {
         console.error("Google Auth Error:", error);
-        res.status(400).json({ error: 'Google authentication failed' });
+        res.status(400).json({ error: error.message || 'Google authentication failed' });
     }
 });
 
@@ -234,7 +240,7 @@ app.post('/api/auth/google-custom', async (req, res) => {
 
     } catch (error) {
         console.error("Custom Google Auth Error:", error);
-        res.status(400).json({ error: 'Authentication failed' });
+        res.status(400).json({ error: error.message || 'Authentication failed' });
     }
 });
 
