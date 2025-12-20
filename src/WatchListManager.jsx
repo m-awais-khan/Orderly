@@ -27,10 +27,15 @@ import {
   ArrowLeft,
   ArrowRight,
   Search,
-  AlertTriangle
+  AlertTriangle,
+  Play,      // For Status
+  Check,     // For Status
+  Clock,     // For Status
+  MinusCircle // For Status
 } from "lucide-react";
 import Toast from "./components/Toast";
 import ConfirmationModal from "./components/ConfirmationModal";
+import StatusSelectionModal from "./components/StatusSelectionModal";
 
 const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   // UI State
@@ -42,6 +47,13 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
     onConfirm: () => { },
     isDangerous: false,
     confirmText: "Confirm"
+  });
+
+  // Status Modal State
+  const [statusModal, setStatusModal] = useState({
+    isOpen: false,
+    isEditMode: false,
+    itemData: null, // Holds the temp item object when adding, or itemId when editing
   });
 
   const [lists, setLists] = useState({});
@@ -815,6 +827,39 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
     }
   };
 
+  // --- Status Handling ---
+  const handleStatusConfirm = (status) => {
+    if (statusModal.isEditMode) {
+      // Logic for editing existing item status
+      const itemId = statusModal.itemData;
+      const currentListItems = [...lists[selectedList]];
+      const updatedList = currentListItems.map(item =>
+        item.id === itemId ? { ...item, status: status } : item
+      );
+
+      const newLists = { ...lists, [selectedList]: updatedList };
+      setLists(newLists);
+      saveData(newLists, selectedList, folders);
+      showToast("Status updated.", "success");
+
+    } else {
+      // Logic for adding new item with status
+      const newItem = { ...statusModal.itemData, status: status };
+      const newLists = { ...lists };
+      // Double check duplicate race condition? unlikely in user flow
+      newLists[selectedList] = [...newLists[selectedList], newItem];
+      setLists(newLists);
+      saveData(newLists, selectedList, folders);
+      showToast(`Added "${newItem.text || newItem.title}" to list.`, "success");
+
+      // Cleanup
+      setSearchQuery(""); // Clear search if TMDB
+      setNewTextItem(""); // Clear text if Text
+    }
+
+    setStatusModal({ isOpen: false, isEditMode: false, itemData: null });
+  };
+
   const addItem = (itemData) => {
     if (isListLocked) return;
     if (!itemData || !itemData.id || !selectedList) return;
@@ -840,12 +885,15 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
         ? `https://image.tmdb.org/t/p/w92${itemData.poster_path}`
         : "placeholder_url",
       note: "",
+      status: 'none' // Default if bypassed, but modal sets it
     };
 
-    const newLists = { ...lists };
-    newLists[selectedList] = [...newLists[selectedList], newItem];
-    setLists(newLists);
-    saveData(newLists, selectedList, folders);
+    // Open Status Modal instead of saving directly
+    setStatusModal({
+      isOpen: true,
+      isEditMode: false,
+      itemData: newItem
+    });
   };
 
   // Sync Dark Mode state to DOM
@@ -910,20 +958,15 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       text: trimmedText,
       type: "text",
       note: "", // Empty note by default
+      status: 'none'
     };
 
-    // 5. Update state
-    const newLists = { ...lists };
-    if (!newLists[selectedList]) {
-      newLists[selectedList] = [];
-    }
-
-    newLists[selectedList] = [...newLists[selectedList], newItem];
-    setLists(newLists);
-    setNewTextItem(""); // Clear input field
-
-    // 6. Save to localStorage
-    saveData(newLists, selectedList, folders);
+    // Open Status Modal instead of saving directly
+    setStatusModal({
+      isOpen: true,
+      isEditMode: false,
+      itemData: newItem
+    });
   };
 
   const handleTextInputKeyPress = (e) => {
@@ -1552,6 +1595,46 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
         </span>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {/* Status Icon */}
+          {!window.location.pathname.startsWith('/share/') && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (isListLocked) return;
+                setStatusModal({
+                  isOpen: true,
+                  isEditMode: true,
+                  itemData: item.id
+                });
+              }}
+              disabled={isListLocked}
+              className={`p-2 rounded-full transition-colors ${item.status && item.status !== 'none'
+                ? (() => {
+                  switch (item.status) {
+                    case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                    case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                    case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                    case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                    default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  }
+                })()
+                : "text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+                } ${isListLocked ? "cursor-not-allowed opacity-70" : ""}`}
+              title={isListLocked ? item.status : "Change Status"}
+            >
+              {(() => {
+                switch (item.status) {
+                  case 'completed': return <Check size={18} />;
+                  case 'dropped': return <X size={18} />;
+                  case 'watching': return <Play size={18} />;
+                  case 'plan_to_watch': return <Clock size={18} />;
+                  default: return <MinusCircle size={18} />;
+                }
+              })()}
+            </button>
+          )}
+
           {(!isListLocked || item.note) && (
             <button
               onClick={(e) => {
@@ -2511,6 +2594,13 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
           />
         ))}
       </div>
+      <StatusSelectionModal
+        isOpen={statusModal.isOpen}
+        onClose={() => setStatusModal({ isOpen: false, isEditMode: false, itemData: null })}
+        onConfirm={handleStatusConfirm}
+        currentStatus={statusModal.isEditMode ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.status : 'none'}
+        isEditMode={statusModal.isEditMode}
+      />
     </div>
   );
 };
