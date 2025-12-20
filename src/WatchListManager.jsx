@@ -1418,6 +1418,46 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {/* Status Icon */}
+            {!window.location.pathname.startsWith('/share/') && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (isListLocked) return;
+                  setStatusModal({
+                    isOpen: true,
+                    isEditMode: true,
+                    itemData: item.id
+                  });
+                }}
+                disabled={isListLocked}
+                className={`p-2 rounded-full transition-colors ${item.status && item.status !== 'none'
+                  ? (() => {
+                    switch (item.status) {
+                      case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                      case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                      case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                      case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                      default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
+                    }
+                  })()
+                  : "text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  } ${isListLocked ? "cursor-not-allowed opacity-70" : ""}`}
+                title={isListLocked ? item.status : "Change Status"}
+              >
+                {(() => {
+                  switch (item.status) {
+                    case 'completed': return <Check size={18} />;
+                    case 'dropped': return <X size={18} />;
+                    case 'watching': return <Play size={18} />;
+                    case 'plan_to_watch': return <Clock size={18} />;
+                    default: return <MinusCircle size={18} />;
+                  }
+                })()}
+              </button>
+            )}
+
             {(!isListLocked || item.note) && (
               <button
                 onClick={(e) => {
