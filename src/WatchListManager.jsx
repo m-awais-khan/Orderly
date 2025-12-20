@@ -551,7 +551,12 @@ const WatchListManager = ({ token, onLogout }) => {
                         : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200"
                       }`}
                   >
-                    <span className="truncate flex-1">{listName}</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="truncate flex-1">{listName}</span>
+                      {sharedLists.find(s => s.listName === listName) && (
+                        <Share2 size={12} className={selectedList === listName ? "text-blue-200" : "text-blue-500"} />
+                      )}
+                    </div>
                     {!isListLocked && (
                       <div className="flex items-center gap-1 opacity-0 group-hover/list:opacity-100 transition-opacity">
                         <button
@@ -1738,6 +1743,9 @@ const WatchListManager = ({ token, onLogout }) => {
                           <>
                             <div className="flex items-center flex-1 min-w-0 gap-3">
                               <span className="font-medium truncate">{listName}</span>
+                              {sharedLists.find(s => s.listName === listName) && (
+                                <Share2 size={12} className={selectedList === listName ? "text-blue-200" : "text-blue-500"} />
+                              )}
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
                                 {lists[listName].length}
                               </span>
