@@ -26,10 +26,24 @@ import {
   Share2,
   ArrowLeft,
   ArrowRight,
-  Search
+  Search,
+  AlertTriangle
 } from "lucide-react";
+import Toast from "./components/Toast";
+import ConfirmationModal from "./components/ConfirmationModal";
 
 const WatchListManager = ({ token, onLogout }) => {
+  // UI State
+  const [toasts, setToasts] = useState([]);
+  const [confirmationModal, setConfirmationModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => { },
+    isDangerous: false,
+    confirmText: "Confirm"
+  });
+
   const [lists, setLists] = useState({});
   const [folders, setFolders] = useState({}); // New state for folders
   const [selectedList, setSelectedList] = useState(null);
@@ -57,7 +71,36 @@ const WatchListManager = ({ token, onLogout }) => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [newTextItem, setNewTextItem] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
   const [listOwner, setListOwner] = useState(null); // Owner of the shared list
+
+  // --- UI Helpers ---
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const openConfirmModal = ({ title, message, onConfirm, isDangerous = false, confirmText = "Confirm" }) => {
+    setConfirmationModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isDangerous,
+      confirmText
+    });
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+  };
   const ITEMS_PER_PAGE = 50;
   const dragActiveRef = useRef(false);
 
@@ -114,8 +157,10 @@ const WatchListManager = ({ token, onLogout }) => {
 
 
     } catch (err) {
-      alert("Shared link is invalid or has been revoked.");
-      window.location.href = "/";
+      showToast("Shared link is invalid or has been revoked.", "error");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 3000);
     }
   };
 
@@ -197,26 +242,32 @@ const WatchListManager = ({ token, onLogout }) => {
   };
 
   const deleteAccount = async () => {
-    if (window.confirm("Are you sure you want to delete your account? This action cannot be undone and all your data will be lost.")) {
-      try {
-        const res = await fetch('/api/auth/delete', {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+    openConfirmModal({
+      title: "Delete Account",
+      message: "Are you sure you want to delete your account? This action cannot be undone and all your data will be lost.",
+      isDangerous: true,
+      confirmText: "Delete Account",
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/auth/delete', {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
 
-        if (res.ok) {
-          onLogout();
-        } else {
-          const data = await res.json();
-          alert(data.error || "Failed to delete account");
+          if (res.ok) {
+            onLogout();
+          } else {
+            const data = await res.json();
+            showToast(data.error || "Failed to delete account", "error");
+          }
+        } catch (err) {
+          console.error("Failed to delete account:", err);
+          showToast("Error deleting account", "error");
         }
-      } catch (err) {
-        console.error("Failed to delete account:", err);
-        alert("Error deleting account");
       }
-    }
+    });
   };
 
   const toggleDarkMode = () => {
@@ -292,7 +343,7 @@ const WatchListManager = ({ token, onLogout }) => {
     const trimmedName = newListName.trim();
 
     if (!trimmedName) {
-      alert("List name cannot be empty.");
+      showToast("List name cannot be empty.", "warning");
       return;
     }
 
@@ -303,7 +354,7 @@ const WatchListManager = ({ token, onLogout }) => {
     );
 
     if (isDuplicate) {
-      alert(`A list named "${trimmedName}" already exists (case-insensitive).`);
+      showToast(`A list named "${trimmedName}" already exists.`, "error");
       return;
     }
 
@@ -330,7 +381,7 @@ const WatchListManager = ({ token, onLogout }) => {
     const trimmedName = newFolderName.trim();
 
     if (!trimmedName) {
-      alert("Folder name cannot be empty.");
+      showToast("Folder name cannot be empty.", "warning");
       return;
     }
 
@@ -340,9 +391,7 @@ const WatchListManager = ({ token, onLogout }) => {
     );
 
     if (isDuplicate) {
-      alert(
-        `A folder named "${trimmedName}" already exists (case-insensitive).`
-      );
+      showToast(`A folder named "${trimmedName}" already exists.`, "error");
       return;
     }
 
@@ -359,17 +408,19 @@ const WatchListManager = ({ token, onLogout }) => {
 
   const deleteFolder = (folderName) => {
     if (isListLocked) return;
-    if (
-      !window.confirm(
-        `Delete folder "${folderName}"? Lists inside will be moved to the root.`
-      )
-    )
-      return;
-
-    const newFolders = { ...folders };
-    delete newFolders[folderName];
-    setFolders(newFolders);
-    saveData(lists, selectedList, newFolders);
+    openConfirmModal({
+      title: "Delete Folder",
+      message: `Delete folder "${folderName}"? Lists inside will be moved to the root.`,
+      isDangerous: true,
+      confirmText: "Delete",
+      onConfirm: () => {
+        const newFolders = { ...folders };
+        delete newFolders[folderName];
+        setFolders(newFolders);
+        saveData(lists, selectedList, newFolders);
+        showToast(`Folder "${folderName}" deleted.`, "success");
+      }
+    });
   };
 
   const renameFolder = (oldName, newName) => {
@@ -387,9 +438,7 @@ const WatchListManager = ({ token, onLogout }) => {
     );
 
     if (isDuplicate) {
-      alert(
-        `A folder named "${trimmedNewName}" already exists. Cannot rename.`
-      );
+      showToast(`A folder named "${trimmedNewName}" already exists.`, "error");
       return;
     }
 
@@ -447,7 +496,7 @@ const WatchListManager = ({ token, onLogout }) => {
     // 1. Validation
     if (folderName === targetFolder) return; // Cannot move into self
     if (targetFolder && isDescendant(folderName, targetFolder, folders)) {
-      alert("Cannot move a folder into its own subfolder!");
+      showToast("Cannot move a folder into its own subfolder!", "error");
       return;
     }
 
@@ -534,7 +583,13 @@ const WatchListManager = ({ token, onLogout }) => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  deleteFolder(folderName);
+                  openConfirmModal({
+                    title: "Delete Folder",
+                    message: `Delete folder "${folderName}"? Lists inside will be moved to the root.`,
+                    isDangerous: true,
+                    confirmText: "Delete",
+                    onConfirm: () => deleteFolder(folderName)
+                  });
                 }}
                 className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
               >
@@ -586,7 +641,13 @@ const WatchListManager = ({ token, onLogout }) => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Delete "${listName}"?`)) deleteList(listName);
+                            openConfirmModal({
+                              title: "Delete List",
+                              message: `Are you sure you want to delete "${listName}"?`,
+                              isDangerous: true,
+                              confirmText: "Delete",
+                              onConfirm: () => deleteList(listName)
+                            });
                           }}
                           className={`p-1 rounded transition-all ${selectedList === listName ? 'text-red-200 hover:text-white hover:bg-red-500' : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
                           title="Delete List"
@@ -629,9 +690,7 @@ const WatchListManager = ({ token, onLogout }) => {
     );
 
     if (isDuplicate) {
-      alert(
-        `A list named "${trimmedNewName}" already exists (case-insensitive). Cannot rename.`
-      );
+      showToast(`A list named "${trimmedNewName}" already exists.`, "error");
       return;
     }
 
@@ -759,7 +818,7 @@ const WatchListManager = ({ token, onLogout }) => {
       (item) => item.id === itemData.id && item.type === "tmdb"
     );
     if (isDuplicate) {
-      alert(`"${itemData.title || itemData.name}" is already in the list.`);
+      showToast(`"${itemData.title || itemData.name}" is already in the list.`, "warning");
       return; // Stop execution if it's a duplicate
     }
     const newItem = {
@@ -787,19 +846,19 @@ const WatchListManager = ({ token, onLogout }) => {
   const addTextItem = () => {
     // 1. Check if list is unlocked and selected
     if (isListLocked) {
-      alert("List is locked. Unlock to add items.");
+      showToast("List is locked. Unlock to add items.", "warning");
       return;
     }
 
     if (!selectedList) {
-      alert("Please select a list first.");
+      showToast("Please select a list first.", "warning");
       return;
     }
 
     // 2. Trim and validate input
     const trimmedText = newTextItem.trim();
     if (!trimmedText) {
-      alert("Text cannot be empty.");
+      showToast("Text cannot be empty.", "warning");
       return;
     }
 
@@ -812,7 +871,7 @@ const WatchListManager = ({ token, onLogout }) => {
     );
 
     if (isDuplicate) {
-      alert(`"${trimmedText}" is already in the list.`);
+      showToast(`"${trimmedText}" is already in the list.`, "warning");
       return;
     }
 
@@ -871,9 +930,7 @@ const WatchListManager = ({ token, onLogout }) => {
     );
 
     if (isDuplicate) {
-      alert(
-        `The list "${refListName}" is already included as a reference in "${selectedList}".`
-      );
+      showToast(`The list "${refListName}" is already included as a reference in "${selectedList}".`, "warning");
       return;
     }
     const newLists = { ...lists };
@@ -961,34 +1018,42 @@ const WatchListManager = ({ token, onLogout }) => {
         // Add to local state
         setSharedLists([...sharedLists, { listName: selectedList, shareId: data.shareId }]);
       } else {
-        alert("Failed to create share link: " + data.error);
+        showToast("Failed to create share link: " + data.error, "error");
       }
     } catch (error) {
       console.error("Share gen error:", error);
-      alert("Error generating link.");
+      showToast("Error generating link.", "error");
     }
   };
 
   const revokeShareLink = async () => {
     if (!selectedList) return;
-    if (!window.confirm("Are you sure? The existing link will stop working immediately.")) return;
-
-    try {
-      const res = await fetch(`/api/share/${encodeURIComponent(selectedList)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
+    openConfirmModal({
+      title: "Revoke Link",
+      message: "Are you sure? The existing link will stop working immediately.",
+      isDangerous: true,
+      confirmText: "Revoke",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/share/${encodeURIComponent(selectedList)}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            // Remove from local state
+            setSharedLists(sharedLists.filter(s => s.listName !== selectedList));
+            showToast("Share link revoked.", "success");
+          } else {
+            showToast("Failed to revoke link.", "error");
+          }
+        } catch (error) {
+          console.error("Share revoke error:", error);
+          showToast("Error revoking link.", "error");
         }
-      });
-      if (res.ok) {
-        // Remove from local state
-        setSharedLists(sharedLists.filter(s => s.listName !== selectedList));
-      } else {
-        alert("Failed to revoke link.");
       }
-    } catch (error) {
-      console.error("Share revoke error:", error);
-    }
+    });
   };
 
   // WatchListManager.jsx
@@ -1025,7 +1090,7 @@ const WatchListManager = ({ token, onLogout }) => {
     linkElement.click();
     document.body.removeChild(linkElement);
 
-    alert("Your watch list data has been successfully exported!");
+    showToast("Your watch list data has been successfully exported!", "success");
   };
 
   // WatchListManager.jsx
@@ -1041,47 +1106,42 @@ const WatchListManager = ({ token, onLogout }) => {
         !importedObject.selectedList ||
         importedObject.isListLocked === undefined
       ) {
-        alert(
-          "Import failed: The file does not appear to be a valid Watch List backup."
-        );
+        showToast("Import failed: The file does not appear to be a valid Watch List backup.", "error");
         return;
       }
 
       // 3. 🛑 CRITICAL WARNING AND CONFIRMATION
-      if (
-        !window.confirm(
-          "WARNING: Importing new data will permanently ERASE all current lists and settings. Do you want to continue?"
-        )
-      ) {
-        return; // User cancelled the import
-      }
+      openConfirmModal({
+        title: "Import Data",
+        message: "WARNING: Importing new data will permanently ERASE all current lists and settings. Do you want to continue?",
+        isDangerous: true,
+        confirmText: "Import & Overwrite",
+        onConfirm: () => {
+          // 4. Update State and Local Storage (Maintaining the same order and state)
 
-      // 4. Update State and Local Storage (Maintaining the same order and state)
+          // Update main list state
+          setLists(importedObject.lists);
+          setFolders(importedObject.folders || {}); // Import folders
 
-      // Update main list state
-      setLists(importedObject.lists);
-      setFolders(importedObject.folders || {}); // Import folders
+          // Update selected list state
+          setSelectedList(importedObject.selectedList);
 
-      // Update selected list state
-      setSelectedList(importedObject.selectedList);
+          // Update lock state
+          setIsListLocked(importedObject.isListLocked);
 
-      // Update lock state
-      setIsListLocked(importedObject.isListLocked);
+          // 5. Update Local Storage to match the imported state
+          saveData(
+            importedObject.lists,
+            importedObject.selectedList,
+            importedObject.folders || {}
+          );
 
-      // 5. Update Local Storage to match the imported state
-      saveData(
-        importedObject.lists,
-        importedObject.selectedList,
-        importedObject.folders || {}
-      );
-      // localStorage.setItem("watchListLock", ...); - Removed in migration
-
-      alert(
-        "Data imported successfully! Your application state has been fully restored."
-      );
+          showToast("Data imported successfully!", "success");
+        }
+      });
     } catch (e) {
       console.error("Import Error:", e);
-      alert("Import failed: Could not read or parse the JSON file.");
+      showToast("Import failed: Could not read or parse the JSON file.", "error");
     }
   };
 
@@ -1147,9 +1207,13 @@ const WatchListManager = ({ token, onLogout }) => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm(`Delete reference to "${item.ref}"?`)) {
-                      deleteItem(item.id);
-                    }
+                    openConfirmModal({
+                      title: "Delete Reference",
+                      message: `Delete reference to "${item.ref}"?`,
+                      isDangerous: true,
+                      confirmText: "Delete",
+                      onConfirm: () => deleteItem(item.id)
+                    });
                   }}
                   className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
                 >
@@ -1313,9 +1377,13 @@ const WatchListManager = ({ token, onLogout }) => {
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.preventDefault();
-                  if (window.confirm(`Delete text item: "${item.text}"?`)) {
-                    deleteItem(item.id);
-                  }
+                  openConfirmModal({
+                    title: "Delete Text Item",
+                    message: `Delete item: "${item.text}"?`,
+                    isDangerous: true,
+                    confirmText: "Delete",
+                    onConfirm: () => deleteItem(item.id)
+                  });
                 }}
                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
               >
@@ -1483,9 +1551,13 @@ const WatchListManager = ({ token, onLogout }) => {
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.preventDefault();
-                if (window.confirm(`Delete item: "${item.text}"?`)) {
-                  deleteItem(item.id);
-                }
+                openConfirmModal({
+                  title: "Delete Item",
+                  message: `Delete item: "${item.text}"?`,
+                  isDangerous: true,
+                  confirmText: "Delete",
+                  onConfirm: () => deleteItem(item.id)
+                });
               }}
               className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
             >
@@ -1823,7 +1895,16 @@ const WatchListManager = ({ token, onLogout }) => {
                                   <MoreVertical size={14} />
                                 </button>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${listName}"?`)) deleteList(listName); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openConfirmModal({
+                                      title: "Delete List",
+                                      message: `Are you sure you want to delete "${listName}"?`,
+                                      isDangerous: true,
+                                      confirmText: "Delete",
+                                      onConfirm: () => deleteList(listName)
+                                    });
+                                  }}
                                   className={`p-1.5 rounded-lg transition-colors ${selectedList === listName ? 'hover:bg-red-500 text-red-100 hover:text-white' : 'hover:bg-red-50 text-gray-400 hover:text-red-500 dark:hover:bg-red-900/20'}`}
                                   title="Delete List"
                                 >
@@ -2336,7 +2417,7 @@ const WatchListManager = ({ token, onLogout }) => {
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(`${window.location.origin}/share/${sharedLists.find(s => s.listName === selectedList).shareId}`);
-                          alert("Link copied!");
+                          showToast("Link copied!", "success");
                         }}
                         className="px-3 py-2 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                       >
@@ -2373,7 +2454,27 @@ const WatchListManager = ({ token, onLogout }) => {
           </div>
         )
       }
-    </div >
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        onConfirm={confirmationModal.onConfirm}
+        onCancel={closeConfirmModal}
+        confirmText={confirmationModal.confirmText}
+        isDangerous={confirmationModal.isDangerous}
+      />
+
+      <div className="fixed top-4 right-4 z-[110] flex flex-col gap-2 w-full max-w-sm pointer-events-none px-4 sm:px-0">
+        {toasts.map(toast => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
+    </div>
   );
 };
 
