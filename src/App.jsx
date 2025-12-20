@@ -82,15 +82,24 @@ const AppContent = () => {
     // 2. Mobile Restricted (Phones in desktop mode)
     // OR Mobile Shared View (Always strict view)
     if (isMobile === 'mobile_restricted' || (isMobile === 'mobile_blocked' && isSharedRoute)) {
+
+      // If NOT shared route and NO token -> Show AuthPage (in desktop wrapper)
+      if (!isSharedRoute && !token) {
+        return (
+          <div style={{ minWidth: '1024px', minHeight: '100vh', overflowX: 'auto', backgroundColor: '#fff' }}>
+            {/* Ensure bg is white or dark depending on theme, but AuthPage handles its own mostly. 
+                    Added minHeight to ensure full screen cover. */}
+            <AuthPage onLogin={handleLogin} />
+          </div>
+        );
+      }
+
       return (
         <div style={{ minWidth: '1024px', overflowX: 'auto' }}>
           <WatchListManager
             token={token} // Pass token if authenticated
             onLogout={handleLogout} // Pass logout if authenticated
             isRestrictedMobile={!isSharedRoute} // Only restrict if NOT a shared route (shared routes have their own read-only logic)
-          // Actually, wait. Shared routes ARE read-only by definition for visitors.
-          // But if I am a logged-in user viewing my own app in "Desktop Mode" on mobile, I want restrictions.
-          // So isRestrictedMobile = true when isMobile === 'mobile_restricted'.
           />
         </div>
       );
