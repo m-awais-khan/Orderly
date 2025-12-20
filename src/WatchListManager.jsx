@@ -32,7 +32,7 @@ import {
 import Toast from "./components/Toast";
 import ConfirmationModal from "./components/ConfirmationModal";
 
-const WatchListManager = ({ token, onLogout }) => {
+const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   // UI State
   const [toasts, setToasts] = useState([]);
   const [confirmationModal, setConfirmationModal] = useState({
@@ -65,7 +65,7 @@ const WatchListManager = ({ token, onLogout }) => {
     }
     return false;
   });
-  const [isListLocked, setIsListLocked] = useState(true);
+  const [isListLocked, setIsListLocked] = useState(true); // Default locked locally, logic will override if needed, but for restricted it stays locked
   const [editingListName, setEditingListName] = useState(null);
 
   const [sharedLists, setSharedLists] = useState([]); // Array of { listName, shareId }
@@ -857,6 +857,13 @@ const WatchListManager = ({ token, onLogout }) => {
     }
   }, [darkMode]);
 
+  // Force lock if on restricted mobile
+  useEffect(() => {
+    if (isRestrictedMobile) {
+      setIsListLocked(true);
+    }
+  }, [isRestrictedMobile]);
+
   // --- Effects ---
   /* 
   useEffect(() => {
@@ -1634,6 +1641,13 @@ const WatchListManager = ({ token, onLogout }) => {
       </div>
 
       <div className="w-full max-w-7xl relative z-10">
+        {/* Restricted Mobile Banner */}
+        {isRestrictedMobile && (
+          <div className="mb-6 bg-blue-600/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-lg flex items-center justify-center gap-3 animate-slide-down">
+            <AlertTriangle size={20} className="text-yellow-300" />
+            <span className="font-medium">Desktop View on Mobile: Editing is disabled. Please use a PC to edit.</span>
+          </div>
+        )}
         {/* Mobile Overlay */}
         {isSidebarOpen && (
           <div
@@ -1775,12 +1789,13 @@ const WatchListManager = ({ token, onLogout }) => {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setIsListLocked(!isListLocked)}
+                      onClick={() => !isRestrictedMobile && setIsListLocked(!isListLocked)}
+                      disabled={isRestrictedMobile}
                       className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
                         ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
                         : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
-                        }`}
-                      title={isListLocked ? "Unlock Lists" : "Lock Lists"}
+                        } ${isRestrictedMobile ? "opacity-50 cursor-not-allowed" : ""}`}
+                      title={isRestrictedMobile ? "Editing disabled on Mobile Desktop View" : (isListLocked ? "Unlock Lists" : "Lock Lists")}
                     >
                       {isListLocked ? "🔒" : "🔓"}
                     </button>

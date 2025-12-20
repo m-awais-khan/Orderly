@@ -8,7 +8,7 @@ import MobileBlocker from "./MobileBlocker";
 const AppContent = () => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState('desktop');
   const location = useLocation();
 
   useEffect(() => {
@@ -24,8 +24,21 @@ const AppContent = () => {
       const hasTouch = (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia("(any-pointer: coarse)").matches);
       const isSmallScreen = window.screen.width < 768;
 
-      // If it's a small viewport OR (it's a touch device with a small physical screen -> likely phone in desktop mode)
-      setIsMobile(isSmallViewport || (hasTouch && isSmallScreen));
+      // 1. Blocked: Small Viewport
+      if (isSmallViewport) {
+        setIsMobile('mobile_blocked');
+        return;
+      }
+
+      // 2. Restricted: Desktop Mode on Phone
+      // Large viewport but small physical screen + touch
+      if (hasTouch && isSmallScreen) {
+        setIsMobile('mobile_restricted');
+        return;
+      }
+
+      // 3. Desktop / Tablet
+      setIsMobile('desktop');
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -60,40 +73,58 @@ const AppContent = () => {
   }
 
   // --- Mobile Restriction Logic ---
-  if (isMobile) {
-    if (!isSharedRoute) {
-      // If mobile and NOT shared route -> Block
+  const getRenderContent = () => {
+    // 1. Mobile Blocked (Phones in standard view)
+    if (isMobile === 'mobile_blocked' && !isSharedRoute) {
       return <MobileBlocker />;
-    } else {
-      // If mobile AND shared route -> Strict Desktop View
-      // Enforce a min-width on the viewport via a wrapper
-      // and ensure the scale makes it fit (handled by browser usually if we force width)
+    }
+
+    // 2. Mobile Restricted (Phones in desktop mode)
+    // OR Mobile Shared View (Always strict view)
+    if (isMobile === 'mobile_restricted' || (isMobile === 'mobile_blocked' && isSharedRoute)) {
       return (
         <div style={{ minWidth: '1024px', overflowX: 'auto' }}>
-          <WatchListManager />
+          <WatchListManager
+            token={token} // Pass token if authenticated
+            onLogout={handleLogout} // Pass logout if authenticated
+            isRestrictedMobile={!isSharedRoute} // Only restrict if NOT a shared route (shared routes have their own read-only logic)
+          // Actually, wait. Shared routes ARE read-only by definition for visitors.
+          // But if I am a logged-in user viewing my own app in "Desktop Mode" on mobile, I want restrictions.
+          // So isRestrictedMobile = true when isMobile === 'mobile_restricted'.
+          />
         </div>
       );
     }
-  }
 
-  return (
-    <Routes>
-      <Route
-        path="/share/:shareId"
-        element={<WatchListManager />}
-      />
-      <Route
-        path="/"
-        element={
-          !!token ? (
-            <WatchListManager token={token} onLogout={handleLogout} />
-          ) : (
-            <AuthPage onLogin={handleLogin} />
-          )
-        }
-      />
-    </Routes>
-  );
+    // 3. Desktop / Tablet Standard View
+    return (
+      <Routes>
+        <Route
+          path="/share/:shareId"
+          element={<WatchListManager />}
+        />
+        <Route
+          path="/"
+          element={
+            !!token ? (
+              <WatchListManager token={token} onLogout={handleLogout} />
+            ) : (
+              <AuthPage onLogin={handleLogin} />
+            )
+          }
+        />
+      </Routes>
+    );
+  };
+
+  // Simplified Render
+  const content = getRenderContent();
+  if (content.type === MobileBlocker) return content;
+  // If it's the specific wrapper for restricted/shared:
+  if (content.props.style?.minWidth) return content;
+
+  // Default routing
+  return content;
 };
 
 function App() {
