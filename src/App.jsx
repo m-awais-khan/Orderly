@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import WatchListManager from "./WatchListManager";
 import AuthPage from "./AuthPage";
 
@@ -18,7 +19,8 @@ function App() {
 
   const handleLogin = (data) => {
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify({ id: data._id, username: data.username }));
+    // Store more google info if needed
+    localStorage.setItem('user', JSON.stringify({ id: data._id, name: data.name, email: data.email, picture: data.picture }));
     setToken(data.token);
   };
 
@@ -33,24 +35,26 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/share/:shareId"
-          element={<WatchListManager />}
-        />
-        <Route
-          path="/"
-          element={
-            !!token ? (
-              <WatchListManager token={token} onLogout={handleLogout} />
-            ) : (
-              <AuthPage onLogin={handleLogin} />
-            )
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <BrowserRouter>
+        <Routes>
+          <Route
+            path="/share/:shareId"
+            element={<WatchListManager />}
+          />
+          <Route
+            path="/"
+            element={
+              !!token ? (
+                <WatchListManager token={token} onLogout={handleLogout} />
+              ) : (
+                <AuthPage onLogin={handleLogin} />
+              )
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </GoogleOAuthProvider>
   );
 }
 

@@ -67,12 +67,17 @@ if (process.env.MONGODB_URI) {
 
 // --- Schemas ---
 
+const { OAuth2Client } = await import('google-auth-library');
+const client = new OAuth2Client(process.env.VITE_GOOGLE_CLIENT_ID); // Reuse the same ID from env
+
+// --- Schemas ---
+
 const UserSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    // For simplicity, we can embed the data directly in the User document or keep it separate.
-    // Keeping separate allows for larger data without hitting document limits easily, but embedding is faster for this size.
-    // Let's use a separate Data collection referenced by userId, similar to before but scoped.
+    email: { type: String, required: true, unique: true },
+    googleId: { type: String, required: true, unique: true },
+    name: { type: String },
+    picture: { type: String },
+    // Removed username/password as we are moving to Google Auth only
 }, { timestamps: true });
 
 const User = mongoose.model('User', UserSchema);
@@ -117,7 +122,7 @@ const protect = async (req, res, next) => {
         try {
             token = req.headers.authorization.split(' ')[1];
             const decoded = jwt.verify(token, JWT_SECRET);
-            req.user = await User.findById(decoded.id).select('-password');
+            req.user = await User.findById(decoded.id);
             next();
         } catch (error) {
             console.error(error);
@@ -132,78 +137,104 @@ const protect = async (req, res, next) => {
 
 // --- Auth Routes ---
 
-// Signup
-app.post('/api/auth/signup', async (req, res) => {
-    const { username, password } = req.body;
+// Google Auth
+app.post('/api/auth/google', async (req, res) => {
+    const { credential } = req.body;
 
-    // Password Strength Check
-    const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,}$/;
-    if (!passwordRegex.test(password)) {
-        return res.status(400).json({
-            error: 'Password must be at least 8 characters long and include at least one number and one special character.'
-        });
-    }
-
-    let user = null;
     try {
-        const userExists = await User.findOne({ username });
-        if (userExists) {
-            return res.status(400).json({ error: 'User already exists' });
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: process.env.VITE_GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+
+        const { sub: googleId, email, name, picture } = payload;
+
+        let user = await User.findOne({ googleId });
+
+        if (!user) {
+            // First time login -> Create User
+            user = await User.create({
+                googleId,
+                email,
+                name,
+                picture
+            });
+
+            // Initialize empty data for user
+            await AppData.create({
+                userId: user._id,
+                lists: {},
+                folders: {},
+                selectedList: null
+            });
+        } else {
+            // Update info if changed (optional)
+            if (user.name !== name || user.picture !== picture) {
+                user.name = name;
+                user.picture = picture;
+                await user.save();
+            }
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        user = await User.create({
-            username,
-            password: hashedPassword
-        });
-
-        // Initialize empty data for user
-        await AppData.create({
-            userId: user._id,
-            lists: {},
-            folders: {},
-            selectedList: null
-        });
-
-        res.status(201).json({
+        res.json({
             _id: user._id,
-            username: user.username,
+            name: user.name,
+            email: user.email,
+            picture: user.picture,
             token: jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '30d' })
         });
-    } catch (error) {
-        console.error("Signup Error:", error);
-        // Rollback: If user was created but subsequent steps failed, delete the user
-        if (user) {
-            await User.findByIdAndDelete(user._id);
-        }
 
-        let errorMessage = error.message || 'Invalid user data';
-        if (error.message.includes('E11000')) {
-            errorMessage = "This username is already taken (or database conflict). Try a different one.";
-        }
-        res.status(400).json({ error: errorMessage });
+    } catch (error) {
+        console.error("Google Auth Error:", error);
+        res.status(400).json({ error: 'Google authentication failed' });
     }
 });
 
-// Login
-app.post('/api/auth/login', async (req, res) => {
-    const { username, password } = req.body;
-    try {
-        const user = await User.findOne({ username });
+// Google Auth (Custom UI - Direct Profile Data)
+app.post('/api/auth/google-custom', async (req, res) => {
+    const { googleId, email, name, picture } = req.body;
 
-        if (user && (await bcrypt.compare(password, user.password))) {
-            res.json({
-                _id: user._id,
-                username: user.username,
-                token: jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '30d' })
+    try {
+        if (!googleId || !email) {
+            return res.status(400).json({ error: 'Missing user data' });
+        }
+
+        let user = await User.findOne({ googleId });
+
+        if (!user) {
+            user = await User.create({
+                googleId,
+                email,
+                name,
+                picture
+            });
+
+            await AppData.create({
+                userId: user._id,
+                lists: {},
+                folders: {},
+                selectedList: null
             });
         } else {
-            res.status(401).json({ error: 'Invalid username or password' });
+            if (user.name !== name || user.picture !== picture) {
+                user.name = name;
+                user.picture = picture;
+                await user.save();
+            }
         }
+
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            picture: user.picture,
+            token: jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '30d' })
+        });
+
     } catch (error) {
-        res.status(500).json({ error: 'Server error' });
+        console.error("Custom Google Auth Error:", error);
+        res.status(400).json({ error: 'Authentication failed' });
     }
 });
 
@@ -288,7 +319,7 @@ app.get('/api/share/:shareId', checkDbConnection, async (req, res) => {
         const shareId = req.params.shareId;
 
         // Find the AppData that contains this shareId
-        const appData = await AppData.findOne({ 'sharedLists.shareId': shareId }).populate('userId', 'username');
+        const appData = await AppData.findOne({ 'sharedLists.shareId': shareId }).populate('userId', 'email name');
 
         if (!appData) {
             return res.status(404).json({ error: 'Shared list not found or link expired' });
@@ -326,12 +357,15 @@ app.get('/api/share/:shareId', checkDbConnection, async (req, res) => {
 
         collectReferences(rootItems);
 
+        // Derive username from email (user@example.com -> user)
+        const emailUsername = appData.userId.email.split('@')[0];
+
         // Return the main list plus all related lists needed for rendering
         res.json({
             listName: listName,
             items: rootItems,
             relatedLists: relatedLists,
-            ownerUsername: appData.userId.username,
+            ownerUsername: emailUsername,
             lastUpdated: shareEntry.createdAt
         });
 

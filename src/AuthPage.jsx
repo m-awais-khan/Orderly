@@ -1,143 +1,109 @@
 import { useState } from 'react';
-import { Film, User, Lock, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { useGoogleLogin } from '@react-oauth/google';
+import { Sparkles, ArrowRight } from 'lucide-react';
 
 const AuthPage = ({ onLogin }) => {
-    const [isLogin, setIsLogin] = useState(true);
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
-    const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError(null);
-        setLoading(true);
+    const login = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setIsLoading(true);
+            try {
+                // Fetch user info using the access token
+                const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                });
+                const userInfo = await userInfoRes.json();
 
-        const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+                // Send to backend
+                const res = await fetch('/api/auth/google-custom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        googleId: userInfo.sub,
+                        email: userInfo.email,
+                        name: userInfo.name,
+                        picture: userInfo.picture
+                    }),
+                });
 
-        try {
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ username, password }),
-            });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Login failed');
+                onLogin(data);
 
-            const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(data.error || 'Something went wrong');
+            } catch (err) {
+                console.error(err);
+                setError("Failed to sign in. Please try again.");
+            } finally {
+                setIsLoading(false);
             }
-
-            onLogin(data);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+        },
+        onError: () => setError("Sign In Failed"),
+    });
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900 p-4">
-            <div className="w-full max-w-md bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 dark:border-gray-700/50 p-8 transform transition-all hover:scale-[1.01]">
+        <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0f1115] text-white">
 
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/20 rotate-3">
-                        <img src="/logo.png" alt="Orderly" className="w-full h-full rounded-2xl object-cover" />
-                    </div>
-                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                        Watchlist Pro
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-2">
-                        Some things are worth watching more than once.
-                    </p>
-                </div>
+            {/* Background Effects */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] animate-pulse-slow" />
+                <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[100px] animate-pulse-slow delay-1000" />
+            </div>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 rounded-xl text-red-600 dark:text-red-400 text-sm flex items-center gap-2 animate-fade-in">
-                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-                        {error}
-                    </div>
-                )}
+            {/* Glass Container */}
+            <div className="relative z-10 w-full max-w-md p-1">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 rounded-3xl blur-sm" />
+                <div className="relative bg-[#1a1d24]/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Username</label>
-                        <div className="relative group">
-                            <User size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                required
-                                className="w-full pl-10 pr-4 py-3 bg-white/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-800 dark:text-gray-100 placeholder-gray-400"
-                                placeholder="Enter your username"
-                            />
+                    {/* Header */}
+                    <div className="text-center mb-12">
+                        <div className="relative w-24 h-24 mx-auto mb-6 group cursor-pointer">
+                            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 to-purple-500 rounded-2xl blur-lg opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
+                            <div className="relative w-full h-full bg-[#20242c] rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
+                                <img src="/logo.png" alt="Orderly" className="w-full h-full object-cover" />
+                            </div>
                         </div>
+
+                        <h1 className="text-4xl font-bold mb-3 tracking-tight">
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 animate-gradient-x">
+                                Watchlist Pro
+                            </span>
+                        </h1>
+                        <p className="text-gray-400 text-lg">
+                            Your personal movie collection, <br /> reimagined.
+                        </p>
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Password</label>
-                        <div className="relative group">
-                            <Lock size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-purple-500 transition-colors" />
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                className="w-full pl-10 pr-12 py-3 bg-white/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-gray-800 dark:text-gray-100 placeholder-gray-400"
-                                placeholder="••••••••"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-500 transition-colors"
-                            >
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
+                    {/* Error */}
+                    {error && (
+                        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm text-center">
+                            {error}
                         </div>
-                        {!isLogin && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 ml-1 mt-1">
-                                Must contain 8+ characters, 1 number, & 1 special character.
-                            </p>
-                        )}
-                    </div>
+                    )}
 
+                    {/* Custom Google Button */}
                     <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transform transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        onClick={() => login()}
+                        disabled={isLoading}
+                        className="group relative w-full py-4 px-6 bg-white text-gray-900 rounded-xl font-bold text-lg shadow-lg hover:shadow-blue-500/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-4 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden"
                     >
-                        {loading ? (
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        {isLoading ? (
+                            <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
                         ) : (
                             <>
-                                {isLogin ? 'Sign In' : 'Create Account'}
-                                <ArrowRight size={18} />
+                                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="G" className="w-6 h-6" />
+                                <span>Continue with Google</span>
+                                <ArrowRight className="w-5 h-5 opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300 text-gray-400 group-hover:text-gray-900" />
                             </>
                         )}
                     </button>
-                </form>
 
-                {/* Toggle */}
-                <div className="mt-8 text-center">
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                        {isLogin ? "Don't have an account?" : "Already have an account?"}
-                        <button
-                            onClick={() => {
-                                setIsLogin(!isLogin);
-                                setError(null);
-                            }}
-                            className="ml-2 font-semibold text-blue-600 dark:text-blue-400 hover:underline outline-none"
-                        >
-                            {isLogin ? 'Sign up' : 'Log in'}
-                        </button>
-                    </p>
+                    <div className="mt-8 flex items-center justify-center gap-2 text-sm text-gray-500">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span>Join thousands of movie lovers</span>
+                    </div>
+
                 </div>
             </div>
         </div>
