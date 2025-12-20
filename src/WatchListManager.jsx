@@ -57,6 +57,7 @@ const WatchListManager = ({ token, onLogout }) => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [newTextItem, setNewTextItem] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [listOwner, setListOwner] = useState(null); // Owner of the shared list
   const ITEMS_PER_PAGE = 50;
   const dragActiveRef = useRef(false);
 
@@ -95,6 +96,7 @@ const WatchListManager = ({ token, onLogout }) => {
       setSelectedList(data.listName);
       setFolders({});
       setSharedLists([]); // Visitor doesn't own shares
+      setListOwner(data.ownerUsername); // Set the owner name
 
       // Force Lock Mode
       setIsListLocked(true);
@@ -156,8 +158,16 @@ const WatchListManager = ({ token, onLogout }) => {
 
       setLists(data.lists || {});
       setFolders(data.folders || {});
-      setSelectedList(data.selectedList || null);
-      setSharedLists(data.sharedLists || []);
+      setSelectedList(data.selectedList || Object.keys(data.lists || {})[0] || null);
+      setSharedLists(data.sharedLists || []); // Load shared lists
+      setListOwner(null); // Reset owner since we are viewing own data
+
+      // Update Lock State based on data or default to true?
+      // Actually per requirement: Lock lists by default on load?
+      // Or persist lock state?
+      // Let's keep existing logic if any, or default to Locked for safety.
+      // previous code didn't touch isListLocked here explicitly, but let's leave it as is.
+      // But we MUST reset listOwner.
     } catch (error) {
       console.error("Failed to load data:", error);
     }
@@ -1944,8 +1954,14 @@ const WatchListManager = ({ token, onLogout }) => {
                         {lists[selectedList]?.length || 0} items
                       </span>
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                      Manage and track your items in this list
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 flex items-center gap-2">
+                      {listOwner && (
+                        <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
+                          <Share2 size={12} />
+                          Shared by {listOwner}
+                        </span>
+                      )}
+                      {!listOwner && "Manage and track your items in this list"}
                     </p>
                   </div>
                 </div>
