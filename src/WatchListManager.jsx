@@ -5,7 +5,6 @@ import {
   Plus,
   GripVertical,
   Link,
-  ChevronUp,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -1389,24 +1388,6 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
               ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
           />
 
-          {!isListLocked && (
-            <div className="flex flex-col gap-0.5 lg:hidden mr-1">
-              <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveItem(index, -1); }}
-                className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-                disabled={index === 0}
-              >
-                <ChevronUp size={14} />
-              </button>
-              <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveItem(index, 1); }}
-                className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-                disabled={index === lists[selectedList].length - 1}
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
-          )}
 
           <div className={`flex-1 min-w-0 ${isEditingNote ? "w-full" : ""}`}>
 
@@ -1455,9 +1436,24 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                   )}
 
                   {/* Text item badge */}
-                  <span className="mt-3 inline-block text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                    {item.originalList ? <span>in <span className="text-blue-500">{item.originalList}</span></span> : "Text Item"}
-                  </span>
+                  <div className="mt-3">
+                    {item.originalList ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setSelectedList(item.originalList);
+                        }}
+                        className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
+                        in <span className="text-blue-500">{item.originalList}</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                        Text Item
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </span>
@@ -1591,30 +1587,11 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
           onMouseUp={() => {
             dragActiveRef.current = false;
           }}
-          className={`text-gray-400 dark:text-gray-500 ${isListLocked
-            ? "opacity-40 cursor-default"
-            : "opacity-100 cursor-grab hover:text-blue-500 dark:hover:text-blue-400"
-            }`}
+          className={`text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing hover:text-blue-500 dark:hover:text-blue-400
+            ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
         />
 
-        {!isListLocked && !isSmartList && (
-          <div className="flex flex-col gap-0.5 lg:hidden mr-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); moveItem(index, -1); }}
-              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-              disabled={index === 0}
-            >
-              <ChevronUp size={14} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); moveItem(index, 1); }}
-              className="text-gray-400 hover:text-blue-500 p-0.5 disabled:opacity-30"
-              disabled={index === lists[selectedList].length - 1}
-            >
-              <ChevronDown size={14} />
-            </button>
-          </div>
-        )}
+
 
         <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
           <div className="flex items-start">
@@ -2325,71 +2302,97 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                         })()
                       ) : (
                         /* Normal List Header */
-                        <>
-                          {editingInMainContent ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                defaultValue={selectedList}
-                                className="px-3 py-2 rounded-lg border-2 border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[200px]"
-                                autoFocus
-                                onKeyPress={(e) => {
-                                  if (e.key === "Enter") {
-                                    renameList(selectedList, e.target.value);
-                                    setEditingInMainContent(false);
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  renameList(selectedList, e.target.value);
-                                  setEditingInMainContent(false);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <button
-                                onClick={() => setEditingInMainContent(false)}
-                                className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
-                                title="Cancel"
-                              >
-                                <X size={20} />
-                              </button>
-                            </div>
-                          ) : (
+                        (() => {
+                          const referencedBy = Object.entries(lists).filter(([name, items]) =>
+                            items.some(item => item.type === 'reference' && item.ref === selectedList)
+                          ).map(([name]) => name);
+
+                          return (
                             <>
-                              <span>{selectedList}</span>
-                              {!isListLocked && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    setEditingInMainContent(true);
-                                  }}
-                                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
-                                  title="Rename List"
-                                  type="button"
-                                >
-                                  <Edit2 size={20} />
-                                </button>
-                              )}
-                              {/* Share Button (Only if user has token - i.e. owner) */}
-                              {token && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowShareModal(true);
-                                  }}
-                                  className={`p-2 rounded-lg transition-all duration-200 ${sharedLists.find(s => s.listName === selectedList)
-                                    ? "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
-                                    : "text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                    }`}
-                                  title="Share List"
-                                  type="button"
-                                >
-                                  <Share2 size={20} />
-                                </button>
+                              {editingInMainContent ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    defaultValue={selectedList}
+                                    className="px-3 py-2 rounded-lg border-2 border-blue-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[200px]"
+                                    autoFocus
+                                    onKeyPress={(e) => {
+                                      if (e.key === "Enter") {
+                                        renameList(selectedList, e.target.value);
+                                        setEditingInMainContent(false);
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      renameList(selectedList, e.target.value);
+                                      setEditingInMainContent(false);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <button
+                                    onClick={() => setEditingInMainContent(false)}
+                                    className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
+                                    title="Cancel"
+                                  >
+                                    <X size={20} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span>{selectedList}</span>
+                                  {!isListLocked && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setEditingInMainContent(true);
+                                      }}
+                                      className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                                      title="Rename List"
+                                      type="button"
+                                    >
+                                      <Edit2 size={20} />
+                                    </button>
+                                  )}
+
+                                  {/* Referenced By Badges */}
+                                  {referencedBy.length > 0 && (
+                                    <div className="flex items-center gap-2 ml-4">
+                                      <span className="text-xs text-gray-500 font-normal">Referenced in:</span>
+                                      {referencedBy.map(refListName => (
+                                        <button
+                                          key={refListName}
+                                          onClick={() => setSelectedList(refListName)}
+                                          className="text-xs font-bold px-2 py-1 rounded-md bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                                          title={`Go to ${refListName}`}
+                                        >
+                                          {refListName}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Share Button (Only if user has token - i.e. owner) */}
+                                  {token && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowShareModal(true);
+                                      }}
+                                      className={`p-2 rounded-lg transition-all duration-200 ${sharedLists.find(s => s.listName === selectedList)
+                                        ? "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                        : "text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                        }`}
+                                      title="Share List"
+                                      type="button"
+                                    >
+                                      <Share2 size={20} />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </>
-                          )}
-                        </>
+                          );
+                        })()
                       )}
 
                       <span className="text-sm font-normal px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
@@ -2789,7 +2792,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
         currentStatus={statusModal.isEditMode ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.status : 'none'}
         isEditMode={statusModal.isEditMode}
       />
-    </div>
+    </div >
   );
 };
 
