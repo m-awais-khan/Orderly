@@ -14,7 +14,18 @@ const AppContent = () => {
   useEffect(() => {
     // Check initial screen size
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      // 1. Standard Mobile Check (Viewport width)
+      const isSmallViewport = window.innerWidth < 768;
+
+      // 2. Desktop Mode on Mobile Heuristic
+      // Phones in desktop mode often fake innerWidth (e.g. 980px) but physical screen width remains small.
+      // We check for Touch capability AND small physical screen width.
+      // Note: We use 768px as a safe cutoff for "Phones". Tablets might exceed this, which is usually desired behavior (allow tablets).
+      const hasTouch = (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia("(any-pointer: coarse)").matches);
+      const isSmallScreen = window.screen.width < 768;
+
+      // If it's a small viewport OR (it's a touch device with a small physical screen -> likely phone in desktop mode)
+      setIsMobile(isSmallViewport || (hasTouch && isSmallScreen));
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
