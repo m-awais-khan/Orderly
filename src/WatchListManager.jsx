@@ -2539,9 +2539,27 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
 
                       {activeDisplayItems
                         .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
-                        .map((item, index) =>
-                          renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)
-                        )}
+                        .map((item, index, array) => {
+                          const showSeparator = isSmartList && (
+                            index === 0 ||
+                            (item.originalList && array[index - 1].originalList !== item.originalList)
+                          );
+
+                          return (
+                            <div key={item.id}>
+                              {showSeparator && (
+                                <div className="flex items-center gap-4 my-6 opacity-80">
+                                  <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
+                                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 bg-white/50 dark:bg-gray-800/50 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 shadow-sm">
+                                    {item.originalList}
+                                  </span>
+                                  <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
+                                </div>
+                              )}
+                              {renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)}
+                            </div>
+                          );
+                        })}
 
                       {/* Pagination Controls */}
                       {activeDisplayItems.length > ITEMS_PER_PAGE && (
