@@ -302,8 +302,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         });
         if (response.ok) {
           data = await response.json();
-        } else if (response.status === 401 || response.status === 404) {
-          console.warn("Session invalid or account deleted. Logging out.");
+        } else if (response.status >= 400 && response.status < 500) {
+          // Client Error (4xx) -> Invalid Session / Account Deleted / forbidden
+          console.warn(`API returned ${response.status}. Logging out.`);
           onLogout();
           return;
         }
