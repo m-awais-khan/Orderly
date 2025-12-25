@@ -41,7 +41,7 @@ import StatusSelectionModal from "./components/StatusSelectionModal";
 import ScoreSelectionModal from "./components/ScoreSelectionModal";
 import ItemDetailsModal from "./components/ItemDetailsModal";
 
-const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
+const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false }) => {
   // UI State
   const [toasts, setToasts] = useState([]);
   const [confirmationModal, setConfirmationModal] = useState({
@@ -290,42 +290,73 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
 
   const loadData = async () => {
     try {
-      if (!token) return; // verification
-      const response = await fetch('/api/data', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await response.json();
+      if (!token) return;
 
-      // Migration: If server data is empty, check localStorage
-      if (!data || Object.keys(data).length === 0) {
-        const localData = localStorage.getItem("watchlists-data");
+      // 1. Try Loading from API
+      let data = null;
+      try {
+        const response = await fetch('/api/data', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          data = await response.json();
+        } else if (response.status === 401 || response.status === 404) {
+          console.warn("Session invalid or account deleted. Logging out.");
+          onLogout();
+          return;
+        }
+      } catch (e) {
+        console.warn("API load failed, falling back to local storage", e);
+      }
+
+      // 2. Fallback: Local Storage (Only if API failed completely)
+      if (!data) {
+        // Construct user-specific key if user info is available
+        const userKey = user?.email ? `watchlist_data_${user.email}` : "watchlists-data";
+
+        // Try user-specific key first
+        let localData = localStorage.getItem(userKey);
+
+        /*
+        // DISABLED: Legacy Migration caused issues where old data reappeared for new accounts.
+        // If not found and we have a user, try legacy key (Migration)
+        if (!localData && user?.email) {
+          const legacyData = localStorage.getItem("watchlists-data");
+          if (legacyData) {
+            console.log("Migrating legacy data to user profile...");
+            localData = legacyData;
+            // We don't delete legacy data to be safe, but we will save to new key
+          }
+        }
+        */
+
         if (localData) {
           const parsed = JSON.parse(localData);
           setLists(parsed.lists || {});
           setFolders(parsed.folders || {});
           setSelectedList(parsed.selectedList || null);
-          // Sync to server
+          setSharedLists(parsed.sharedLists || []);
+
+          // Re-save to ensure it's in the correct user-key and synced to API if possible
           saveData(parsed.lists, parsed.selectedList, parsed.folders);
           return;
         }
       }
 
-      setLists(data.lists || {});
-      setFolders(data.folders || {});
-      setSelectedList(data.selectedList || Object.keys(data.lists || {})[0] || null);
-      setSharedLists(data.sharedLists || []); // Load shared lists
-      setListOwner(null); // Reset owner since we are viewing own data
+      // 3. Use API Data
+      if (data) {
+        setLists(data.lists || {});
+        setFolders(data.folders || {});
+        setSelectedList(data.selectedList || Object.keys(data.lists || {})[0] || null);
+        setSharedLists(data.sharedLists || []);
+      }
 
-      // Update Lock State based on data or default to true?
-      // Actually per requirement: Lock lists by default on load?
-      // Or persist lock state?
-      // Let's keep existing logic if any, or default to Locked for safety.
-      // previous code didn't touch isListLocked here explicitly, but let's leave it as is.
-      // But we MUST reset listOwner.
+      setListOwner(null);
     } catch (error) {
       console.error("Failed to load data:", error);
+      showToast("Failed to load data. Please refresh.", "error");
     }
   };
 
@@ -364,6 +395,11 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
           });
 
           if (res.ok) {
+            // Explicitly clear local user data
+            if (user?.email) {
+              const userKey = `watchlist_data_${user.email}`;
+              localStorage.removeItem(userKey);
+            }
             onLogout();
           } else {
             const data = await res.json();
@@ -404,17 +440,25 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
 
   const saveData = async (newLists, newSelected, newFolders) => {
     try {
+      const payload = {
+        lists: newLists,
+        selectedList: newSelected,
+        folders: newFolders,
+        sharedLists: sharedLists // Also persist shared lists reference
+      };
+
+      // 1. Save to User-Specific LocalStorage (Backup)
+      const userKey = user?.email ? `watchlist_data_${user.email}` : "watchlists-data";
+      localStorage.setItem(userKey, JSON.stringify(payload));
+
+      // 2. Save to API
       await fetch('/api/data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          lists: newLists,
-          selectedList: newSelected,
-          folders: newFolders,
-        }),
+        body: JSON.stringify(payload),
       });
     } catch (error) {
       console.error("Failed to save data:", error);

@@ -65,8 +65,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         if (total > 0) {
             if (formData.episodes_watched >= total && formData.status !== 'completed') {
                 setFormData(prev => ({ ...prev, status: 'completed' }));
-            } else if (formData.episodes_watched < total && formData.status === 'completed') {
-                // Automatically switch back to watching if un-completed
+            } else if (formData.episodes_watched > 0 && formData.episodes_watched < total && formData.status === 'completed') {
+                // Automatically switch back to watching if un-completed (only if progress exists)
                 setFormData(prev => ({ ...prev, status: 'watching' }));
             } else if (formData.episodes_watched > 0 && formData.status === 'plan_to_watch') {
                 // Automatically switch to watching if progress started (and not dropped)
@@ -401,7 +401,24 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Status</label>
                                         <select
                                             value={formData.status}
-                                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                            onChange={(e) => {
+                                                const newStatus = e.target.value;
+                                                let updates = { status: newStatus };
+
+                                                if (newStatus === 'completed' && details) {
+                                                    let total = 0;
+                                                    if (details.isSeason || item.media_type === 'tv_season') {
+                                                        total = details.episodes?.length || 0;
+                                                    } else if (item.media_type === 'tv') {
+                                                        total = details.number_of_episodes || 0;
+                                                    }
+
+                                                    if (total > 0) {
+                                                        updates.episodes_watched = total;
+                                                    }
+                                                }
+                                                setFormData({ ...formData, ...updates });
+                                            }}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         >
                                             <option value="plan_to_watch">Plan to Watch</option>

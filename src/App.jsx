@@ -7,6 +7,7 @@ import MobileBlocker from "./MobileBlocker";
 
 const AppContent = () => {
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState('desktop');
   const location = useLocation();
@@ -45,8 +46,12 @@ const AppContent = () => {
 
     // Initial token check
     const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
     if (storedToken) {
       setToken(storedToken);
+    }
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
     setLoading(false);
 
@@ -54,15 +59,18 @@ const AppContent = () => {
   }, []);
 
   const handleLogin = (data) => {
+    const userData = { id: data._id, name: data.name, email: data.email, picture: data.picture };
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify({ id: data._id, name: data.name, email: data.email, picture: data.picture }));
+    localStorage.setItem('user', JSON.stringify(userData));
     setToken(data.token);
+    setUser(userData);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
+    setUser(null);
   };
 
   // Check if current route is a shared route
@@ -98,6 +106,7 @@ const AppContent = () => {
         <div style={{ minWidth: '1024px', overflowX: 'auto' }}>
           <WatchListManager
             token={token} // Pass token if authenticated
+            user={user} // Pass user info
             onLogout={handleLogout} // Pass logout if authenticated
             isRestrictedMobile={!isSharedRoute} // Only restrict if NOT a shared route (shared routes have their own read-only logic)
           />
@@ -116,7 +125,7 @@ const AppContent = () => {
           path="/"
           element={
             !!token ? (
-              <WatchListManager token={token} onLogout={handleLogout} />
+              <WatchListManager token={token} user={user} onLogout={handleLogout} />
             ) : (
               <AuthPage onLogin={handleLogin} />
             )
