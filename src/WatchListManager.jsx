@@ -309,7 +309,14 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           return;
         }
       } catch (e) {
-        console.warn("API load failed, falling back to local storage", e);
+        console.warn("API load failed", e);
+        // Security Check: If we are online but API fails, it might be a suppressed Auth/CORS error for a deleted account.
+        // To be safe, we logout instead of showing insecure local data.
+        if (navigator.onLine) {
+          console.warn("Online but API failed. Suspected invalid session. Logging out.");
+          onLogout();
+          return;
+        }
       }
 
       // 2. Fallback: Local Storage (Only if API failed completely)
