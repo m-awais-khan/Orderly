@@ -453,7 +453,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       localStorage.setItem(userKey, JSON.stringify(payload));
 
       // 2. Save to API
-      await fetch('/api/data', {
+      const response = await fetch('/api/data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -461,6 +461,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         },
         body: JSON.stringify(payload),
       });
+
+      if (!response.ok && response.status >= 400 && response.status < 500) {
+        console.warn(`Save rejected by API (${response.status}). Logging out.`);
+        // Revert local save to prevent zombie state
+        if (user?.email) {
+          localStorage.removeItem(userKey);
+        }
+        onLogout();
+      }
     } catch (error) {
       console.error("Failed to save data:", error);
     }
@@ -1068,8 +1077,23 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      // Clear interval if any (though loop is in effect cleanup)
     };
   }, []);
+
+  // --- Session Heartbeat ---
+  // Periodically check if session is valid (e.g. if account deleted on another device)
+  useEffect(() => {
+    if (!token) return;
+
+    const intervalId = setInterval(() => {
+      // We reuse loadData because it now contains strict 4xx logout logic
+      // This ensures that if the API returns 401/404, we get kicked out.
+      loadData();
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(intervalId);
+  }, [token]);
 
   // --- Effects ---
   /* 
