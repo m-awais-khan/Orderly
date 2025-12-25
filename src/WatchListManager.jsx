@@ -111,6 +111,8 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [newTextItem, setNewTextItem] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
+  const linkDropdownRef = useRef(null);
 
   const [listOwner, setListOwner] = useState(null); // Owner of the shared list
 
@@ -948,6 +950,19 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       setIsListLocked(true);
     }
   }, [isRestrictedMobile]);
+
+  // Close Link List dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (linkDropdownRef.current && !linkDropdownRef.current.contains(event.target)) {
+        setIsLinkDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // --- Effects ---
   /* 
@@ -2451,25 +2466,47 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                         <span className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           Link List:
                         </span>
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              addReference(e.target.value);
-                              e.target.value = "";
-                            }
-                          }}
-                          className="py-2 bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:text-gray-900 dark:[&>option]:bg-gray-800 dark:[&>option]:text-gray-100"
-                          disabled={isListLocked}
-                        >
-                          <option value="">Select...</option>
-                          {Object.keys(lists)
-                            .filter((name) => name !== selectedList)
-                            .map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                        </select>
+                        <div className="relative" ref={linkDropdownRef}>
+                          <button
+                            onClick={() => !isListLocked && setIsLinkDropdownOpen(!isLinkDropdownOpen)}
+                            disabled={isListLocked}
+                            className={`flex items-center gap-2 py-2 pl-3 pr-2 rounded-lg text-sm font-medium transition-all min-w-[240px] justify-between
+                              ${isListLocked
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500"
+                                : "bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-blue-500/20"
+                              }`}
+                          >
+                            <span>Select...</span>
+                            <ChevronDown size={14} className={`transition-transform duration-200 ${isLinkDropdownOpen ? "rotate-180" : ""}`} />
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          {isLinkDropdownOpen && (
+                            <div className="absolute top-full left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-50 custom-scrollbar animate-fade-in-down">
+                              <div className="p-1">
+                                {Object.keys(lists)
+                                  .filter((name) => name !== selectedList)
+                                  .map((name) => (
+                                    <button
+                                      key={name}
+                                      onClick={() => {
+                                        addReference(name);
+                                        setIsLinkDropdownOpen(false);
+                                      }}
+                                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors truncate"
+                                    >
+                                      {name}
+                                    </button>
+                                  ))}
+                                {Object.keys(lists).filter((name) => name !== selectedList).length === 0 && (
+                                  <div className="px-3 py-2 text-xs text-gray-400 text-center italic">
+                                    No other lists available
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
