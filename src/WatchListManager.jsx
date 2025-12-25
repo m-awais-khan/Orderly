@@ -302,8 +302,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         });
         if (response.ok) {
           data = await response.json();
-        } else if (response.status >= 400 && response.status < 500) {
-          // Client Error (4xx) -> Invalid Session / Account Deleted / forbidden
+        } else if (response.status >= 400) {
+          // Any Error (4xx/5xx) -> Logout to be safe
           console.warn(`API returned ${response.status}. Logging out.`);
           onLogout();
           return;
@@ -469,7 +469,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok && response.status >= 400 && response.status < 500) {
+      if (!response.ok && response.status >= 400) {
         console.warn(`Save rejected by API (${response.status}). Logging out.`);
         // Revert local save to prevent zombie state
         if (user?.email) {
