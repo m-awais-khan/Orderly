@@ -26,15 +26,20 @@ import {
   ArrowLeft,
   ArrowRight,
   Search,
+  Star,
   AlertTriangle,
   Play,      // For Status
   Check,     // For Status
   Clock,     // For Status
-  MinusCircle // For Status
+  MinusCircle, // For Status
+  RotateCcw  // For Status
 } from "lucide-react";
+
 import Toast from "./components/Toast";
 import ConfirmationModal from "./components/ConfirmationModal";
 import StatusSelectionModal from "./components/StatusSelectionModal";
+import ScoreSelectionModal from "./components/ScoreSelectionModal";
+import ItemDetailsModal from "./components/ItemDetailsModal";
 
 const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   // UI State
@@ -55,6 +60,14 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
     itemData: null, // Holds the temp item object when adding, or itemId when editing
   });
 
+  const [scoreModal, setScoreModal] = useState({
+    isOpen: false,
+    itemData: null,
+    currentScore: 0
+  });
+
+  const [selectedItemForModal, setSelectedItemForModal] = useState(null);
+
   const [lists, setLists] = useState({});
 
   // Smart Lists Calculation
@@ -63,8 +76,10 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       completed: [],
       watching: [],
       dropped: [],
-      plan_to_watch: []
+      plan_to_watch: [],
+      rewatching: []
     };
+
 
     Object.entries(lists).forEach(([listName, items]) => {
       items.forEach(item => {
@@ -113,6 +128,11 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
   const linkDropdownRef = useRef(null);
+
+  const [highlightedItemId, setHighlightedItemId] = useState(null); // ID of item to scroll to and highlight
+  const highlightTimeoutRef = useRef(null);
+
+
 
   const [listOwner, setListOwner] = useState(null); // Owner of the shared list
 
@@ -217,12 +237,49 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
   // --- Navigation History (Shared View) ---
   const [navHistory, setNavHistory] = useState([]);
 
-  const handleNavigate = (targetList) => {
+  const handleNavigate = (targetList, itemId = null) => {
     // Only track history if sidebar is likely hidden (e.g. Shared Mode or Mobile)
     // But logic is safe generally.
     setNavHistory((prev) => [...prev, selectedList]);
     setSelectedList(targetList);
+    setIsSidebarOpen(false);
+
+    if (itemId) {
+      setHighlightedItemId(itemId);
+    }
   };
+
+  // Effect to scroll to highlighted item when it becomes available
+  useEffect(() => {
+    if (highlightedItemId && activeDisplayItems.length > 0) {
+      const itemIndex = activeDisplayItems.findIndex(item => item.id === highlightedItemId);
+
+      if (itemIndex !== -1) {
+        // Calculate which page the item is on
+        const targetPage = Math.floor(itemIndex / ITEMS_PER_PAGE) + 1;
+
+        // If we need to switch pages, do it first
+        if (currentPage !== targetPage) {
+          setCurrentPage(targetPage);
+          return; // Wait for next render
+        }
+
+        // Wait for render cycle to ensure DOM element exists
+        setTimeout(() => {
+          const element = document.getElementById(`item-${highlightedItemId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Clear highlight after animation
+            if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+            highlightTimeoutRef.current = setTimeout(() => {
+              setHighlightedItemId(null);
+            }, 2000);
+          }
+        }, 300); // Slight delay to ensure DOM update
+      }
+    }
+  }, [highlightedItemId, selectedList, activeDisplayItems, currentPage]);
 
   const handleBack = () => {
     if (navHistory.length === 0) return;
@@ -916,15 +973,20 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       // Use the title/name provided by TMDB for display
       text: itemData.title || itemData.name,
       type: "tmdb",
-      // Store the media type (movie, tv, anime)
+      // Store the media type (movie, tv, anime, tv_season)
       media_type: itemData.media_type,
+      // Store extra metadata if available (for seasons)
+      season_number: itemData.season_number,
+      tmdb_id: itemData.tmdb_id,
       year:
-        (itemData.release_date || itemData.first_air_date)?.slice(0, 4) || null,
+        (itemData.release_date || itemData.first_air_date || itemData.air_date)?.slice(0, 4) || null,
       image: itemData.poster_path
         ? `https://image.tmdb.org/t/p/w92${itemData.poster_path}`
         : "placeholder_url",
       note: "",
-      status: 'none' // Default if bypassed, but modal sets it
+      status: (itemData.media_type === 'tv' || itemData.media_type === 'tv_season')
+        ? 'watching'
+        : (itemData.media_type === 'movie' ? 'completed' : 'plan_to_watch')
     };
 
     // Open Status Modal instead of saving directly
@@ -1013,12 +1075,118 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       status: 'none'
     };
 
-    // Open Status Modal instead of saving directly
     setStatusModal({
       isOpen: true,
       isEditMode: false,
       itemData: newItem
     });
+  };
+
+  const handleUpdateItem = (updatedItem) => {
+    const targetList = updatedItem.originalList || selectedList;
+    if (!lists[targetList]) return;
+
+    const newLists = { ...lists };
+    let listItems = [...newLists[targetList]];
+    const index = listItems.findIndex(i => i.id === updatedItem.id);
+
+    if (index > -1) {
+      listItems[index] = updatedItem;
+
+      // CLEANUP: If the main show is dropped, remove any individual dropped seasons for this show
+      if (updatedItem.status === 'dropped') {
+        const showId = updatedItem.id;
+        listItems = listItems.filter(item => {
+          // Keep the item being updated (the show itself)
+          if (item.id === updatedItem.id) return true;
+
+          // Remove dropped seasons of this show
+          if (item.media_type === 'tv_season' &&
+            item.tmdb_id === showId &&
+            item.status === 'dropped') {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      newLists[targetList] = listItems;
+      setLists(newLists);
+      saveData(newLists, targetList, folders);
+      showToast("Item updated successfully", "success");
+
+      // Update modal if it's open with this item
+      if (selectedItemForModal && selectedItemForModal.id === updatedItem.id) {
+        setSelectedItemForModal(updatedItem);
+      }
+    }
+  };
+
+  const handleDropSeason = (originalItem, season, epsWatched) => {
+    const targetList = originalItem.originalList || selectedList;
+    if (!lists[targetList]) return;
+
+    const newLists = { ...lists };
+    let listItems = [...newLists[targetList]];
+
+    // Check if this season already exists in the list (as a separate item)
+    const existingIndex = listItems.findIndex(item =>
+      item.media_type === 'tv_season' &&
+      item.tmdb_id === originalItem.id &&
+      item.season_number === season.season_number
+    );
+
+    if (existingIndex > -1) {
+      // Update existing item instead of creating duplicate
+      const existingItem = listItems[existingIndex];
+      listItems[existingIndex] = {
+        ...existingItem,
+        status: 'dropped',
+        episodes_watched: epsWatched,
+        note: `Dropped at episode ${epsWatched} (Updated)`,
+        // Refresh text and image in case they were missing or outdated
+        text: `${originalItem.text}: ${season.name}`,
+        image: season.poster_path ? `https://image.tmdb.org/t/p/w92${season.poster_path}` : existingItem.image
+      };
+      showToast(`Updated dropped status for "${season.name}".`, "success");
+    } else {
+      // Create a NEW item for the dropped season
+      const droppedSeasonItem = {
+        id: `${originalItem.id}_s${season.season_number}_dropped_${Date.now()}`,
+        tmdb_id: originalItem.id, // Link to parent show
+        media_type: 'tv_season',
+        season_number: season.season_number,
+        text: `${originalItem.text}: ${season.name}`,
+        image: season.poster_path ? `https://image.tmdb.org/t/p/w92${season.poster_path}` : originalItem.image,
+        status: 'dropped',
+        episodes_watched: epsWatched,
+        addedAt: new Date().toISOString(),
+        year: season.air_date ? season.air_date.substring(0, 4) : null,
+        note: `Dropped at episode ${epsWatched}`
+      };
+      listItems.push(droppedSeasonItem);
+      showToast(`Dropped "${season.name}" added as separate item.`, "success");
+    }
+
+    newLists[targetList] = listItems;
+    setLists(newLists);
+    saveData(newLists, targetList, folders);
+  };
+
+  const handleUpdateScore = (itemId, listName, newScore) => {
+    if (!listName) return;
+
+    setLists(prev => {
+      const newList = prev[listName].map(item => {
+        if (item.id === itemId) {
+          return { ...item, score: newScore };
+        }
+        return item;
+      });
+      return { ...prev, [listName]: newList };
+    });
+    setScoreModal({ isOpen: false, itemData: null, currentScore: 0 });
+    showToast(`Rating updated`, "success");
   };
 
   const handleTextInputKeyPress = (e) => {
@@ -1716,6 +1884,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                   case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
                   case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
                   case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  case 'rewatching': return "text-orange-500 bg-orange-50/50 dark:bg-orange-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
                   case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
                   default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
                 }
@@ -1729,10 +1898,33 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                 case 'completed': return <Check size={18} />;
                 case 'dropped': return <X size={18} />;
                 case 'watching': return <Play size={18} />;
+                case 'rewatching': return <RotateCcw size={18} />;
                 case 'plan_to_watch': return <Clock size={18} />;
                 default: return <MinusCircle size={18} />;
               }
             })()}
+          </button>
+        )}
+
+        {/* Score Rating */}
+        {item.score > 0 && (
+          <button
+            onClick={(e) => {
+              if (isListLocked) return;
+              e.stopPropagation();
+              e.preventDefault();
+              setScoreModal({
+                isOpen: true,
+                itemData: item.id,
+                currentScore: item.score
+              });
+            }}
+            disabled={isListLocked}
+            className={`flex items-center gap-1 px-2 py-1 text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg shadow-sm transition-all ${!isListLocked ? 'hover:bg-yellow-100 dark:hover:bg-yellow-900/40 cursor-pointer' : 'cursor-default'}`}
+            title={!isListLocked ? "Change Score" : `My Score: ${item.score}/10`}
+          >
+            <Star size={14} fill="currentColor" />
+            <span className="text-xs font-bold">{item.score}</span>
           </button>
         )}
 
@@ -1785,8 +1977,10 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
       return (
         <div
           key={item.id}
-          className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
-            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm opacity-90 cursor-default"
+          id={`item-${item.id}`} // Added ID for scrolling
+          className={`group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-500 
+            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm opacity-90 cursor-default
+            ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
         >
           {contentSection}
           {actionButtons}
@@ -1800,15 +1994,17 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
-          className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
-            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-default"
+          id={`item-${item.id}`} // Added ID for scrolling
+          className={`group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-500 
+            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-xl hover:scale-[1.02] hover:border-blue-200 dark:hover:border-blue-800/30 no-underline cursor-default
+            ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
         >
           {/* Clickable Content Area */}
           <div
             className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
             onClick={(e) => {
               if (!e.defaultPrevented) {
-                window.open(tmdbLink, '_blank', 'noopener,noreferrer');
+                setSelectedItemForModal(item);
               }
             }}
           >
@@ -2072,7 +2268,8 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                       completed: { color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20', icon: Check, label: "Completed" },
                       watching: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', icon: Play, label: "Watching" },
                       dropped: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', icon: X, label: "Dropped" },
-                      plan_to_watch: { color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', icon: Clock, label: "Plan to Watch" }
+                      plan_to_watch: { color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', icon: Clock, label: "Plan to Watch" },
+                      rewatching: { color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', icon: RotateCcw, label: "Rewatching" }
                     }[key];
 
                     if (!config) return null;
@@ -2104,12 +2301,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                     );
                   })}
 
-                  {/* 2. Render Folders */}
-                  {Object.keys(folders)
-                    .filter(folderName => !Object.values(folders).some(items => items.includes(`folder:${folderName}`)))
-                    .map((folderName) => (
-                      <RecursiveFolder key={folderName} folderName={folderName} />
-                    ))}
+
 
                   {/* 2. Render Root Lists */}
                   {Object.keys(lists)
@@ -2185,6 +2377,13 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                           </>
                         )}
                       </div>
+                    ))}
+
+                  {/* 3. Render Folders (Now at the bottom) */}
+                  {Object.keys(folders)
+                    .filter(folderName => !Object.values(folders).some(items => items.includes(`folder:${folderName}`)))
+                    .map((folderName) => (
+                      <RecursiveFolder key={folderName} folderName={folderName} />
                     ))}
 
                   {Object.keys(lists).length === 0 && (
@@ -2264,7 +2463,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                           {filteredItems.map((item, idx) => (
                             <div key={`${item.listName}-${idx}`}
                               onClick={() => {
-                                handleNavigate(item.listName);
+                                handleNavigate(item.listName, item.id); // Pass item id
                                 setSearchQuery("");
                               }}
                               className="p-3 bg-white/50 dark:bg-gray-800/50 rounded-xl shadow-sm hover:shadow-md cursor-pointer border border-gray-100 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all flex items-center justify-between group">
@@ -2303,7 +2502,8 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                             completed: { color: 'text-green-500', icon: Check, label: "Completed Items" },
                             watching: { color: 'text-blue-500', icon: Play, label: "Watching Items" },
                             dropped: { color: 'text-red-500', icon: X, label: "Dropped Items" },
-                            plan_to_watch: { color: 'text-purple-500', icon: Clock, label: "Plan to Watch" }
+                            plan_to_watch: { color: 'text-purple-500', icon: Clock, label: "Plan to Watch" },
+                            rewatching: { color: 'text-orange-500', icon: RotateCcw, label: "Rewatching Items" }
                           }[key];
                           const Icon = config.icon;
                           return (
@@ -2452,6 +2652,7 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
                         <button
                           onClick={addTextItem}
                           disabled={isListLocked}
+                          title="Use it if the item is not available in TMDB"
                           className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
                             ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20"
                             : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none dark:bg-gray-700 dark:text-gray-500"
@@ -2844,11 +3045,68 @@ const WatchListManager = ({ token, onLogout, isRestrictedMobile = false }) => {
         isOpen={statusModal.isOpen}
         onClose={() => setStatusModal({ isOpen: false, isEditMode: false, itemData: null })}
         onConfirm={handleStatusConfirm}
-        currentStatus={statusModal.isEditMode ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.status : 'none'}
+        currentStatus={statusModal.isEditMode
+          ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.status
+          : (statusModal.itemData?.status || 'none')}
         isEditMode={statusModal.isEditMode}
+        mediaType={statusModal.isEditMode
+          ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.media_type
+          : statusModal.itemData?.media_type}
       />
-    </div >
+      {/* Item Details Modal */}
+      <ItemDetailsModal
+        isOpen={!!selectedItemForModal}
+        onClose={() => setSelectedItemForModal(null)}
+        item={selectedItemForModal}
+        onSave={handleUpdateItem}
+        onDropSeason={handleDropSeason}
+        listName={selectedItemForModal?.originalList || selectedList}
+        droppedSeasonNumbers={
+          selectedItemForModal && lists[selectedItemForModal.originalList || selectedList]
+            ? lists[selectedItemForModal.originalList || selectedList]
+              .filter(i =>
+                i.media_type === 'tv_season' &&
+                i.tmdb_id === selectedItemForModal.id &&
+                i.status === 'dropped'
+              )
+              .map(i => i.season_number)
+            : []
+        }
+      />
+      <ScoreSelectionModal
+        isOpen={scoreModal.isOpen}
+        onClose={() => setScoreModal({ isOpen: false, itemData: null, currentScore: 0 })}
+        currentScore={scoreModal.currentScore}
+        onConfirm={(newScore) => {
+          // Find the item to get its list name
+          // Optimization: We could pass listName in, but finding it is okay
+          let listName = selectedList;
+          // Logic to find correct list if smart list or not
+          if (scoreModal.itemData) {
+            // If smart list, we need to know the original list, which we can find or was mapped
+            // Actually handleUpdateScore needs plain list name.
+            // If we are in smart list, item.originalList is set.
+            // We need to pass the correct list name.
+            // Let's rely on finding it or passing it in setScoreModal?
+            // Actually, let's just find it.
+            const targetId = scoreModal.itemData;
+            let targetList = null;
+
+            for (const [name, items] of Object.entries(lists)) {
+              if (items.some(i => i.id === targetId)) {
+                targetList = name;
+                break;
+              }
+            }
+            if (targetList) {
+              handleUpdateScore(targetId, targetList, newScore);
+            }
+          }
+        }}
+      />
+    </div>
   );
 };
 
 export default WatchListManager;
+

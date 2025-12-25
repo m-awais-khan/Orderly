@@ -1,16 +1,23 @@
 import React from 'react';
-import { Check, X, Play, Clock, MinusCircle } from 'lucide-react';
+import { Check, X, Play, Clock, MinusCircle, RotateCcw } from 'lucide-react';
 
-const StatusSelectionModal = ({ isOpen, onClose, onConfirm, currentStatus = 'none', isEditMode = false }) => {
+const StatusSelectionModal = ({ isOpen, onClose, onConfirm, currentStatus = 'none', isEditMode = false, mediaType }) => {
     if (!isOpen) return null;
 
     const statuses = [
-        { id: 'none', label: 'None', icon: MinusCircle, color: 'text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700' },
         { id: 'watching', label: 'Watching', icon: Play, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30' },
         { id: 'completed', label: 'Completed', icon: Check, color: 'text-green-500', bg: 'bg-green-100 dark:bg-green-900/30' },
+        { id: 'rewatching', label: 'Rewatching', icon: RotateCcw, color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30' },
         { id: 'dropped', label: 'Dropped', icon: X, color: 'text-red-500', bg: 'bg-red-100 dark:bg-red-900/30' },
         { id: 'plan_to_watch', label: 'Plan to Watch', icon: Clock, color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30' },
     ];
+
+    const displayedStatuses = statuses.filter(s => {
+        if (mediaType === 'movie') {
+            return s.id !== 'watching' && s.id !== 'rewatching';
+        }
+        return true;
+    });
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
@@ -20,10 +27,9 @@ const StatusSelectionModal = ({ isOpen, onClose, onConfirm, currentStatus = 'non
                 </h3>
 
                 <div className="space-y-2">
-                    {statuses.map((status) => {
+                    {displayedStatuses.map((status) => {
                         const Icon = status.icon;
-                        const isSelected = currentStatus === status.id; // For edit mode, maybe pre-select?
-                        // Actually for adding, default is likely none, but we just offer choices.
+                        const isSelected = currentStatus === status.id;
 
                         return (
                             <button

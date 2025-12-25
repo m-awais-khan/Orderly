@@ -135,15 +135,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
     };
   }, [searchTerm]);
 
-  // ----------------------------------------------------
-  // Auto-Focus Effect (Remains for persistent focus)
-  // ----------------------------------------------------
-  useEffect(() => {
-    // Check if the input is not disabled AND we have a reference to the element
-    if (!disabled && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [flag]);
+
 
   const handleSelect = (item) => {
     onItemSelected(item);
@@ -166,6 +158,62 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
     }
   };
 
+  const [expandedShowId, setExpandedShowId] = useState(null);
+  const [seasonsData, setSeasonsData] = useState({}); // Cache for seasons: { showId: [season1, season2] }
+
+  // ----------------------------------------------------
+  // Season Fetching Logic
+  // ----------------------------------------------------
+  const handleFetchSeasons = async (show) => {
+    // If already expanded, collapse it
+    if (expandedShowId === show.id) {
+      setExpandedShowId(null);
+      return;
+    }
+
+    // If cached, just expand
+    if (seasonsData[show.id]) {
+      setExpandedShowId(show.id);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await axios.get(`https://api.themoviedb.org/3/tv/${show.id}`, {
+        params: { api_key: API_KEY },
+      });
+
+      // Filter out specials if desired, or keep them. keeping them is usually better.
+      const seasons = res.data.seasons || [];
+      setSeasonsData(prev => ({ ...prev, [show.id]: seasons }));
+      setExpandedShowId(show.id);
+    } catch (err) {
+      console.error("Failed to fetch seasons", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectSeason = (show, season) => {
+    // Construct a "Season Item"
+    const seasonItem = {
+      id: `${show.id}_s${season.season_number}`, // Composite ID
+      tmdb_id: show.id, // Store original show ID for fetches
+      season_number: season.season_number,
+      title: `${show.name}: ${season.name}`,
+      name: `${show.name}: ${season.name}`,
+      media_type: 'tv_season',
+      poster_path: season.poster_path || show.poster_path, // Fallback to show poster if season has none
+      air_date: season.air_date,
+      overview: season.overview
+    };
+
+    onItemSelected(seasonItem);
+    setSearchTerm("");
+    setSearchResults([]);
+    setExpandedShowId(null);
+  };
+
   return (
     <div className="relative mb-4 group z-50">
       {/* Input Field */}
@@ -177,13 +225,14 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
+            if (expandedShowId) setExpandedShowId(null); // Reset expansion on type
           }}
           onKeyDown={handleKeyDown}
           placeholder={
-            disabled ? "List is locked." : "Search movie or TV show to add..."
+            disabled ? "List is locked." : "Search movie or TV show or TMDB ID to add..."
           }
           className="flex-1 px-4 py-3.5 bg-transparent focus:outline-none text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm font-medium"
-          disabled={disabled || isLoading}
+          disabled={disabled}
         />
         {isLoading && (
           <div className="pr-4">
@@ -200,45 +249,102 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
         >
           <div className="p-2 space-y-1">
             {searchResults.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center p-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors group/item"
-                onClick={() => handleSelect(item)}
-              >
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={
-                      item.poster_path
-                        ? `https://image.tmdb.org/t/p/w92${item.poster_path}`
-                        : "https://via.placeholder.com/92x138?text=No+Image"
-                    }
-                    alt={item.title || item.name}
-                    className="w-12 h-16 object-cover rounded-lg shadow-sm group-hover/item:shadow-md transition-all"
-                  />
-                  <div className="absolute inset-0 rounded-lg ring-1 ring-black/5 dark:ring-white/10"></div>
+              <div key={item.id} className="flex flex-col group/item">
+                {/* Main Item Row */}
+                <div className="flex items-center p-2 rounded-xl transition-colors hover:bg-blue-50 dark:hover:bg-gray-700/50">
+                  {/* Clickable Area for Main Item */}
+                  <div
+                    className="flex-1 flex items-center cursor-pointer min-w-0"
+                    onClick={() => handleSelect(item)}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={
+                          item.poster_path
+                            ? `https://image.tmdb.org/t/p/w92${item.poster_path}`
+                            : "https://via.placeholder.com/92x138?text=No+Image"
+                        }
+                        alt={item.title || item.name}
+                        className="w-12 h-16 object-cover rounded-lg shadow-sm group-hover/item:shadow-md transition-all"
+                      />
+                      <div className="absolute inset-0 rounded-lg ring-1 ring-black/5 dark:ring-white/10"></div>
+                    </div>
+
+                    <div className="ml-4 flex-1 min-w-0">
+                      <p className="font-bold text-gray-800 dark:text-gray-100 truncate text-sm">
+                        {item.title || item.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.media_type === "movie"
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                          : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                          }`}>
+                          {item.media_type === "movie" ? "Movie" : "TV Show"}
+                        </span>
+                        {(item.release_date || item.first_air_date) && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {(item.release_date || item.first_air_date).substring(0, 4)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 line-clamp-1">
+                        {item.overview}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Drill-down Button for TV Shows */}
+                  {item.media_type === 'tv' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFetchSeasons(item);
+                      }}
+                      className={`p-2 ml-2 rounded-lg transition-all ${expandedShowId === item.id
+                        ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
+                        : "text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20"}`}
+                      title="View Seasons"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                      </svg>
+                    </button>
+                  )}
                 </div>
 
-                <div className="ml-4 flex-1 min-w-0">
-                  <p className="font-bold text-gray-800 dark:text-gray-100 truncate text-sm">
-                    {item.title || item.name}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.media_type === "movie"
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                      : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                      }`}>
-                      {item.media_type === "movie" ? "Movie" : "TV Show"}
-                    </span>
-                    {(item.release_date || item.first_air_date) && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                        {(item.release_date || item.first_air_date).substring(0, 4)}
-                      </span>
-                    )}
+                {/* Seasons List (Nested) */}
+                {expandedShowId === item.id && seasonsData[item.id] && (
+                  <div className="ml-14 mt-2 space-y-1 border-l-2 border-purple-100 dark:border-purple-900/30 pl-3 animate-slide-down">
+                    <div className="text-xs font-bold text-gray-400 uppercase mb-2">Select a Season</div>
+                    {seasonsData[item.id].map(season => (
+                      <div
+                        key={season.id}
+                        onClick={() => handleSelectSeason(item, season)}
+                        className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors"
+                      >
+                        <div className="w-8 h-12 flex-shrink-0 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+                          {season.poster_path ? (
+                            <img src={`https://image.tmdb.org/t/p/w92${season.poster_path}`} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">?</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{season.name}</div>
+                          <div className="text-xs text-gray-500">{season.episode_count} Episodes • {season.air_date?.slice(0, 4)}</div>
+                        </div>
+                        <div className="text-purple-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 line-clamp-1">
-                    {item.overview}
-                  </p>
-                </div>
+                )}
               </div>
             ))}
           </div>
