@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import TmdbSearch from "./TmdbSearch";
+import axios from "axios";
 import {
   Trash2,
   Plus,
@@ -37,7 +38,7 @@ import {
 
 import Toast from "./components/Toast";
 import ConfirmationModal from "./components/ConfirmationModal";
-import StatusSelectionModal from "./components/StatusSelectionModal";
+
 import ScoreSelectionModal from "./components/ScoreSelectionModal";
 import ItemDetailsModal from "./components/ItemDetailsModal";
 
@@ -53,12 +54,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     confirmText: "Confirm"
   });
 
-  // Status Modal State
-  const [statusModal, setStatusModal] = useState({
-    isOpen: false,
-    isEditMode: false,
-    itemData: null, // Holds the temp item object when adding, or itemId when editing
-  });
+
 
   const [scoreModal, setScoreModal] = useState({
     isOpen: false,
@@ -123,7 +119,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   const [editingInMainContent, setEditingInMainContent] = useState(false);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
-  const [editingNoteId, setEditingNoteId] = useState(null);
+
   const [newTextItem, setNewTextItem] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
@@ -980,55 +976,107 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   };
 
   // --- Status Handling ---
-  const handleStatusConfirm = (status) => {
-    const targetListName = statusModal.listName || selectedList;
+  const handleStatusConfirm = async (status) => {
+    try {
+      const targetListName = statusModal.listName || selectedList;
 
-    if (statusModal.isEditMode) {
-      // Logic for editing existing item status
-      const itemId = statusModal.itemData;
+      if (statusModal.isEditMode) {
+        // Logic for editing existing item status
+        const itemId = statusModal.itemData;
 
-      if (!lists[targetListName]) return;
+        if (!lists[targetListName]) {
+          console.error(`Status Update Failed: List "${targetListName}" not found.`);
+          return;
+        }
 
-      const currentListItems = [...lists[targetListName]];
-      const updatedList = currentListItems.map(item =>
-        item.id === itemId ? { ...item, status: status } : item
-      );
+        const currentListItems = [...lists[targetListName]];
+        let updatedItem = currentListItems.find(item => item.id === itemId);
 
-      const newLists = { ...lists, [targetListName]: updatedList };
-      setLists(newLists);
-      saveData(newLists, targetListName, folders);
-      showToast("Status updated.", "success");
+        if (updatedItem) {
+          // Create a copy to modify
+          updatedItem = { ...updatedItem, status: status };
 
-    } else {
-      // Logic for adding new item with status
-      const newItem = { ...statusModal.itemData, status: status };
-      const newLists = { ...lists };
-      // Double check duplicate race condition? unlikely in user flow
-      newLists[selectedList] = [...newLists[selectedList], newItem];
-      setLists(newLists);
-      saveData(newLists, selectedList, folders);
-      showToast(`Added "${newItem.text || newItem.title}" to list.`, "success");
+          // AUTO-COMPLETE LOGIC (Same as Add Item and Details Modal)
+          if (status === 'completed' && (updatedItem.media_type === 'tv' || updatedItem.media_type === 'tv_season')) {
+            try {
+              const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+              if (apiKey) {
+                let url;
+                if (updatedItem.media_type === 'tv_season') {
+                  if (updatedItem.tmdb_id && updatedItem.season_number !== undefined) {
+                    url = `https://api.themoviedb.org/3/tv/${updatedItem.tmdb_id}/season/${updatedItem.season_number}?api_key=${apiKey}`;
+                  }
+                } else {
+                  url = `https://api.themoviedb.org/3/tv/${updatedItem.id}?api_key=${apiKey}`;
+                }
 
-      // Cleanup
-      setSearchQuery(""); // Clear search if TMDB
-      setNewTextItem(""); // Clear text if Text
+                if (url) {
+                  const response = await axios.get(url);
+                  const data = response.data;
+                  let total = 0;
+                  if (updatedItem.media_type === 'tv_season') {
+                    total = data.episodes?.length || 0;
+                  } else {
+                    total = data.number_of_episodes || 0;
+                  }
+
+                  if (total > 0) {
+                    updatedItem.episodes_watched = total;
+                  }
+                }
+              }
+            } catch (error) {
+              console.error("Failed to fetch episodes on Status Update:", error);
+            }
+          }
+          // RESET LOGIC: If moving FROM completed -> Reset episodes (per user rule)
+          else if (status !== 'completed' && updatedItem.status === 'completed') {
+            updatedItem.episodes_watched = 0;
+          }
+
+          // Update the list
+          const updatedList = currentListItems.map(item =>
+            item.id === itemId ? updatedItem : item
+          );
+
+          const newLists = { ...lists, [targetListName]: updatedList };
+          setLists(newLists);
+          saveData(newLists, targetListName, folders);
+
+          // CRITICAL: Update activeItem if it's the one we just modified, so Details Modal sees it immediately
+          if (activeItem && activeItem.id === itemId) {
+            setActiveItem(updatedItem);
+          }
+
+          showToast("Status updated.", "success");
+        } else {
+          console.warn("Item not found in list for status update:", itemId);
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected error in handleStatusConfirm:", err);
+    } finally {
+      // "Add new item" logic is now handled directly in addItem/handleAddNewTextItem
+      // Ensure modal always closes
+      setStatusModal({ isOpen: false, isEditMode: false, itemData: null });
     }
-
-    setStatusModal({ isOpen: false, isEditMode: false, itemData: null });
   };
 
-  const addItem = (itemData) => {
+  const addItem = async (itemData) => {
     if (isListLocked) return;
     if (!itemData || !itemData.id || !selectedList) return;
-    const currentList = lists[selectedList];
+
+    // Check for duplicates
+    const currentList = lists[selectedList] || [];
     const isDuplicate = currentList.some(
       (item) => item.id === itemData.id && item.type === "tmdb"
     );
     if (isDuplicate) {
       showToast(`"${itemData.title || itemData.name}" is already in the list.`, "warning");
-      return; // Stop execution if it's a duplicate
+      return;
     }
-    const newItem = {
+
+    let newItem = {
       // Use TMDB ID as the item key for uniqueness
       id: itemData.id,
       // Use the title/name provided by TMDB for display
@@ -1045,17 +1093,53 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         ? `https://image.tmdb.org/t/p/w92${itemData.poster_path}`
         : "placeholder_url",
       note: "",
-      status: (itemData.media_type === 'tv' || itemData.media_type === 'tv_season')
-        ? 'watching'
-        : (itemData.media_type === 'movie' ? 'completed' : 'plan_to_watch')
+      status: "completed" // ALWAYS DEFAULT TO COMPLETED per user request
     };
 
-    // Open Status Modal instead of saving directly
-    setStatusModal({
-      isOpen: true,
-      isEditMode: false,
-      itemData: newItem
+    // AUTO-COMPLETE LOGIC: Fetch details to get total episodes
+    if (newItem.media_type === 'tv' || newItem.media_type === 'tv_season') {
+      try {
+        const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+        if (apiKey) {
+          let url;
+          if (newItem.media_type === 'tv_season') {
+            if (newItem.tmdb_id && newItem.season_number !== undefined) {
+              url = `https://api.themoviedb.org/3/tv/${newItem.tmdb_id}/season/${newItem.season_number}?api_key=${apiKey}`;
+            }
+          } else {
+            url = `https://api.themoviedb.org/3/tv/${newItem.id}?api_key=${apiKey}`;
+          }
+
+          if (url) {
+            const response = await axios.get(url);
+            const data = response.data;
+            let total = 0;
+            if (newItem.media_type === 'tv_season') {
+              total = data.episodes?.length || 0;
+            } else {
+              total = data.number_of_episodes || 0;
+            }
+
+            if (total > 0) {
+              newItem.episodes_watched = total;
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to auto-fetch episodes on Add:", error);
+      }
+    }
+
+    // Direct Add without Modal
+    setLists(prevLists => {
+      const updatedList = [...(prevLists[selectedList] || []), newItem];
+      const newLists = { ...prevLists, [selectedList]: updatedList };
+      saveData(newLists, selectedList, folders);
+      return newLists;
     });
+
+    showToast(`Added "${newItem.text}" to list.`, "success");
+    setSearchQuery(""); // Clear search
   };
 
   // Sync Dark Mode state to DOM
@@ -1110,7 +1194,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   }, [token]); 
   */
 
-  const addTextItem = () => {
+  const handleAddNewTextItem = () => {
     // 1. Check if list is unlocked and selected
     if (isListLocked) {
       showToast("List is locked. Unlock to add items.", "warning");
@@ -1148,14 +1232,19 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       text: trimmedText,
       type: "text",
       note: "", // Empty note by default
-      status: 'none'
+      status: 'completed' // Default to completed per user request
     };
 
-    setStatusModal({
-      isOpen: true,
-      isEditMode: false,
-      itemData: newItem
+    // Direct Add without Modal
+    setLists(prevLists => {
+      const updatedList = [...(prevLists[selectedList] || []), newItem];
+      const newLists = { ...prevLists, [selectedList]: updatedList };
+      saveData(newLists, selectedList, folders);
+      return newLists;
     });
+
+    setNewTextItem("");
+    showToast("Text item added.", "success");
   };
 
   const handleUpdateItem = (updatedItem) => {
@@ -1226,7 +1315,6 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       };
       showToast(`Updated dropped status for "${season.name}".`, "success");
     } else {
-      // Create a NEW item for the dropped season
       const droppedSeasonItem = {
         id: `${originalItem.id}_s${season.season_number}_dropped_${Date.now()}`,
         tmdb_id: originalItem.id, // Link to parent show
@@ -1242,6 +1330,21 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       };
       listItems.push(droppedSeasonItem);
       showToast(`Dropped "${season.name}" added as separate item.`, "success");
+    }
+
+    // UPDATE MAIN SHOW EPISODE COUNT
+    const mainItemIndex = listItems.findIndex(i => i.id === originalItem.id);
+    if (mainItemIndex > -1) {
+      const mainItem = listItems[mainItemIndex];
+      // Only subtract the episodes that were actually counted towards the total
+      const newWatched = Math.max(0, (mainItem.episodes_watched || 0) - epsWatched);
+
+      listItems[mainItemIndex] = {
+        ...mainItem,
+        episodes_watched: newWatched,
+        // If we subtracted episodes but it was completed, the modal logic will handle re-verifying status based on "effective total"
+        // For now, we just update the count.
+      };
     }
 
     newLists[targetList] = listItems;
@@ -1273,23 +1376,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     }
   };
 
-  const saveItemNote = (itemId, newNoteText, targetList = selectedList) => {
-    if (!lists[targetList]) return; // Guard for invalid lists
 
-    const newLists = { ...lists };
-    const listItems = [...newLists[targetList]];
-
-    // Find the item and update its note
-    const itemIndex = listItems.findIndex((item) => item.id === itemId);
-    if (itemIndex > -1) {
-      listItems[itemIndex] = { ...listItems[itemIndex], note: newNoteText };
-      newLists[targetList] = listItems;
-
-      setLists(newLists);
-      saveData(newLists, targetList, folders);
-    }
-    setEditingNoteId(null); // Close the input box
-  };
 
   const addReference = (refListName) => {
     if (isListLocked || !refListName) return;
@@ -1627,8 +1714,6 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       // ------------------------------------------------------------------
       // TEXT ITEM RENDERING
       // ------------------------------------------------------------------
-      const isEditingNote = editingNoteId === item.id;
-
       const itemContent = (
         <>
           <GripVertical
@@ -1647,50 +1732,16 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
           />
 
-
-          <div className={`flex-1 min-w-0 ${isEditingNote ? "w-full" : ""}`}>
-
-
+          <div className="flex-1 min-w-0">
             <span className="flex-1 text-gray-800 dark:text-gray-200 min-w-0">
               <div className="flex items-start">
                 <div className="flex-1 min-w-0">
                   <div className="mt-1 font-medium text-lg">{item.text}</div>
 
                   {/* Display Note */}
-                  {item.note && visibleNotes[item.id] && !isEditingNote && (
+                  {item.note && visibleNotes[item.id] && (
                     <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
                       📝 {item.note}
-                      {!isListLocked && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingNoteId(item.id);
-                          }}
-                          className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
-                          title="Edit Note"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Edit Note Input */}
-                  {isEditingNote && (
-                    <div
-                      className="mt-2 flex items-center gap-1 animate-fade-in"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <textarea
-                        defaultValue={item.note || ""}
-                        autoFocus
-                        className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm min-h-[80px]"
-                        placeholder="Add a note..."
-                        onBlur={(e) => {
-                          saveItemNote(item.id, e.target.value, item.originalList || selectedList);
-                        }}
-                        onClick={(e) => e.preventDefault()}
-                      />
                     </div>
                   )}
 
@@ -1719,35 +1770,24 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           </div>
 
           {/* Action Buttons */}
+          {/* Action Buttons */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             {/* Status Icon */}
             {!window.location.pathname.startsWith('/share/') && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (isListLocked) return;
-                  setStatusModal({
-                    isOpen: true,
-                    isEditMode: true,
-                    itemData: item.id,
-                    listName: item.originalList || selectedList
-                  });
-                }}
-                disabled={isListLocked}
-                className={`p-2 rounded-full transition-colors ${item.status && item.status !== 'none'
+              <div
+                className={`p-2 rounded-full cursor-default transition-colors ${item.status && item.status !== 'none'
                   ? (() => {
                     switch (item.status) {
-                      case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                      case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                      case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                      case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                      default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
+                      case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
+                      case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
+                      case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
+                      case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
+                      default: return "text-gray-400";
                     }
                   })()
-                  : "text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-                  } ${isListLocked ? "cursor-not-allowed opacity-70" : ""}`}
-                title={isListLocked ? item.status : "Change Status"}
+                  : "text-gray-400"
+                  }`}
+                title={item.status}
               >
                 {(() => {
                   switch (item.status) {
@@ -1758,30 +1798,22 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     default: return <MinusCircle size={18} />;
                   }
                 })()}
-              </button>
+              </div>
             )}
 
-            {(!isListLocked || item.note) && (
+            {item.note && (
               <button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (item.note) {
-                    // Toggle Visibility
-                    setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                  } else if (!isListLocked) {
-                    // Enter Edit Mode (Only if unlocked)
-                    setEditingNoteId(item.id);
-                    // Allow visibility immediately
-                    setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
-                  }
+                  // Toggle Visibility
+                  setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                 }}
-                disabled={isListLocked && !item.note} // Disable if locked and no note
                 className={`p-2 rounded-full transition-colors ${item.note
                   ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
                   : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-                  } ${isListLocked && !item.note ? "opacity-50 cursor-not-allowed" : ""}`}
-                title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
+                  }`}
+                title={visibleNotes[item.id] ? "Hide Note" : "Show Note"}
               >
                 <MessageSquare size={18} />
               </button>
@@ -1816,8 +1848,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
-          className="group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
-            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-lg hover:scale-[1.01] hover:border-gray-200 dark:hover:border-gray-700"
+          className={`group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
+            bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm 
+            ${!isListLocked ? "hover:shadow-lg hover:scale-[1.01] hover:border-gray-200 dark:hover:border-gray-700" : ""}`}
         >
           {itemContent}
         </div>
@@ -1829,8 +1862,6 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     // ------------------------------------------------------------------
     const mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
     const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
-    const isEditingNote = editingNoteId === item.id;
-
     // Split content into Clickable Area and Action Buttons
     const contentSection = (
       <>
@@ -1866,39 +1897,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             <div className="flex-1 min-w-0 py-1">
               <div className="font-bold text-base lg:text-lg truncate text-gray-900 dark:text-white">{item.text}</div>
 
-              {item.note && visibleNotes[item.id] && !isEditingNote && (
+              {item.note && visibleNotes[item.id] && (
                 <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
                   📝 {item.note}
-                  {!isListLocked && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingNoteId(item.id);
-                      }}
-                      className="absolute top-1 right-1 p-1 text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover/note:opacity-100 transition-opacity"
-                      title="Edit Note"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {isEditingNote && (
-                <div
-                  className="mt-2 flex items-center gap-1 animate-fade-in"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <textarea
-                    defaultValue={item.note || ""}
-                    autoFocus
-                    className="w-full text-sm px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 dark:text-white border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm min-h-[80px]"
-                    placeholder="Add a note..."
-                    onBlur={(e) => {
-                      saveItemNote(item.id, e.target.value, item.originalList || selectedList);
-                    }}
-                    onClick={(e) => e.preventDefault()}
-                  />
                 </div>
               )}
 
@@ -1914,7 +1915,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     {item.year}
                   </span>
                 )}
-                {item.originalList && (
+                {item.originalList && item.originalList !== selectedList && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1941,33 +1942,21 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       >
         {/* Status Icon */}
         {!window.location.pathname.startsWith('/share/') && (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (isListLocked) return;
-              setStatusModal({
-                isOpen: true,
-                isEditMode: true,
-                itemData: item.id,
-                listName: item.originalList || selectedList
-              });
-            }}
-            disabled={isListLocked}
-            className={`p-2 rounded-full transition-colors ${item.status && item.status !== 'none'
+          <div
+            className={`p-2 rounded-full cursor-default transition-colors ${item.status && item.status !== 'none'
               ? (() => {
                 switch (item.status) {
-                  case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                  case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                  case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                  case 'rewatching': return "text-orange-500 bg-orange-50/50 dark:bg-orange-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                  case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-gray-100 dark:hover:bg-gray-600";
-                  default: return "text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600";
+                  case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
+                  case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
+                  case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
+                  case 'rewatching': return "text-orange-500 bg-orange-50/50 dark:bg-orange-900/10";
+                  case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
+                  default: return "text-gray-400";
                 }
               })()
-              : "text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-              } ${isListLocked ? "cursor-not-allowed opacity-70" : ""}`}
-            title={isListLocked ? item.status : "Change Status"}
+              : "text-gray-400"
+              }`}
+            title={item.status}
           >
             {(() => {
               switch (item.status) {
@@ -1979,7 +1968,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 default: return <MinusCircle size={18} />;
               }
             })()}
-          </button>
+          </div>
         )}
 
         {/* Score Rating */}
@@ -2004,25 +1993,20 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           </button>
         )}
 
-        {(!isListLocked || item.note) && (
+        {item.note && (
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (item.note) {
-                setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-              } else if (!isListLocked) {
-                setEditingNoteId(item.id);
-                setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
-              }
+              // Toggle Visibility
+              setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
             }}
-            disabled={isListLocked && !item.note} // Disable if locked and no note
             className={`p-2 rounded-full transition-colors ${item.note
               ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
               : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-              } ${isListLocked && !item.note ? "opacity-50 cursor-not-allowed" : ""}`}
-            title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
+              }`}
+            title={visibleNotes[item.id] ? "Hide Note" : "Show Note"}
           >
             <MessageSquare size={18} />
           </button>
@@ -2182,7 +2166,13 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 </button>
 
                 <button
-                  onClick={onLogout}
+                  onClick={() => openConfirmModal({
+                    title: "Sign Out",
+                    message: "Are you sure you want to sign out?",
+                    confirmText: "Sign Out",
+                    onConfirm: onLogout,
+                    isDangerous: false
+                  })}
                   className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
                   title="Sign Out"
                 >
@@ -2726,7 +2716,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                           disabled={isListLocked}
                         />
                         <button
-                          onClick={addTextItem}
+                          onClick={handleAddNewTextItem}
                           disabled={isListLocked}
                           title="Use it if the item is not available in TMDB"
                           className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
@@ -3117,18 +3107,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           />
         ))}
       </div>
-      <StatusSelectionModal
-        isOpen={statusModal.isOpen}
-        onClose={() => setStatusModal({ isOpen: false, isEditMode: false, itemData: null })}
-        onConfirm={handleStatusConfirm}
-        currentStatus={statusModal.isEditMode
-          ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.status
-          : (statusModal.itemData?.status || 'none')}
-        isEditMode={statusModal.isEditMode}
-        mediaType={statusModal.isEditMode
-          ? lists[selectedList]?.find(item => item.id === statusModal.itemData)?.media_type
-          : statusModal.itemData?.media_type}
-      />
+
       {/* Item Details Modal */}
       <ItemDetailsModal
         isOpen={!!selectedItemForModal}

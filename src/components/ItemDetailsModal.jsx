@@ -54,18 +54,29 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         if (!details) return;
 
         let total = 0;
+        let droppedCount = 0;
+
         // Determine total based on type
         if (details.isSeason || item.media_type === 'tv_season') {
             total = details.episodes?.length || 0;
         } else if (item.media_type === 'tv') {
             total = details.number_of_episodes || 0;
+
+            // Calculate dropped episodes count
+            if (details.seasons && droppedSeasonNumbers?.length > 0) {
+                droppedCount = details.seasons
+                    .filter(s => droppedSeasonNumbers.includes(s.season_number))
+                    .reduce((acc, s) => acc + s.episode_count, 0);
+            }
         }
 
-        // If watched equals total (and total > 0), set to completed
-        if (total > 0) {
-            if (formData.episodes_watched >= total && formData.status !== 'completed') {
+        const effectiveTotal = Math.max(0, total - droppedCount);
+
+        // If watched equals effectiveTotal (and effectiveTotal > 0), set to completed
+        if (effectiveTotal > 0) {
+            if (formData.episodes_watched >= effectiveTotal && formData.status !== 'completed') {
                 setFormData(prev => ({ ...prev, status: 'completed' }));
-            } else if (formData.episodes_watched > 0 && formData.episodes_watched < total && formData.status === 'completed') {
+            } else if (formData.episodes_watched > 0 && formData.episodes_watched < effectiveTotal && formData.status === 'completed') {
                 // Automatically switch back to watching if un-completed (only if progress exists)
                 setFormData(prev => ({ ...prev, status: 'watching' }));
             } else if (formData.episodes_watched > 0 && formData.status === 'plan_to_watch') {
@@ -73,7 +84,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 setFormData(prev => ({ ...prev, status: 'watching' }));
             }
         }
-    }, [formData.episodes_watched, details, item.media_type, formData.status]);
+    }, [formData.episodes_watched, details, item.media_type, formData.status, droppedSeasonNumbers]);
 
 
 
@@ -171,7 +182,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 onClick={onClose}
             />
 
-            <div className="relative w-full max-w-4xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col md:flex-row animate-scale-up border border-gray-200 dark:border-gray-800">
+            <div className="relative w-full max-w-4xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden h-[90vh] flex flex-col md:flex-row animate-scale-up border border-gray-200 dark:border-gray-800">
 
                 {/* Left Side - Poster & Quick Info */}
                 <div className="w-full md:w-1/3 bg-gray-50 dark:bg-gray-800/50 p-6 flex flex-col items-center border-r border-gray-100 dark:border-gray-800 overflow-y-auto">
@@ -295,7 +306,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 </div>
 
                 {/* Right Side - Tabs & Content */}
-                <div className="flex-1 flex flex-col h-full min-h-[500px]">
+                <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
                     {/* Header & Close */}
                     <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 sticky top-0 z-10">
                         <div className="flex gap-6">
@@ -403,21 +414,30 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             value={formData.status}
                                             onChange={(e) => {
                                                 const newStatus = e.target.value;
-                                                let updates = { status: newStatus };
 
-                                                if (newStatus === 'completed' && details) {
-                                                    let total = 0;
-                                                    if (details.isSeason || item.media_type === 'tv_season') {
-                                                        total = details.episodes?.length || 0;
-                                                    } else if (item.media_type === 'tv') {
-                                                        total = details.number_of_episodes || 0;
+                                                setFormData(prev => {
+                                                    let updates = { status: newStatus };
+
+                                                    // Case 1: Switching TO "Completed" -> Maximize episodes
+                                                    if (newStatus === 'completed' && details) {
+                                                        let total = 0;
+                                                        if (details.episodes && (details.isSeason || item.media_type === 'tv_season')) {
+                                                            total = details.episodes.length;
+                                                        } else if (details.number_of_episodes) {
+                                                            total = details.number_of_episodes;
+                                                        }
+
+                                                        if (total > 0) {
+                                                            updates.episodes_watched = total;
+                                                        }
+                                                    }
+                                                    // Case 2: Switching FROM "Completed" -> Reset episodes to 0
+                                                    else if (prev.status === 'completed' && newStatus !== 'completed') {
+                                                        updates.episodes_watched = 0;
                                                     }
 
-                                                    if (total > 0) {
-                                                        updates.episodes_watched = total;
-                                                    }
-                                                }
-                                                setFormData({ ...formData, ...updates });
+                                                    return { ...prev, ...updates };
+                                                });
                                             }}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         >
@@ -471,7 +491,14 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         } else {
                                                             val = Math.max(0, val);
                                                         }
-                                                        setFormData({ ...formData, episodes_watched: val });
+
+                                                        let newStatus = formData.status;
+                                                        // Case 3: If status is 'completed' but we decrease episodes -> change to 'watching'
+                                                        if (formData.status === 'completed' && maxEpisodes && val < maxEpisodes) {
+                                                            newStatus = 'watching';
+                                                        }
+
+                                                        setFormData({ ...formData, episodes_watched: val, status: newStatus });
                                                     } else {
                                                         setFormData({ ...formData, times_rewatched: Math.max(0, val) });
                                                     }
@@ -539,7 +566,12 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                     onClick={() => {
                                                                         if (!isDropped) {
                                                                             if (isFullyWatched) {
-                                                                                setFormData({ ...formData, episodes_watched: epsBefore });
+                                                                                // Unchecking a completed season -> Downgrade status if necessary
+                                                                                let updates = { episodes_watched: epsBefore };
+                                                                                if (formData.status === 'completed') {
+                                                                                    updates.status = 'watching';
+                                                                                }
+                                                                                setFormData({ ...formData, ...updates });
                                                                             } else {
                                                                                 setFormData({ ...formData, episodes_watched: seasonEnd });
                                                                             }
@@ -581,7 +613,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                         <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                                                             <div
                                                                                 className={`h-full rounded-full transition-all duration-500 ${isDropped ? "bg-red-500" : (isFullyWatched ? "bg-green-500" : "bg-blue-500")}`}
-                                                                                style={{ width: `${(epsInSeason / season.episode_count) * 100}%` }}
+                                                                                style={{ width: `${isDropped ? 0 : (epsInSeason / season.episode_count) * 100}%` }}
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -659,17 +691,24 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                 </div>
 
                                 <div className="pt-4 flex justify-end">
-                                    <button
-                                        onClick={handleSave}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                    >
-                                        <Save size={18} />
-                                        Save Changes
-                                    </button>
+                                    {/* Removed Button from here to pin it to footer */}
                                 </div>
                             </div>
                         )}
                     </div>
+
+                    {/* Footer - Pinned Save Button */}
+                    {activeTab === "mylist" && (
+                        <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 z-10 shrink-0">
+                            <button
+                                onClick={handleSave}
+                                className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <Save size={18} />
+                                Save Changes
+                            </button>
+                        </div>
+                    )}
                 </div>
 
             </div>
