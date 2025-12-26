@@ -403,7 +403,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                             href={
                                 details?.isSeason
                                     ? `https://www.themoviedb.org/tv/${item.tmdb_id}/season/${item.season_number}`
-                                    : `https://www.themoviedb.org/${item.media_type === 'tv' ? 'tv' : 'movie'}/${item.id}`
+                                    : `https://www.themoviedb.org/${item.media_type === 'tv' ? 'tv' : 'movie'}/${item.tmdb_id || item.id}`
                             }
                             target="_blank"
                             rel="noopener noreferrer"

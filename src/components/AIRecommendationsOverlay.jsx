@@ -5,7 +5,7 @@ import { analyzeWatchlist, getRecommendations } from '../utils/geminiService';
 import AddToListModal from './AddToListModal';
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const COOLDOWN_HOURS = 0.05;
+const COOLDOWN_HOURS = 24;
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
 // Sub-component for horizontal scrollable row with arrow buttons
