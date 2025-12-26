@@ -2275,7 +2275,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             lg:col-span-5 xl:col-span-4 space-y-6 animate-slide-up
             transform transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-            bg-gray-50 dark:bg-gray-900 lg:bg-transparent
+            bg-transparent
             p-4 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
           `}>
               <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
