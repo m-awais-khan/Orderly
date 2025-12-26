@@ -53,7 +53,6 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         times_rewatched: item.times_rewatched || 0,
         start_date: item.start_date || "",
         finish_date: item.finish_date || "",
-        finish_date: item.finish_date || "",
         note: item.note || "",
         watch_order: item.watch_order || []
     });
