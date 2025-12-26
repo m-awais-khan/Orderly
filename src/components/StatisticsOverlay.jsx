@@ -484,7 +484,7 @@ const PieChartCSS = ({ data, size = 160 }) => {
         >
             {/* Center hole for Donut effect */}
             <div className="absolute inset-0 m-auto bg-white dark:bg-gray-800 rounded-full flex items-center justify-center flex-col" style={{ width: '60%', height: '60%' }}>
-                <span className="text-3xl font-bold text-gray-800 dark:text-white group-hover:text-purple-500 transition-colors">{total}</span>
+                <span className="text-3xl font-bold text-gray-800 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors duration-300">{total}</span>
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">Total</span>
             </div>
         </div>
