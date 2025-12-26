@@ -2279,71 +2279,73 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             p-4 lg:p-0 overflow-y-auto lg:overflow-visible shadow-2xl lg:shadow-none
           `}>
               <div className="bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 lg:p-6 border border-white/20 dark:border-gray-700/50 shadow-xl">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold font-heading text-gray-800 dark:text-gray-100 flex items-center justify-between w-full">
-                    <span>Collections</span>
-                    <button
-                      onClick={() => setIsSidebarOpen(false)}
-                      className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
-                    >
-                      <X size={20} />
-                    </button>
+                {/* Header with Title and Close Button */}
+                <div className="flex justify-center items-center mb-4 relative">
+                  <h2 className="text-2xl font-bold font-heading text-gray-800 dark:text-gray-100 text-center">
+                    Collections
                   </h2>
+                  <button
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="lg:hidden p-2 text-gray-500 hover:text-gray-700 absolute right-0"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowStats(true)}
-                      className="p-2 rounded-xl transition-all duration-300 bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 hover:shadow-sm"
-                      title="Statistics"
-                    >
-                      <PieChart size={18} />
-                    </button>
+                {/* Action Buttons Row - Centered */}
+                <div className="flex items-center justify-center gap-3 mb-6">
+                  <button
+                    onClick={() => setShowStats(true)}
+                    className="p-2.5 rounded-xl transition-all duration-300 bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 hover:shadow-sm"
+                    title="Statistics"
+                  >
+                    <PieChart size={20} />
+                  </button>
 
+                  <button
+                    onClick={() => !isListLocked && setShowRecommendations(true)}
+                    disabled={isListLocked}
+                    className={`p-2.5 rounded-xl transition-all duration-300 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 hover:shadow-sm ${isListLocked ? "opacity-50 cursor-not-allowed" : ""}`}
+                    title={isListLocked ? "Unlock to use AI Recommendations" : "AI Recommendations"}
+                  >
+                    <Sparkles size={20} />
+                  </button>
+
+                  <button
+                    onClick={() => !isRestrictedMobile && setIsListLocked(!isListLocked)}
+                    disabled={isRestrictedMobile}
+                    className={`p-2.5 rounded-xl transition-all duration-300 ${isListLocked
+                      ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
+                      : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
+                      } ${isRestrictedMobile ? "opacity-50 cursor-not-allowed" : ""}`}
+                    title={isRestrictedMobile ? "Editing disabled on Mobile Desktop View" : (isListLocked ? "Unlock Lists" : "Lock Lists")}
+                  >
+                    {isListLocked ? "🔒" : "🔓"}
+                  </button>
+
+                  <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
                     <button
-                      onClick={() => !isListLocked && setShowRecommendations(true)}
+                      onClick={() => setShowAddList(!showAddList)}
                       disabled={isListLocked}
-                      className={`p-2 rounded-xl transition-all duration-300 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 hover:shadow-sm ${isListLocked ? "opacity-50 cursor-not-allowed" : ""}`}
-                      title={isListLocked ? "Unlock to use AI Recommendations" : "AI Recommendations"}
+                      className={`p-2 rounded-lg transition-all ${isListLocked
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-blue-600 dark:text-blue-400"
+                        }`}
+                      title="New List"
                     >
-                      <Sparkles size={18} />
+                      <Plus size={18} />
                     </button>
-
                     <button
-                      onClick={() => !isRestrictedMobile && setIsListLocked(!isListLocked)}
-                      disabled={isRestrictedMobile}
-                      className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
-                        ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
-                        : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"
-                        } ${isRestrictedMobile ? "opacity-50 cursor-not-allowed" : ""}`}
-                      title={isRestrictedMobile ? "Editing disabled on Mobile Desktop View" : (isListLocked ? "Unlock Lists" : "Lock Lists")}
+                      onClick={() => setShowAddFolder(!showAddFolder)}
+                      disabled={isListLocked}
+                      className={`p-2 rounded-lg transition-all ${isListLocked
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-yellow-600 dark:text-yellow-400"
+                        }`}
+                      title="New Folder"
                     >
-                      {isListLocked ? "🔒" : "🔓"}
+                      <FolderPlus size={18} />
                     </button>
-
-                    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-                      <button
-                        onClick={() => setShowAddList(!showAddList)}
-                        disabled={isListLocked}
-                        className={`p-2 rounded-lg transition-all ${isListLocked
-                          ? "opacity-50 cursor-not-allowed"
-                          : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-blue-600 dark:text-blue-400"
-                          }`}
-                        title="New List"
-                      >
-                        <Plus size={18} />
-                      </button>
-                      <button
-                        onClick={() => setShowAddFolder(!showAddFolder)}
-                        disabled={isListLocked}
-                        className={`p-2 rounded-lg transition-all ${isListLocked
-                          ? "opacity-50 cursor-not-allowed"
-                          : "hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm text-yellow-600 dark:text-yellow-400"
-                          }`}
-                        title="New Folder"
-                      >
-                        <FolderPlus size={18} />
-                      </button>
-                    </div>
                   </div>
                 </div>
 
