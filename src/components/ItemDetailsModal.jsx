@@ -15,16 +15,23 @@ import {
     BookOpen,
     Check,
     Maximize2,
-    Info
+    Info,
+    ArrowUp,
+    ArrowDown,
+    Plus,
+    Search,
+    Trash2,
+    Link,
+    List
 } from "lucide-react";
 
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const detailsCache = {};
 
-const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listName, droppedSeasonNumbers = [] }) => {
+const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listName, droppedSeasonNumbers = [], lists = {}, readOnly = false }) => {
     if (!isOpen || !item) return null;
 
-    const [activeTab, setActiveTab] = useState("info");
+    const [activeTab, setActiveTab] = useState(readOnly ? "mylist" : "info");
     const [details, setDetails] = useState(null);
 
 
@@ -46,8 +53,114 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         times_rewatched: item.times_rewatched || 0,
         start_date: item.start_date || "",
         finish_date: item.finish_date || "",
-        note: item.note || ""
+        finish_date: item.finish_date || "",
+        note: item.note || "",
+        watch_order: item.watch_order || []
     });
+
+    // Sync formData when item changes
+    useEffect(() => {
+        if (item) {
+            setFormData({
+                status: item.status || "plan_to_watch",
+                score: item.score || 0,
+                episodes_watched: item.episodes_watched || 0,
+                times_rewatched: item.times_rewatched || 0,
+                start_date: item.start_date || "",
+                finish_date: item.finish_date || "",
+                note: item.note || "",
+                watch_order: item.watch_order || []
+            });
+        }
+    }, [item]);
+
+    // Watch Order State
+    const [newSegment, setNewSegment] = useState({
+        type: 'episodes', // episodes, item, list
+        // For episodes
+        season: 1,
+        start: 1,
+        end: 1,
+        // For item
+        itemId: '',
+        itemName: '',
+        itemList: '',
+        // For list
+        targetListName: ''
+    });
+    const [segmentSearchQuery, setSegmentSearchQuery] = useState("");
+    const [segmentSearchResults, setSegmentSearchResults] = useState([]);
+
+    const searchItemsForSegment = (query) => {
+        if (!query.trim()) {
+            setSegmentSearchResults([]);
+            return;
+        }
+        const results = [];
+        Object.entries(lists).forEach(([lName, items]) => {
+            if (lName.startsWith("special:")) return; // Skip smart lists to avoid dupes if possible, or include them? Better skip to avoid confusion
+            items.forEach(i => {
+                if (i.text.toLowerCase().includes(query.toLowerCase())) {
+                    results.push({ ...i, foundInList: lName });
+                }
+            });
+        });
+        setSegmentSearchResults(results.slice(0, 5));
+    };
+
+    const handleAddSegment = () => {
+        if (newSegment.type === 'episodes') {
+            if (!newSegment.season || !newSegment.start || !newSegment.end) return;
+            setFormData(prev => ({
+                ...prev,
+                watch_order: [...(prev.watch_order || []), {
+                    id: Date.now(),
+                    type: 'episodes',
+                    season: newSegment.season,
+                    start: newSegment.start,
+                    end: newSegment.end
+                }]
+            }));
+        } else if (newSegment.type === 'item') {
+            if (!newSegment.itemId) return;
+            setFormData(prev => ({
+                ...prev,
+                watch_order: [...(prev.watch_order || []), {
+                    id: Date.now(),
+                    type: 'item',
+                    itemId: newSegment.itemId,
+                    name: newSegment.itemName,
+                    listName: newSegment.itemList
+                }]
+            }));
+            setSegmentSearchQuery("");
+            setNewSegment(prev => ({ ...prev, itemId: '', itemName: '', itemList: '' }));
+        } else if (newSegment.type === 'list') {
+            if (!newSegment.targetListName) return;
+            setFormData(prev => ({
+                ...prev,
+                watch_order: [...(prev.watch_order || []), {
+                    id: Date.now(),
+                    type: 'list',
+                    listName: newSegment.targetListName
+                }]
+            }));
+        }
+    };
+
+    const handleMoveSegment = (index, direction) => {
+        const newOrder = [...(formData.watch_order || [])];
+        if (index + direction < 0 || index + direction >= newOrder.length) return;
+        const temp = newOrder[index];
+        newOrder[index] = newOrder[index + direction];
+        newOrder[index + direction] = temp;
+        setFormData({ ...formData, watch_order: newOrder });
+    };
+
+    const handleDeleteSegment = (index) => {
+        const newOrder = [...(formData.watch_order || [])].filter((_, i) => i !== index);
+        setFormData({ ...formData, watch_order: newOrder });
+    };
 
     // Auto-Complete Logic
     useEffect(() => {
@@ -150,7 +263,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 times_rewatched: item.times_rewatched || 0,
                 start_date: item.start_date || "",
                 finish_date: item.finish_date || "",
-                note: item.note || ""
+                note: item.note || "",
+                watch_order: item.watch_order || []
             });
             setActiveTab("info"); // Reset to info tab
         }
@@ -455,7 +569,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         <select
                                             value={formData.score}
                                             onChange={(e) => setFormData({ ...formData, score: Number(e.target.value) })}
-                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            disabled={readOnly}
+                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                             <option value={0}>Select Score...</option>
                                             <option value={10}>(10) Masterpiece</option>
@@ -503,7 +618,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         setFormData({ ...formData, times_rewatched: Math.max(0, val) });
                                                     }
                                                 }}
-                                                className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                disabled={readOnly}
+                                                className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             />
                                             {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
                                                 <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -523,7 +639,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     min="0"
                                                     value={formData.times_rewatched}
                                                     onChange={(e) => setFormData({ ...formData, times_rewatched: parseInt(e.target.value) || 0 })}
-                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    disabled={readOnly}
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                                 />
                                             </div>
                                         )}
@@ -562,9 +679,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                             >
                                                                 {/* Click Area */}
                                                                 <div
-                                                                    className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
+                                                                    className={`flex-1 flex items-center gap-3 min-w-0 ${readOnly || isDropped ? "" : "cursor-pointer"}`}
                                                                     onClick={() => {
-                                                                        if (!isDropped) {
+                                                                        if (!isDropped && !readOnly) {
                                                                             if (isFullyWatched) {
                                                                                 // Unchecking a completed season -> Downgrade status if necessary
                                                                                 let updates = { episodes_watched: epsBefore };
@@ -620,7 +737,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                 </div>
 
                                                                 {/* Drop Season Button or Dropped Badge */}
-                                                                {!isFullyWatched && !isDropped && (
+                                                                {!isFullyWatched && !isDropped && !readOnly && (
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
@@ -657,6 +774,225 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         )}
                                     </div>
 
+                                    {/* Recommended Watch Order (TV Only) */}
+                                    {item.media_type === 'tv' && (
+                                        <div className="col-span-2 mt-2 mb-4">
+                                            <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Recommended Watch Order</label>
+
+                                            {/* Order List */}
+                                            <div className="space-y-2 mb-3">
+                                                {(formData.watch_order || []).map((segment, index) => (
+                                                    <div key={segment.id || index} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2 rounded-lg group">
+                                                        <div className="flex-1 text-sm text-gray-700 dark:text-gray-200 flex items-center gap-2">
+                                                            {segment.type === 'episodes' && (
+                                                                <>
+                                                                    <Tv size={14} className="text-blue-500" />
+                                                                    <span>Season {segment.season}: Eps {segment.start}-{segment.end}</span>
+                                                                </>
+                                                            )}
+                                                            {segment.type === 'item' && (
+                                                                <>
+                                                                    <Link size={14} className="text-purple-500" />
+                                                                    <span>{segment.name}</span>
+                                                                    <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded ml-1">{segment.listName}</span>
+                                                                </>
+                                                            )}
+                                                            {segment.type === 'list' && (
+                                                                <>
+                                                                    <List size={14} className="text-amber-500" />
+                                                                    <span>List: {segment.listName}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {!readOnly && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => { e.preventDefault(); handleMoveSegment(index, -1); }}
+                                                                        disabled={index === 0}
+                                                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500 disabled:opacity-30"
+                                                                    >
+                                                                        <ArrowUp size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => { e.preventDefault(); handleMoveSegment(index, 1); }}
+                                                                        disabled={index === (formData.watch_order || []).length - 1}
+                                                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500 disabled:opacity-30"
+                                                                    >
+                                                                        <ArrowDown size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => { e.preventDefault(); handleDeleteSegment(index); }}
+                                                                        className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {(formData.watch_order || []).length === 0 && (
+                                                    <div className="text-xs text-gray-400 text-center py-2 italic">
+                                                        No custom order defined. Default order will be used.
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Add Segment Controls */}
+                                            {!readOnly && (
+                                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700/50">
+                                                    <div className="flex gap-2 mb-3">
+                                                        {['episodes', 'item', 'list'].map(type => (
+                                                            <button
+                                                                key={type}
+                                                                onClick={(e) => { e.preventDefault(); setNewSegment(prev => ({ ...prev, type })); }}
+                                                                className={`flex-1 text-xs font-medium py-1.5 rounded-md capitalize transition-colors
+                                                                ${newSegment.type === type
+                                                                        ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400'
+                                                                        : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800'}`}
+                                                            >
+                                                                {type}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    <div className="flex gap-2 items-end">
+                                                        {newSegment.type === 'episodes' && (
+                                                            <>
+                                                                <div className="flex-1">
+                                                                    <label className="block text-[10px] uppercase text-gray-400 mb-1">Season</label>
+                                                                    <input
+                                                                        type="number" min="1"
+                                                                        value={newSegment.season}
+                                                                        onChange={e => setNewSegment(prev => ({ ...prev, season: e.target.value }))}
+                                                                        onBlur={e => {
+                                                                            let val = parseInt(e.target.value) || 1;
+                                                                            if (details?.seasons) {
+                                                                                const maxSeason = details.seasons.reduce((max, s) => Math.max(max, s.season_number), 1);
+                                                                                val = Math.min(Math.max(1, val), maxSeason);
+                                                                            }
+                                                                            setNewSegment(prev => ({ ...prev, season: val }));
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <label className="block text-[10px] uppercase text-gray-400 mb-1">Start Ep</label>
+                                                                    <input
+                                                                        type="number" min="1"
+                                                                        value={newSegment.start}
+                                                                        onChange={e => setNewSegment(prev => ({ ...prev, start: e.target.value }))}
+                                                                        onBlur={e => {
+                                                                            let val = parseInt(e.target.value) || 1;
+                                                                            if (details?.seasons) {
+                                                                                // Note: parseInt(newSegment.season) ensures we compare numbers if state is temporarily string
+                                                                                const currentSeason = details.seasons.find(s => s.season_number === parseInt(newSegment.season));
+                                                                                if (currentSeason) {
+                                                                                    val = Math.min(Math.max(1, val), currentSeason.episode_count);
+                                                                                }
+                                                                            }
+                                                                            setNewSegment(prev => ({ ...prev, start: val }));
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <label className="block text-[10px] uppercase text-gray-400 mb-1">End Ep</label>
+                                                                    <input
+                                                                        type="number" min="1"
+                                                                        value={newSegment.end}
+                                                                        onChange={e => setNewSegment(prev => ({ ...prev, end: e.target.value }))}
+                                                                        onBlur={e => {
+                                                                            let val = parseInt(e.target.value) || 1;
+                                                                            if (details?.seasons) {
+                                                                                const currentSeason = details.seasons.find(s => s.season_number === parseInt(newSegment.season));
+                                                                                if (currentSeason) {
+                                                                                    val = Math.min(Math.max(1, val), currentSeason.episode_count);
+                                                                                }
+                                                                            }
+                                                                            setNewSegment(prev => ({ ...prev, end: val }));
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
+                                                                    />
+                                                                </div>
+                                                            </>
+                                                        )}
+
+                                                        {newSegment.type === 'item' && (
+                                                            <div className="flex-1 relative">
+                                                                <label className="block text-[10px] uppercase text-gray-400 mb-1">Search Item</label>
+                                                                <div className="relative">
+                                                                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                                                    <input
+                                                                        type="text" placeholder="Search..."
+                                                                        value={segmentSearchQuery}
+                                                                        onChange={e => {
+                                                                            setSegmentSearchQuery(e.target.value);
+                                                                            searchItemsForSegment(e.target.value);
+                                                                        }}
+                                                                        className="w-full pl-8 pr-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
+                                                                    />
+                                                                </div>
+                                                                {segmentSearchQuery && segmentSearchResults.length > 0 && (
+                                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-100 dark:border-gray-700 z-50 max-h-40 overflow-y-auto">
+                                                                        {segmentSearchResults.map(res => (
+                                                                            <div
+                                                                                key={res.id}
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    setNewSegment(prev => ({ ...prev, itemId: res.id, itemName: res.text, itemList: res.foundInList }));
+                                                                                    setSegmentSearchQuery(res.text);
+                                                                                    setSegmentSearchResults([]);
+                                                                                }}
+                                                                                className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-50 dark:border-gray-700/50 last:border-0"
+                                                                            >
+                                                                                <div className="text-xs font-medium text-gray-800 dark:text-gray-200">{res.text}</div>
+                                                                                <div className="text-[10px] text-gray-400">{res.foundInList} · {res.year || 'N/A'}</div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                {newSegment.itemId && (
+                                                                    <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                                                                        <Check size={10} /> Selected: {newSegment.itemName}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {newSegment.type === 'list' && (
+                                                            <div className="flex-1">
+                                                                <label className="block text-[10px] uppercase text-gray-400 mb-1">Select List</label>
+                                                                <select
+                                                                    value={newSegment.targetListName}
+                                                                    onChange={e => setNewSegment(prev => ({ ...prev, targetListName: e.target.value }))}
+                                                                    className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
+                                                                >
+                                                                    <option value="">Select a list...</option>
+                                                                    {Object.keys(lists).filter(l => !l.startsWith('special:')).map(l => (
+                                                                        <option key={l} value={l}>{l}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        )}
+
+                                                        <button
+                                                            onClick={(e) => { e.preventDefault(); handleAddSegment(); }}
+                                                            disabled={
+                                                                (newSegment.type === 'item' && !newSegment.itemId) ||
+                                                                (newSegment.type === 'list' && !newSegment.targetListName)
+                                                            }
+                                                            className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed h-[34px] w-[34px] flex items-center justify-center shrink-0"
+                                                        >
+                                                            <Plus size={18} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Dates */}
                                     <div className="col-span-2 md:col-span-1">
                                         <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Date Started</label>
@@ -664,7 +1000,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             type="date"
                                             value={formData.start_date || ""}
                                             onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                            disabled={readOnly}
+                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     <div className="col-span-2 md:col-span-1">
@@ -673,7 +1010,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             type="date"
                                             value={formData.finish_date || ""}
                                             onChange={(e) => setFormData({ ...formData, finish_date: e.target.value })}
-                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                            disabled={readOnly}
+                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                 </div>
@@ -685,8 +1023,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         rows={4}
                                         value={formData.note}
                                         onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        placeholder="Write your thoughts here..."
+                                        disabled={readOnly}
+                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                                        placeholder={readOnly ? "No notes" : "Write your thoughts here..."}
                                     />
                                 </div>
 
@@ -698,7 +1037,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                     </div>
 
                     {/* Footer - Pinned Save Button */}
-                    {activeTab === "mylist" && (
+                    {activeTab === "mylist" && !readOnly && (
                         <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 z-10 shrink-0">
                             <button
                                 onClick={handleSave}

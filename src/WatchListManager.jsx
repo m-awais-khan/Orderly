@@ -33,7 +33,8 @@ import {
   Check,     // For Status
   Clock,     // For Status
   MinusCircle, // For Status
-  RotateCcw  // For Status
+  RotateCcw,  // For Status
+  List
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -41,6 +42,7 @@ import ConfirmationModal from "./components/ConfirmationModal";
 
 import ScoreSelectionModal from "./components/ScoreSelectionModal";
 import ItemDetailsModal from "./components/ItemDetailsModal";
+import WatchOrderViewModal from "./components/WatchOrderViewModal";
 
 const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false }) => {
   // UI State
@@ -63,6 +65,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   });
 
   const [selectedItemForModal, setSelectedItemForModal] = useState(null);
+  const [watchOrderModal, setWatchOrderModal] = useState({ isOpen: false, title: "", watchOrder: [] });
 
   const [lists, setLists] = useState({});
 
@@ -1860,8 +1863,13 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     // ------------------------------------------------------------------
     // 2. TMDB ITEM RENDERING
     // ------------------------------------------------------------------
-    const mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
-    const tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
+    let mediaTypePath = item.media_type === "tv" ? "tv" : "movie";
+    let tmdbLink = `https://www.themoviedb.org/${mediaTypePath}/${item.id}`;
+
+    if (item.media_type === 'tv_season') {
+      tmdbLink = `https://www.themoviedb.org/tv/${item.tmdb_id}/season/${item.season_number}`;
+    }
+
     // Split content into Clickable Area and Action Buttons
     const contentSection = (
       <>
@@ -1905,10 +1913,10 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
               <div className="mt-3 flex items-center gap-2">
                 <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md 
-                  ${item.media_type === 'tv'
+                  ${item.media_type === 'tv' || item.media_type === 'tv_season'
                     ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
                     : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'}`}>
-                  {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
+                  {item.media_type === 'tv' ? 'TV Show' : item.media_type === 'tv_season' ? 'TV Season' : 'Movie'}
                 </span>
                 {item.year && (
                   <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
@@ -2009,6 +2017,26 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             title={visibleNotes[item.id] ? "Hide Note" : "Show Note"}
           >
             <MessageSquare size={18} />
+          </button>
+        )}
+
+        {/* Watch Order Icon (Smart Button) */}
+        {item.watch_order && item.watch_order.length > 0 && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setWatchOrderModal({
+                isOpen: true,
+                title: item.text || item.title || item.name,
+                watchOrder: item.watch_order
+              });
+            }}
+            className="p-2 rounded-full transition-colors text-blue-500 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-800"
+            title="View Watch Order"
+          >
+            <List size={18} />
           </button>
         )}
 
@@ -3116,6 +3144,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         onSave={handleUpdateItem}
         onDropSeason={handleDropSeason}
         listName={selectedItemForModal?.originalList || selectedList}
+        lists={lists} // Pass all lists for Reference/Link search
+        readOnly={isListLocked} // Pass readOnly status
         droppedSeasonNumbers={
           selectedItemForModal && lists[selectedItemForModal.originalList || selectedList]
             ? lists[selectedItemForModal.originalList || selectedList]
@@ -3148,20 +3178,36 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             let targetList = null;
 
             for (const [name, items] of Object.entries(lists)) {
+              // ... existing loop logic ...
+              // Simply using handleUpdateItem wrapper which handles list finding or passing listName directly if we refactor handleUpdateScore
+              // For now, simpler: just call handleUpdateItem with updated score on the item object.
+              // We need the full item object. 
+              // FIX: scoreModal needs to store the whole item or we find it here.
+              // Let's assume we find it.
               if (items.some(i => i.id === targetId)) {
                 targetList = name;
+                const item = items.find(i => i.id === targetId);
+                if (item) {
+                  handleUpdateItem({ ...item, score: newScore });
+                }
                 break;
               }
             }
-            if (targetList) {
-              handleUpdateScore(targetId, targetList, newScore);
-            }
+            setScoreModal({ isOpen: false, itemData: null, currentScore: 0 });
           }
         }}
+      />
+      <WatchOrderViewModal
+        isOpen={watchOrderModal.isOpen}
+        onClose={() => setWatchOrderModal({ isOpen: false, title: "", watchOrder: [] })}
+        title={watchOrderModal.title}
+        watchOrder={watchOrderModal.watchOrder}
       />
     </div>
   );
 };
 
 export default WatchListManager;
+
+
 
