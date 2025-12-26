@@ -183,9 +183,14 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
         params: { api_key: API_KEY },
       });
 
-      // Filter out specials if desired, or keep them. keeping them is usually better.
+      // Store seasons AND genres
       const seasons = res.data.seasons || [];
-      setSeasonsData(prev => ({ ...prev, [show.id]: seasons }));
+      const genres = res.data.genres || [];
+
+      setSeasonsData(prev => ({
+        ...prev,
+        [show.id]: { seasons, genres }
+      }));
       setExpandedShowId(show.id);
     } catch (err) {
       console.error("Failed to fetch seasons", err);
@@ -195,6 +200,12 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
   };
 
   const handleSelectSeason = (show, season) => {
+    // Retrieve cached genres for this show
+    // The structure is now { showId: { seasons: [], genres: [] } }
+    // But we need to handle legacy/transition if needed, or just assume new structure. 
+    // Since we cleared state on reload, it's fine.
+    const showGenreIds = seasonsData[show.id]?.genres?.map(g => g.id) || show.genre_ids || [];
+
     // Construct a "Season Item"
     const seasonItem = {
       id: `${show.id}_s${season.season_number}`, // Composite ID
@@ -205,7 +216,8 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
       media_type: 'tv_season',
       poster_path: season.poster_path || show.poster_path, // Fallback to show poster if season has none
       air_date: season.air_date,
-      overview: season.overview
+      overview: season.overview,
+      genre_ids: showGenreIds // Attach genres!
     };
 
     onItemSelected(seasonItem);
@@ -321,7 +333,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
                 {expandedShowId === item.id && seasonsData[item.id] && (
                   <div className="ml-14 mt-2 space-y-1 border-l-2 border-purple-100 dark:border-purple-900/30 pl-3 animate-slide-down">
                     <div className="text-xs font-bold text-gray-400 uppercase mb-2">Select a Season</div>
-                    {seasonsData[item.id].map(season => (
+                    {seasonsData[item.id].seasons.map(season => (
                       <div
                         key={season.id}
                         onClick={() => handleSelectSeason(item, season)}

@@ -34,7 +34,9 @@ import {
   Clock,     // For Status
   MinusCircle, // For Status
   RotateCcw,  // For Status
-  List
+  List,
+  PieChart,
+  Sparkles
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -43,6 +45,8 @@ import ConfirmationModal from "./components/ConfirmationModal";
 import ScoreSelectionModal from "./components/ScoreSelectionModal";
 import ItemDetailsModal from "./components/ItemDetailsModal";
 import WatchOrderViewModal from "./components/WatchOrderViewModal";
+import StatisticsOverlay from "./components/StatisticsOverlay";
+import AIRecommendationsOverlay from "./components/AIRecommendationsOverlay";
 
 const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false }) => {
   // UI State
@@ -66,6 +70,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
   const [selectedItemForModal, setSelectedItemForModal] = useState(null);
   const [watchOrderModal, setWatchOrderModal] = useState({ isOpen: false, title: "", watchOrder: [] });
+  const [showStats, setShowStats] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   const [lists, setLists] = useState({});
 
@@ -1096,7 +1102,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         ? `https://image.tmdb.org/t/p/w92${itemData.poster_path}`
         : "placeholder_url",
       note: "",
-      status: "completed" // ALWAYS DEFAULT TO COMPLETED per user request
+      status: "completed", // ALWAYS DEFAULT TO COMPLETED per user request
+      genre_ids: itemData.genre_ids // Store genres for stats
     };
 
     // AUTO-COMPLETE LOGIC: Fetch details to get total episodes
@@ -1180,10 +1187,26 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   useEffect(() => {
     if (!token) return;
 
-    const intervalId = setInterval(() => {
-      // We reuse loadData because it now contains strict 4xx logout logic
-      // This ensures that if the API returns 401/404, we get kicked out.
-      loadData();
+    const intervalId = setInterval(async () => {
+      // Lightweight session check - only validate token, don't reload data
+      try {
+        const response = await fetch('/api/data', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        // If we get 401/403/404, session is invalid -> logout
+        if (response.status >= 400 && response.status < 500) {
+          console.warn(`Session invalid (${response.status}). Logging out.`);
+          onLogout();
+        }
+        // On success (200/304), do nothing - session is still valid
+        // We deliberately don't update state to avoid resetting selectedList
+      } catch (e) {
+        // Network errors are handled silently (user might be offline temporarily)
+        console.warn("Heartbeat check failed:", e);
+      }
     }, 30000); // Check every 30 seconds
 
     return () => clearInterval(intervalId);
@@ -1775,34 +1798,32 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           {/* Action Buttons */}
           {/* Action Buttons */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {/* Status Icon */}
-            {!window.location.pathname.startsWith('/share/') && (
-              <div
-                className={`p-2 rounded-full cursor-default transition-colors ${item.status && item.status !== 'none'
-                  ? (() => {
-                    switch (item.status) {
-                      case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
-                      case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
-                      case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
-                      case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
-                      default: return "text-gray-400";
-                    }
-                  })()
-                  : "text-gray-400"
-                  }`}
-                title={item.status}
-              >
-                {(() => {
+            {/* Status Icon - Always Visible Now */}
+            <div
+              className={`p-2 rounded-full cursor-default transition-colors ${item.status && item.status !== 'none'
+                ? (() => {
                   switch (item.status) {
-                    case 'completed': return <Check size={18} />;
-                    case 'dropped': return <X size={18} />;
-                    case 'watching': return <Play size={18} />;
-                    case 'plan_to_watch': return <Clock size={18} />;
-                    default: return <MinusCircle size={18} />;
+                    case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
+                    case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
+                    case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
+                    case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
+                    default: return "text-gray-400";
                   }
-                })()}
-              </div>
-            )}
+                })()
+                : "text-gray-400"
+                }`}
+              title={item.status}
+            >
+              {(() => {
+                switch (item.status) {
+                  case 'completed': return <Check size={18} />;
+                  case 'dropped': return <X size={18} />;
+                  case 'watching': return <Play size={18} />;
+                  case 'plan_to_watch': return <Clock size={18} />;
+                  default: return <MinusCircle size={18} />;
+                }
+              })()}
+            </div>
 
             {item.note && (
               <button
@@ -1948,36 +1969,34 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         onMouseDown={(e) => e.stopPropagation()}
         className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
       >
-        {/* Status Icon */}
-        {!window.location.pathname.startsWith('/share/') && (
-          <div
-            className={`p-2 rounded-full cursor-default transition-colors ${item.status && item.status !== 'none'
-              ? (() => {
-                switch (item.status) {
-                  case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
-                  case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
-                  case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
-                  case 'rewatching': return "text-orange-500 bg-orange-50/50 dark:bg-orange-900/10";
-                  case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
-                  default: return "text-gray-400";
-                }
-              })()
-              : "text-gray-400"
-              }`}
-            title={item.status}
-          >
-            {(() => {
+        {/* Status Icon - Always Visible Now */}
+        <div
+          className={`p-2 rounded-full cursor-default transition-colors ${item.status && item.status !== 'none'
+            ? (() => {
               switch (item.status) {
-                case 'completed': return <Check size={18} />;
-                case 'dropped': return <X size={18} />;
-                case 'watching': return <Play size={18} />;
-                case 'rewatching': return <RotateCcw size={18} />;
-                case 'plan_to_watch': return <Clock size={18} />;
-                default: return <MinusCircle size={18} />;
+                case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
+                case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
+                case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
+                case 'rewatching': return "text-orange-500 bg-orange-50/50 dark:bg-orange-900/10";
+                case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
+                default: return "text-gray-400";
               }
-            })()}
-          </div>
-        )}
+            })()
+            : "text-gray-400"
+            }`}
+          title={item.status}
+        >
+          {(() => {
+            switch (item.status) {
+              case 'completed': return <Check size={18} />;
+              case 'dropped': return <X size={18} />;
+              case 'watching': return <Play size={18} />;
+              case 'rewatching': return <RotateCcw size={18} />;
+              case 'plan_to_watch': return <Clock size={18} />;
+              default: return <MinusCircle size={18} />;
+            }
+          })()}
+        </div>
 
         {/* Score Rating */}
         {item.score > 0 && (
@@ -2273,6 +2292,23 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setShowStats(true)}
+                      className="p-2 rounded-xl transition-all duration-300 bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 hover:shadow-sm"
+                      title="Statistics"
+                    >
+                      <PieChart size={18} />
+                    </button>
+
+                    <button
+                      onClick={() => !isListLocked && setShowRecommendations(true)}
+                      disabled={isListLocked}
+                      className={`p-2 rounded-xl transition-all duration-300 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 hover:shadow-sm ${isListLocked ? "opacity-50 cursor-not-allowed" : ""}`}
+                      title={isListLocked ? "Unlock to use AI Recommendations" : "AI Recommendations"}
+                    >
+                      <Sparkles size={18} />
+                    </button>
+
+                    <button
                       onClick={() => !isRestrictedMobile && setIsListLocked(!isListLocked)}
                       disabled={isRestrictedMobile}
                       className={`p-2 rounded-xl transition-all duration-300 ${isListLocked
@@ -2488,6 +2524,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     </div>
                   )}
                 </div>
+
               </div>
             </div>
           )}
@@ -3125,7 +3162,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         isDangerous={confirmationModal.isDangerous}
       />
 
-      <div className="fixed top-4 right-4 z-[110] flex flex-col gap-2 w-full max-w-sm pointer-events-none px-4 sm:px-0">
+      <div className="fixed top-4 right-4 z-[350] flex flex-col gap-2 w-full max-w-sm pointer-events-none px-4 sm:px-0">
         {toasts.map(toast => (
           <Toast
             key={toast.id}
@@ -3203,7 +3240,72 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         title={watchOrderModal.title}
         watchOrder={watchOrderModal.watchOrder}
       />
-    </div>
+
+      <StatisticsOverlay
+        isOpen={showStats}
+        onClose={() => setShowStats(false)}
+        lists={lists}
+      />
+
+      <AIRecommendationsOverlay
+        isOpen={showRecommendations}
+        onClose={() => setShowRecommendations(false)}
+        lists={lists}
+        userId={user?._id || user?.email}
+        token={token}
+        onAddItem={async (listName, itemData) => {
+          // Direct add to specified list (bypassing addItem which uses selectedList)
+          const currentList = lists[listName] || [];
+
+          // Check for duplicates
+          const isDuplicate = currentList.some(
+            (item) => item.tmdb_id === itemData.tmdb_id && item.media_type === itemData.media_type
+          );
+          if (isDuplicate) {
+            showToast(`"${itemData.text}" is already in "${listName}".`, "warning");
+            return;
+          }
+
+          // Create new item with unique ID
+          const newItem = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: itemData.text,
+            type: "tmdb",
+            media_type: itemData.media_type,
+            tmdb_id: itemData.tmdb_id,
+            year: itemData.year,
+            image: itemData.image ? `https://image.tmdb.org/t/p/w92${itemData.image}` : null,
+            note: "",
+            status: "completed"
+          };
+
+          // AUTO-COMPLETE LOGIC: Fetch episode count for TV shows
+          if (itemData.media_type === 'tv') {
+            try {
+              const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+              if (apiKey && itemData.tmdb_id) {
+                const response = await axios.get(`https://api.themoviedb.org/3/tv/${itemData.tmdb_id}?api_key=${apiKey}`);
+                const total = response.data.number_of_episodes || 0;
+                if (total > 0) {
+                  newItem.episodes_watched = total;
+                }
+              }
+            } catch (error) {
+              console.error("Failed to fetch episode count:", error);
+            }
+          }
+
+          // Update lists
+          const newLists = {
+            ...lists,
+            [listName]: [...currentList, newItem]
+          };
+          setLists(newLists);
+          saveData(newLists, selectedList, folders);
+          showToast(`Added "${itemData.text}" to "${listName}"`, "success");
+        }}
+      />
+    </div >
   );
 };
 

@@ -234,13 +234,28 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 const response = await axios.get(url, {
                     params: {
                         api_key: API_KEY,
-                        append_to_response: "credits,images,external_ids"
+                        append_to_response: "credits,images,external_ids,content_ratings,release_dates"
                     }
                 });
 
+                // Extract Content Rating (US preference)
+                let contentRating = "N/A";
+                if (response.data.content_ratings) {
+                    // TV Logic
+                    const rating = response.data.content_ratings.results.find(r => r.iso_3166_1 === "US");
+                    if (rating) contentRating = rating.rating;
+                } else if (response.data.release_dates) {
+                    // Movie Logic
+                    const release = response.data.release_dates.results.find(r => r.iso_3166_1 === "US");
+                    if (release && release.release_dates.length > 0) {
+                        contentRating = release.release_dates[0].certification;
+                    }
+                }
+
                 const data = {
                     ...response.data,
-                    isSeason // flag to help UI rendering
+                    isSeason, // flag to help UI rendering
+                    contentRating // Store extracted rating
                 };
 
                 // Save to Cache
@@ -351,6 +366,14 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                 {item.media_type === 'tv_season' || details?.isSeason ? 'Season' : (item.media_type === 'movie' ? 'Movie' : 'TV Show')}
                             </span>
                         </div>
+                        {details?.contentRating && details.contentRating !== "N/A" && (
+                            <div className="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+                                <span className="text-gray-500 dark:text-gray-400">Rating</span>
+                                <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+                                    {details.contentRating}
+                                </span>
+                            </div>
+                        )}
                         {details?.episode_run_time?.length > 0 && (
                             <div className="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
                                 <span className="text-gray-500 dark:text-gray-400">Duration</span>
