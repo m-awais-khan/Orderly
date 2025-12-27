@@ -108,6 +108,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   const [showAddList, setShowAddList] = useState(false);
   const [showAddFolder, setShowAddFolder] = useState(false); // State for add folder input
   const [newFolderName, setNewFolderName] = useState(""); // State for new folder name
+  const [listDescriptions, setListDescriptions] = useState({}); // State for list descriptions
+  const [editingDescription, setEditingDescription] = useState(false); // State for editing description
   const [movingList, setMovingList] = useState(null); // State for list being moved
   const [movingFolder, setMovingFolder] = useState(null); // State for folder being moved
   const [searchQuery, setSearchQuery] = useState("");
@@ -187,6 +189,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
   useEffect(() => {
     setCurrentPage(1);
+    setEditingDescription(false); // Reset description editing when list changes
   }, [selectedList]);
 
   useEffect(() => {
@@ -221,6 +224,11 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       setFolders({});
       setSharedLists([]); // Visitor doesn't own shares
       setListOwner(data.ownerUsername); // Set the owner name
+
+      // Load list description for the shared list
+      if (data.listDescription) {
+        setListDescriptions({ [data.listName]: data.listDescription });
+      }
 
       // Force Lock Mode
       setIsListLocked(true);
@@ -351,9 +359,10 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           setFolders(parsed.folders || {});
           setSelectedList(parsed.selectedList || null);
           setSharedLists(parsed.sharedLists || []);
+          setListDescriptions(parsed.listDescriptions || {});
 
           // Re-save to ensure it's in the correct user-key and synced to API if possible
-          saveData(parsed.lists, parsed.selectedList, parsed.folders);
+          saveData(parsed.lists, parsed.selectedList, parsed.folders, parsed.listDescriptions);
           return;
         }
       }
@@ -364,6 +373,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         setFolders(data.folders || {});
         setSelectedList(data.selectedList || Object.keys(data.lists || {})[0] || null);
         setSharedLists(data.sharedLists || []);
+        setListDescriptions(data.listDescriptions || {});
       }
 
       setListOwner(null);
@@ -451,13 +461,14 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     }
   };
 
-  const saveData = async (newLists, newSelected, newFolders) => {
+  const saveData = async (newLists, newSelected, newFolders, newDescriptions = null) => {
     try {
       const payload = {
         lists: newLists,
         selectedList: newSelected,
         folders: newFolders,
-        sharedLists: sharedLists // Also persist shared lists reference
+        sharedLists: sharedLists, // Also persist shared lists reference
+        listDescriptions: newDescriptions !== null ? newDescriptions : listDescriptions // Include list descriptions
       };
 
       // 1. Save to User-Specific LocalStorage (Backup)
@@ -485,6 +496,13 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     } catch (error) {
       console.error("Failed to save data:", error);
     }
+  };
+
+  // Update list description
+  const updateListDescription = (listName, description) => {
+    const newDescriptions = { ...listDescriptions, [listName]: description };
+    setListDescriptions(newDescriptions);
+    saveData(lists, selectedList, folders, newDescriptions);
   };
 
   // --- Global Search Logic ---
@@ -2748,22 +2766,76 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                       </span>
                     </h2>
 
+                    {/* List Description Area */}
                     {!isSmartList && (
-                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 flex items-center gap-2">
-                        {listOwner && (
-                          <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
-                            <Share2 size={12} />
-                            Shared by {listOwner}
-                          </span>
+                      <div className="mt-2">
+                        {editingDescription ? (
+                          <div className="flex flex-col gap-2 animate-fade-in">
+                            <textarea
+                              autoFocus
+                              defaultValue={listDescriptions[selectedList] || ""}
+                              placeholder="Add a description for this list..."
+                              className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                              rows={2}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  updateListDescription(selectedList, e.target.value);
+                                  setEditingDescription(false);
+                                }
+                                if (e.key === 'Escape') {
+                                  setEditingDescription(false);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                updateListDescription(selectedList, e.target.value);
+                                setEditingDescription(false);
+                              }}
+                            />
+                            <p className="text-xs text-gray-400">Press Enter to save, Esc to cancel</p>
+                          </div>
+                        ) : listDescriptions[selectedList] ? (
+                          <div className="group/desc flex items-start gap-2">
+                            <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
+                              {listDescriptions[selectedList]}
+                            </p>
+                            {!isListLocked && (
+                              <button
+                                onClick={() => setEditingDescription(true)}
+                                className="opacity-0 group-hover/desc:opacity-100 p-1 text-gray-400 hover:text-blue-500 rounded transition-all"
+                                title="Edit description"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          !isListLocked && (
+                            <button
+                              onClick={() => setEditingDescription(true)}
+                              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-blue-500 transition-colors"
+                            >
+                              <Plus size={14} />
+                              Add description
+                            </button>
+                          )
                         )}
-                        {!listOwner && "Manage and track your items in this list"}
+                      </div>
+                    )}
+
+                    {!isSmartList && listOwner && (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
+                          <Share2 size={12} />
+                          Shared by {listOwner}
+                        </span>
                       </p>
                     )}
                   </div>
                 </div>
 
-                {/* Add Item Area (Only for Normal Lists) */}
-                {!isSmartList && (
+                {/* Add Item Area (Only for Normal Lists and when not locked) */}
+                {!isSmartList && !isListLocked && (
                   <div className="mb-8 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50">
                     <TmdbSearch
                       onItemSelected={addItem}

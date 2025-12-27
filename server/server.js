@@ -95,6 +95,7 @@ const AppDataSchema = new mongoose.Schema({
     selectedList: { type: String, default: null },
     darkMode: { type: Boolean, default: false },
     lastAIRecommendationFetch: { type: Date, default: null },
+    listDescriptions: { type: Object, default: {} },
     sharedLists: [{
         listName: String,
         shareId: String,
@@ -367,13 +368,17 @@ app.get('/api/share/:shareId', checkDbConnection, async (req, res) => {
         // Derive username from email (user@example.com -> user)
         const emailUsername = appData.userId.email.split('@')[0];
 
+        // Get the description for the shared list
+        const listDescription = appData.listDescriptions ? appData.listDescriptions[listName] : null;
+
         // Return the main list plus all related lists needed for rendering
         res.json({
             listName: listName,
             items: rootItems,
             relatedLists: relatedLists,
             ownerUsername: emailUsername,
-            lastUpdated: shareEntry.createdAt
+            lastUpdated: shareEntry.createdAt,
+            listDescription: listDescription
         });
 
     } catch (error) {
@@ -394,10 +399,11 @@ app.get('/api/data', protect, async (req, res) => {
                 folders: data.folders,
                 selectedList: data.selectedList,
                 sharedLists: data.sharedLists || [],
-                darkMode: data.darkMode // Include dark mode here
+                darkMode: data.darkMode, // Include dark mode here
+                listDescriptions: data.listDescriptions || {}
             });
         } else {
-            res.json({ lists: {}, folders: {}, selectedList: null, darkMode: false, sharedLists: [] });
+            res.json({ lists: {}, folders: {}, selectedList: null, darkMode: false, sharedLists: [], listDescriptions: {} });
         }
     } catch (error) {
         console.error('Error reading data:', error);
@@ -408,11 +414,11 @@ app.get('/api/data', protect, async (req, res) => {
 // POST Data (Save all state)
 app.post('/api/data', protect, async (req, res) => {
     try {
-        const { lists, folders, selectedList } = req.body;
+        const { lists, folders, selectedList, listDescriptions } = req.body;
         // Allows partial updates if we wanted, but for now we replace the structure
         await AppData.findOneAndUpdate(
             { userId: req.user._id },
-            { lists, folders, selectedList },
+            { lists, folders, selectedList, listDescriptions },
             { upsert: true, new: true }
         );
         res.json({ success: true });
