@@ -303,7 +303,10 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         const updatedItem = {
             ...item,
             ...formData,
-            watched_languages: formData.watched_languages || []
+            watched_languages: formData.watched_languages || [],
+            // Persist runtime info if available from details
+            runtime: details?.runtime || item.runtime,
+            episode_run_time: details?.episode_run_time || item.episode_run_time
         };
         onSave(updatedItem);
         onClose();
@@ -599,6 +602,11 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         updates.score = 0; // Reset score too
                                                         updates.start_date = ""; // Reset dates
                                                         updates.finish_date = "";
+                                                    }
+
+                                                    // Case 4: Force Reset Episodes when switching to Plan to Watch (Fix for "Watching" -> "Plan to Watch" lock)
+                                                    if (newStatus === 'plan_to_watch') {
+                                                        updates.episodes_watched = 0;
                                                     }
 
                                                     // Case 4: For TV/Seasons - Reset score if switching to non-ratable status

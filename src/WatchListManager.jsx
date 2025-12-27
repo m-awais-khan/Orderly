@@ -1159,6 +1159,11 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             if (total > 0) {
               newItem.episodes_watched = total;
             }
+
+            // Capture episode_run_time for TV shows
+            if (data.episode_run_time) {
+              newItem.episode_run_time = data.episode_run_time;
+            }
           }
         }
       } catch (error) {
@@ -3188,12 +3193,18 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     )}
 
                     {!isSmartList && listOwner && (
-                      <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 flex items-center gap-2">
-                        <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
-                          <Share2 size={12} />
-                          Shared by {listOwner}
-                        </span>
-                      </p>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-2">
+                          <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md font-medium">
+                            <Share2 size={12} />
+                            Shared by {listOwner}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 italic flex items-center gap-1.5 ml-1">
+                          <Info size={12} />
+                          Ratings shown are given by <strong className="text-gray-500 dark:text-gray-400">{listOwner}</strong>
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3291,7 +3302,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 )}
 
                 {/* Items Grid/List */}
-                <div className={viewMode === 'grid'
+                <div className={viewMode === 'grid' && activeDisplayItems.length > 0
                   ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
                   : "space-y-1"
                 }>

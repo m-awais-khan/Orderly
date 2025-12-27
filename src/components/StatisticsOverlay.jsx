@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
-import { X, PieChart, BarChart, Clock, Hash, Film, Tv, Play, Check, AlertCircle, Layers, Star } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { X, PieChart, BarChart, Clock, Hash, Film, Tv, Play, Check, AlertCircle, Layers, Star, Globe } from 'lucide-react';
 
 const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
-    if (!isOpen) return null;
+    const [languageViewMode, setLanguageViewMode] = useState('count'); // 'count' | 'time'
 
     // ------------------------------------------------------------------------
     // DATA ANALYSIS
@@ -28,6 +28,9 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             other: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 }
         };
 
+        // Completed Media Counts (For Pie Chart)
+        let completedMedia = { movie: 0, tv: 0, tv_season: 0 };
+
         // Score Distribution by Media Type (Stacked Bar Data)
         let scoreByMediaType = Array(11).fill(null).map(() => ({ movie: 0, tv: 0, tv_season: 0, other: 0 }));
 
@@ -35,11 +38,22 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let totalScoreSum = 0;
         let scoredItemCount = 0;
 
+        // Language Stats
+        let languageCounts = {};
+        let languageTimeCounts = {};
+
         // Flatten all lists and filter out references
         const allItems = Object.values(lists).flat().filter(item => item.type !== 'reference');
 
         allItems.forEach(item => {
             totalItems++;
+
+            // Language Stats Aggregation (Count)
+            if (item.watched_languages && Array.isArray(item.watched_languages)) {
+                item.watched_languages.forEach(lang => {
+                    languageCounts[lang] = (languageCounts[lang] || 0) + 1;
+                });
+            }
 
             // Normalize Media Type
             const type = (item.media_type === 'movie' || item.media_type === 'tv' || item.media_type === 'tv_season')
@@ -59,6 +73,13 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
 
             // Status by Media Type
             statusByMediaType[type][status]++;
+
+            // Completed Counts for Pie Chart
+            if (status === 'completed') {
+                if (type === 'movie') completedMedia.movie++;
+                else if (type === 'tv') completedMedia.tv++;
+                else if (type === 'tv_season') completedMedia.tv_season++;
+            }
 
             // Score Stats
             const rawScore = Number(item.score) || 0;
@@ -85,44 +106,65 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             }
 
             // Watch Stats (Weighted Time Calculation)
+            let itemTotalMinutes = 0;
+
             if (type === 'movie') {
-                // Movies: Use stored runtime from TMDB if available, otherwise 150m
+                const movieRuntime = item.runtime || 150; // Use stored runtime or fallback
+
+                // Initial Watch
                 if (status === 'completed') {
-                    const movieRuntime = item.runtime || 150; // Use stored runtime or fallback
-                    totalMinutes += movieRuntime;
+                    itemTotalMinutes += movieRuntime;
+                }
+
+                // Rewatches
+                if (item.times_rewatched) {
+                    // For movies, 1 means watched once (0 rewatches).
+                    const actualRewatches = Math.max(0, item.times_rewatched - 1);
+                    totalRewatches += actualRewatches;
+
+                    if (actualRewatches > 0) {
+                        itemTotalMinutes += (actualRewatches * movieRuntime);
+                    }
                 }
             } else {
-                // TV / Seasons: Based on Episodes Watched
+                // TV / Seasons
+                let minutesPerEp = 50; // Default fallback
+
+                // 1. Try to find explicit runtime
+                if (item.episode_run_time && item.episode_run_time.length > 0) {
+                    minutesPerEp = Math.round(item.episode_run_time.reduce((a, b) => a + b, 0) / item.episode_run_time.length);
+                } else if (item.runtime) {
+                    minutesPerEp = item.runtime;
+                } else {
+                    // 2. Fallback based on Genre (Animation = 24m, others = 50m)
+                    const isAnimation = item.genre_ids && item.genre_ids.includes(16);
+                    minutesPerEp = isAnimation ? 24 : 50;
+                }
+
+                // Initial Watch
                 if (item.episodes_watched) {
                     totalEpisodesWatched += item.episodes_watched;
-
-                    // User Request: 24 min for Animation, 50 min for others
-                    const isAnimation = item.genre_ids && item.genre_ids.includes(16);
-                    const minutesPerEp = isAnimation ? 24 : 50;
-
-                    totalMinutes += (item.episodes_watched * minutesPerEp);
+                    itemTotalMinutes += (item.episodes_watched * minutesPerEp);
                 }
-            }
 
-            if (item.times_rewatched) {
-                totalRewatches += item.times_rewatched;
-
-                // Rewatch time logic
-                const isAnimation = item.genre_ids && item.genre_ids.includes(16);
-                const minutesPerEp = isAnimation ? 24 : 50;
-
-                // For movies, times_rewatched=1 means watched once (no extra time)
-                // Only add time for rewatches > 1 (actual re-watches)
-                if (type === 'movie') {
-                    if (item.times_rewatched > 1) {
-                        const movieRuntime = item.runtime || 150; // Use stored runtime or fallback
-                        totalMinutes += ((item.times_rewatched - 1) * movieRuntime);
+                // Rewatches
+                if (item.times_rewatched) {
+                    totalRewatches += item.times_rewatched;
+                    if (item.episodes_watched) {
+                        itemTotalMinutes += (item.times_rewatched * item.episodes_watched * minutesPerEp);
                     }
-                } else if (item.episodes_watched) {
-                    // For TV, rewatch length is total episodes * duration
-                    totalMinutes += (item.times_rewatched * item.episodes_watched * minutesPerEp);
                 }
             }
+
+            totalMinutes += itemTotalMinutes;
+
+            // Language Stats by Time (Accumulate duration for each language)
+            if (itemTotalMinutes > 0 && item.watched_languages && Array.isArray(item.watched_languages)) {
+                item.watched_languages.forEach(lang => {
+                    languageTimeCounts[lang] = (languageTimeCounts[lang] || 0) + itemTotalMinutes;
+                });
+            }
+
         });
 
         const days = Math.floor(totalMinutes / 1440);
@@ -141,9 +183,14 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             scoreCounts,
             scoreByMediaType,
             avgScore: scoredItemCount > 0 ? (totalScoreSum / scoredItemCount).toFixed(1) : "0.0",
-            time: { days, hours, minutes }
+            time: { days, hours, minutes },
+            languageCounts,
+            languageTimeCounts,
+            completedMedia
         };
     }, [lists]);
+
+    if (!isOpen) return null;
 
     // ------------------------------------------------------------------------
     // HELPER: Colors & configs
@@ -165,6 +212,15 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
 
     // Exclude index 0 (Unrated) from max calculation so 1-10 bars scale properly
     const maxScoreCount = Math.max(...stats.scoreCounts.slice(1));
+
+    // Helper to format minutes into readable time (e.g., "12h 30m")
+    const formatTime = (totalMinutes) => {
+        if (!totalMinutes) return '0m';
+        const h = Math.floor(totalMinutes / 60);
+        const m = Math.floor(totalMinutes % 60);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    };
 
     return (
         <div className="fixed inset-0 z-[200] bg-gray-100 dark:bg-gray-900 overflow-y-auto animate-fade-in custom-scrollbar">
@@ -224,21 +280,21 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
                             <PieChart className="text-gray-400" size={20} />
-                            Media Type Distribution
+                            Completed Media Distribution
                         </h3>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
                             <PieChartCSS
                                 data={[
-                                    { label: 'Movie', value: stats.totalMovies, color: '#f97316' }, // orange-500
-                                    { label: 'TV Show', value: stats.totalTV, color: '#22c55e' }, // green-500
-                                    { label: 'Season', value: stats.totalSeasons, color: '#a855f7' }, // purple-500
+                                    { label: 'Movie', value: stats.completedMedia.movie, color: '#f97316' }, // orange-500
+                                    { label: 'TV Show', value: stats.completedMedia.tv, color: '#22c55e' }, // green-500
+                                    { label: 'Season', value: stats.completedMedia.tv_season, color: '#a855f7' }, // purple-500
                                 ]}
                                 size={180}
                             />
                             <div className="space-y-3">
-                                <LegendItem color="bg-orange-500" label="Movie" value={stats.totalMovies} total={stats.totalItems} />
-                                <LegendItem color="bg-green-500" label="TV Show" value={stats.totalTV} total={stats.totalItems} />
-                                <LegendItem color="bg-purple-500" label="TV Season" value={stats.totalSeasons} total={stats.totalItems} />
+                                <LegendItem color="bg-orange-500" label="Movie" value={stats.completedMedia.movie} total={stats.completedMedia.movie + stats.completedMedia.tv + stats.completedMedia.tv_season} />
+                                <LegendItem color="bg-green-500" label="TV Show" value={stats.completedMedia.tv} total={stats.completedMedia.movie + stats.completedMedia.tv + stats.completedMedia.tv_season} />
+                                <LegendItem color="bg-purple-500" label="TV Season" value={stats.completedMedia.tv_season} total={stats.completedMedia.movie + stats.completedMedia.tv + stats.completedMedia.tv_season} />
                             </div>
                         </div>
                     </div>
@@ -316,10 +372,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     <div className="flex flex-col gap-3">
                         {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((score) => {
                             const count = stats.scoreCounts[score] || 0;
-                            // Use maxScoreCount to define the width relative to the most frequent score, 
-                            // or use stats.totalItems to be relative to total? Relative to MAX is usually better for visibility.
-                            // But relative to TOTAL scored items gives true proportion.
-                            // Let's use relative to MAX score count for better visibility of smaller bars.
                             const percent = maxScoreCount > 0 ? (count / maxScoreCount) * 100 : 0;
 
                             return (
@@ -350,8 +402,63 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                             );
                         })}
                     </div>
+                </div>
 
-                    {/* Compact Legend/Info removed as it's self-explanatory now */}
+                {/* Row 5: Language Statistics */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 lg:col-span-2">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <Globe className="text-blue-500" size={20} />
+                            Languages Watched
+                        </h3>
+                        <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                            <button
+                                onClick={() => setLanguageViewMode('count')}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${languageViewMode === 'count' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                            >
+                                By Count
+                            </button>
+                            <button
+                                onClick={() => setLanguageViewMode('time')}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${languageViewMode === 'time' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                            >
+                                By Time
+                            </button>
+                        </div>
+                    </div>
+
+                    {Object.keys(stats.languageCounts).length === 0 ? (
+                        <div className="text-center py-8 text-gray-400 dark:text-gray-500 italic">
+                            No language data available. Add languages to your items in "My List" to see stats!
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            {Object.entries(languageViewMode === 'count' ? stats.languageCounts : stats.languageTimeCounts)
+                                .sort(([, a], [, b]) => b - a)
+                                .slice(0, 10) // Top 10 languages
+                                .map(([lang, value]) => {
+                                    // Total for percentages
+                                    const total = Object.values(languageViewMode === 'count' ? stats.languageCounts : stats.languageTimeCounts).reduce((a, b) => a + b, 0);
+
+                                    // Formatted Value
+                                    const displayValue = languageViewMode === 'count' ? value : formatTime(value);
+
+                                    // Calculate percent manually because 'displayValue' might be string
+                                    const percent = total > 0 ? (value / total) * 100 : 0;
+
+                                    return (
+                                        <ProgressBar
+                                            key={lang}
+                                            label={lang}
+                                            count={displayValue}
+                                            total={total}
+                                            customPercent={percent}
+                                            color="bg-blue-500"
+                                        />
+                                    );
+                                })}
+                        </div>
+                    )}
                 </div>
 
                 {/* Insights / Fun Stats */}
@@ -414,12 +521,15 @@ const LegendItem = ({ color, label, value, total }) => (
     </div>
 );
 
-const ProgressBar = ({ label, count, total, color }) => {
-    const percent = total > 0 ? ((count / total) * 100) : 0;
+const ProgressBar = ({ label, count, total, color, customPercent }) => {
+    // If customPercent is provided, use it. Otherwise calculate from count/total (if count is number).
+    const percent = customPercent !== undefined ? customPercent : (total > 0 ? ((count / total) * 100) : 0);
+
     return (
         <div>
             <div className="flex justify-between text-sm mb-1.5">
                 <span className="font-medium text-gray-700 dark:text-gray-200">{label}</span>
+                {/* Count can be string or number, so just display it */}
                 <span className="text-gray-500 dark:text-gray-400 font-mono text-xs">{count} ({percent.toFixed(0)}%)</span>
             </div>
             <div className="w-full h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">

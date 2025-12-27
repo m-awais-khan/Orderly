@@ -102,7 +102,7 @@ const AuthPage = ({ onLogin }) => {
 
                     <div className="mt-8 flex items-center justify-center gap-2 text-sm text-gray-500">
                         <Sparkles className="w-4 h-4 text-purple-400" />
-                        <span>Join thousands of movie lovers</span>
+                        <span>Start organizing your collection today</span>
                     </div>
 
                 </div>
