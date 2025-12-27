@@ -127,6 +127,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
 
         const days = Math.floor(totalMinutes / 1440);
         const hours = Math.floor((totalMinutes % 1440) / 60);
+        const minutes = Math.floor(totalMinutes % 60);
 
         return {
             totalItems,
@@ -140,7 +141,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             scoreCounts,
             scoreByMediaType,
             avgScore: scoredItemCount > 0 ? (totalScoreSum / scoredItemCount).toFixed(1) : "0.0",
-            time: { days, hours }
+            time: { days, hours, minutes }
         };
     }, [lists]);
 
@@ -200,8 +201,8 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     <StatCard
                         icon={<Clock className="text-blue-500" />}
                         label="Time Watched (Approx)"
-                        value={`${stats.time.days}d ${stats.time.hours}h`}
-                        sub="Based on 24m/50m ep & 2.5h/movie"
+                        value={`${stats.time.days}d ${stats.time.hours}h ${stats.time.minutes}m`}
+                        sub="Based on actual runtime or estimates"
                     />
                     <StatCard
                         icon={<Play className="text-green-500" />}
