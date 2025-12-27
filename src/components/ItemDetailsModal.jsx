@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ConfirmationModal from "./ConfirmationModal";
 import {
@@ -33,7 +33,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
     const [activeTab, setActiveTab] = useState(readOnly ? "mylist" : "info");
     const [details, setDetails] = useState(null);
-
+    const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+    const langDropdownRef = useRef(null);
 
     const [isLoading, setIsLoading] = useState(false);
     const [zoomedImage, setZoomedImage] = useState(null);
@@ -54,7 +55,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         start_date: item.start_date || "",
         finish_date: item.finish_date || "",
         note: item.note || "",
-        watch_order: item.watch_order || []
+        watch_order: item.watch_order || [],
+        watched_languages: item.watched_languages || []
     });
 
     // Sync formData when item changes
@@ -68,10 +70,22 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 start_date: item.start_date || "",
                 finish_date: item.finish_date || "",
                 note: item.note || "",
-                watch_order: item.watch_order || []
+                watch_order: item.watch_order || [],
+                watched_languages: item.watched_languages || []
             });
         }
     }, [item]);
+
+    // Close language dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (langDropdownRef.current && !langDropdownRef.current.contains(event.target)) {
+                setIsLangDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Watch Order State
     const [newSegment, setNewSegment] = useState({
@@ -278,17 +292,20 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 start_date: item.start_date || "",
                 finish_date: item.finish_date || "",
                 note: item.note || "",
-                watch_order: item.watch_order || []
+                watch_order: item.watch_order || [],
+                watched_languages: item.watched_languages || []
             });
             setActiveTab("info"); // Reset to info tab
         }
     }, [isOpen, item]);
 
     const handleSave = () => {
-        onSave({
+        const updatedItem = {
             ...item,
-            ...formData
-        });
+            ...formData,
+            watched_languages: formData.watched_languages || []
+        };
+        onSave(updatedItem);
         onClose();
     };
 
@@ -1062,6 +1079,102 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Watched In Languages */}
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Watched In</label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {formData.watched_languages && formData.watched_languages.length > 0 && formData.watched_languages.map((lang, idx) => {
+                                            const flagMap = {
+                                                'English': '🇺🇸', 'Japanese': '🇯🇵', 'Korean': '🇰🇷', 'Spanish': '🇪🇸',
+                                                'French': '🇫🇷', 'German': '🇩🇪', 'Italian': '🇮🇹', 'Portuguese': '🇧🇷',
+                                                'Chinese': '🇨🇳', 'Hindi': '🇮🇳', 'Urdu': '🇵🇰', 'Arabic': '🇸🇦',
+                                                'Russian': '🇷🇺', 'Thai': '🇹🇭', 'Turkish': '🇹🇷', 'Vietnamese': '🇻🇳',
+                                                'Indonesian': '🇮🇩', 'Malay': '🇲🇾', 'Filipino': '🇵🇭', 'Dutch': '🇳🇱',
+                                                'Polish': '🇵🇱', 'Swedish': '🇸🇪', 'Norwegian': '🇳🇴', 'Danish': '🇩🇰',
+                                                'Finnish': '🇫🇮', 'Greek': '🇬🇷', 'Hebrew': '🇮🇱', 'Czech': '🇨🇿',
+                                                'Romanian': '🇷🇴', 'Hungarian': '🇭🇺'
+                                            };
+                                            return (
+                                                <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 text-blue-300 text-xs rounded-full">
+                                                    <span>{flagMap[lang] || '🌐'}</span>
+                                                    <span>{lang}</span>
+                                                    {!readOnly && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    watched_languages: prev.watched_languages.filter((_, i) => i !== idx)
+                                                                }));
+                                                            }}
+                                                            className="ml-0.5 hover:text-red-400 transition-colors"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    )}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                    {!readOnly && (
+                                        <div className="relative inline-block" ref={langDropdownRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                                                className="w-52 flex items-center justify-between gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-gray-300 cursor-pointer hover:bg-gray-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+                                            >
+                                                <span>+ Add language</span>
+                                                <svg className={`w-4 h-4 transition-transform ${isLangDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+
+                                            {isLangDropdownOpen && (
+                                                <div className="absolute top-full left-0 mt-1 w-52 max-h-48 overflow-y-auto bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
+                                                    <div className="p-1">
+                                                        {[
+                                                            { code: 'English', flag: '🇺🇸' },
+                                                            { code: 'Japanese', flag: '🇯🇵' },
+                                                            { code: 'Korean', flag: '🇰🇷' },
+                                                            { code: 'Spanish', flag: '🇪🇸' },
+                                                            { code: 'French', flag: '🇫🇷' },
+                                                            { code: 'German', flag: '🇩🇪' },
+                                                            { code: 'Chinese', flag: '🇨🇳' },
+                                                            { code: 'Hindi', flag: '🇮🇳' },
+                                                            { code: 'Urdu', flag: '🇵🇰' },
+                                                            { code: 'Arabic', flag: '🇸🇦' },
+                                                            { code: 'Russian', flag: '🇷🇺' },
+                                                            { code: 'Portuguese', flag: '🇧🇷' },
+                                                            { code: 'Italian', flag: '🇮🇹' },
+                                                            { code: 'Thai', flag: '🇹🇭' },
+                                                            { code: 'Turkish', flag: '🇹🇷' }
+                                                        ].filter(lang => !formData.watched_languages?.includes(lang.code)).map(lang => (
+                                                            <button
+                                                                key={lang.code}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        watched_languages: [...(prev.watched_languages || []), lang.code]
+                                                                    }));
+                                                                    setIsLangDropdownOpen(false);
+                                                                }}
+                                                                className="w-full text-left px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                                                            >
+                                                                <span>{lang.flag}</span>
+                                                                <span>{lang.code}</span>
+                                                            </button>
+                                                        ))}
+                                                        {formData.watched_languages?.length >= 15 && (
+                                                            <div className="px-3 py-2 text-xs text-gray-500 text-center">All languages selected</div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Notes */}

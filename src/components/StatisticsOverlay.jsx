@@ -35,8 +35,8 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let totalScoreSum = 0;
         let scoredItemCount = 0;
 
-        // Flatten all lists
-        const allItems = Object.values(lists).flat();
+        // Flatten all lists and filter out references
+        const allItems = Object.values(lists).flat().filter(item => item.type !== 'reference');
 
         allItems.forEach(item => {
             totalItems++;
