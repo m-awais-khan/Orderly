@@ -105,20 +105,25 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
     const [segmentSearchResults, setSegmentSearchResults] = useState([]);
 
     const searchItemsForSegment = (query) => {
-        if (!query.trim()) {
+        if (!query || !query.trim()) {
             setSegmentSearchResults([]);
             return;
         }
+        const lowerQuery = query.toLowerCase().trim();
         const results = [];
         Object.entries(lists).forEach(([lName, items]) => {
-            if (lName.startsWith("special:")) return; // Skip smart lists to avoid dupes if possible, or include them? Better skip to avoid confusion
+            if (lName.startsWith("special:")) return; // Skip smart lists
+            if (!Array.isArray(items)) return;
+
             items.forEach(i => {
-                if (i.text.toLowerCase().includes(query.toLowerCase())) {
-                    results.push({ ...i, foundInList: lName });
+                const itemTitle = i.text || i.title || i.name || "";
+                if (itemTitle.toLowerCase().includes(lowerQuery)) {
+                    // Normalize text property for display
+                    results.push({ ...i, text: itemTitle, foundInList: lName });
                 }
             });
         });
-        setSegmentSearchResults(results.slice(0, 5));
+        setSegmentSearchResults(results.slice(0, 20)); // Increased limit
     };
 
     const handleAddSegment = () => {

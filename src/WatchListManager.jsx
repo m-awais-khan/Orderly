@@ -3320,7 +3320,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     <>
                       {/* Top Pagination Controls */}
                       {activeDisplayItems.length > ITEMS_PER_PAGE && (
-                        <div className="flex justify-center items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-gray-800">
+                        <div className={`flex justify-center items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-gray-800 ${viewMode === 'grid' ? "col-span-full w-full" : ""}`}>
                           <button
                             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                             onDragOver={(e) => {
@@ -3392,7 +3392,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
                       {/* Pagination Controls */}
                       {activeDisplayItems.length > ITEMS_PER_PAGE && (
-                        <div className="flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
+                        <div className={`flex justify-center items-center gap-4 mt-8 pt-4 border-t border-gray-100 dark:border-gray-800 ${viewMode === 'grid' ? "col-span-full w-full" : ""}`}>
                           <button
                             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                             onDragOver={(e) => {
