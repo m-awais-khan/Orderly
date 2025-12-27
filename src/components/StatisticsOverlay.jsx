@@ -86,9 +86,10 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
 
             // Watch Stats (Weighted Time Calculation)
             if (type === 'movie') {
-                // Movies: Fixed 150m, ONLY if completed
+                // Movies: Use stored runtime from TMDB if available, otherwise 150m
                 if (status === 'completed') {
-                    totalMinutes += 150;
+                    const movieRuntime = item.runtime || 150; // Use stored runtime or fallback
+                    totalMinutes += movieRuntime;
                 }
             } else {
                 // TV / Seasons: Based on Episodes Watched
@@ -114,7 +115,8 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 // Only add time for rewatches > 1 (actual re-watches)
                 if (type === 'movie') {
                     if (item.times_rewatched > 1) {
-                        totalMinutes += ((item.times_rewatched - 1) * 150);
+                        const movieRuntime = item.runtime || 150; // Use stored runtime or fallback
+                        totalMinutes += ((item.times_rewatched - 1) * movieRuntime);
                     }
                 } else if (item.episodes_watched) {
                     // For TV, rewatch length is total episodes * duration

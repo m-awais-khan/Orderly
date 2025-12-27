@@ -1159,6 +1159,22 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       }
     }
 
+    // Fetch runtime for movies
+    if (newItem.media_type === 'movie') {
+      try {
+        const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+        if (apiKey) {
+          const url = `https://api.themoviedb.org/3/movie/${newItem.id}?api_key=${apiKey}`;
+          const response = await axios.get(url);
+          if (response.data?.runtime) {
+            newItem.runtime = response.data.runtime; // Store runtime in minutes
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch movie runtime:", error);
+      }
+    }
+
     // Direct Add without Modal
     setLists(prevLists => {
       const updatedList = [...(prevLists[selectedList] || []), newItem];
