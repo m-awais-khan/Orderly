@@ -1121,7 +1121,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         : "placeholder_url",
       note: "",
       status: "completed", // ALWAYS DEFAULT TO COMPLETED per user request
-      genre_ids: itemData.genre_ids // Store genres for stats
+      genre_ids: itemData.genre_ids, // Store genres for stats
+      times_rewatched: itemData.media_type === 'movie' ? 1 : 0 // Movies start with 1 when completed
     };
 
     // AUTO-COMPLETE LOGIC: Fetch details to get total episodes

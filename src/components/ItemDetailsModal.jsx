@@ -566,10 +566,28 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         if (total > 0) {
                                                             updates.episodes_watched = total;
                                                         }
+                                                        // For movies, set times_rewatched to 1 when completed
+                                                        if (item.media_type === 'movie' && prev.times_rewatched === 0) {
+                                                            updates.times_rewatched = 1;
+                                                        }
                                                     }
                                                     // Case 2: Switching FROM "Completed" -> Reset episodes to 0
                                                     else if (prev.status === 'completed' && newStatus !== 'completed') {
                                                         updates.episodes_watched = 0;
+                                                    }
+
+                                                    // Case 3: Switching to "plan_to_watch" or "dropped" -> Reset times_rewatched to 0 for movies
+                                                    if (item.media_type === 'movie' && (newStatus === 'plan_to_watch' || newStatus === 'dropped')) {
+                                                        updates.times_rewatched = 0;
+                                                        updates.score = 0; // Reset score too
+                                                        updates.start_date = ""; // Reset dates
+                                                        updates.finish_date = "";
+                                                    }
+
+                                                    // Case 4: For TV/Seasons - Reset score if switching to non-ratable status
+                                                    if (item.media_type !== 'movie' && newStatus !== 'completed' && newStatus !== 'rewatching') {
+                                                        updates.score = 0;
+                                                        updates.times_rewatched = 0;
                                                     }
 
                                                     return { ...prev, ...updates };
@@ -591,7 +609,11 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         <select
                                             value={formData.score}
                                             onChange={(e) => setFormData({ ...formData, score: Number(e.target.value) })}
-                                            disabled={readOnly}
+                                            disabled={readOnly || (
+                                                item.media_type === 'movie'
+                                                    ? formData.status !== 'completed'
+                                                    : (formData.status !== 'completed' && formData.status !== 'rewatching')
+                                            )}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                             <option value={0}>Select Score...</option>
@@ -617,8 +639,10 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="number"
-                                                min="0"
-                                                value={item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason ? formData.episodes_watched : formData.times_rewatched}
+                                                min={item.media_type === 'movie' && formData.status === 'completed' ? 1 : 0}
+                                                value={item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason
+                                                    ? formData.episodes_watched
+                                                    : (formData.status === 'plan_to_watch' || formData.status === 'dropped' ? 0 : formData.times_rewatched)}
                                                 onChange={(e) => {
                                                     let val = parseInt(e.target.value) || 0;
                                                     if (item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) {
@@ -637,10 +661,12 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
                                                         setFormData({ ...formData, episodes_watched: val, status: newStatus });
                                                     } else {
-                                                        setFormData({ ...formData, times_rewatched: Math.max(0, val) });
+                                                        // For movies, min is 1 if completed, otherwise 0
+                                                        const minVal = formData.status === 'completed' ? 1 : 0;
+                                                        setFormData({ ...formData, times_rewatched: Math.max(minVal, val) });
                                                     }
                                                 }}
-                                                disabled={readOnly}
+                                                disabled={readOnly || (item.media_type === 'movie' && (formData.status === 'plan_to_watch' || formData.status === 'dropped'))}
                                                 className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             />
                                             {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
@@ -661,7 +687,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     min="0"
                                                     value={formData.times_rewatched}
                                                     onChange={(e) => setFormData({ ...formData, times_rewatched: parseInt(e.target.value) || 0 })}
-                                                    disabled={readOnly}
+                                                    disabled={readOnly || (formData.status !== 'completed' && formData.status !== 'rewatching')}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                                 />
                                             </div>
@@ -1022,7 +1048,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             type="date"
                                             value={formData.start_date || ""}
                                             onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                                            disabled={readOnly}
+                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed')}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
@@ -1032,7 +1058,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             type="date"
                                             value={formData.finish_date || ""}
                                             onChange={(e) => setFormData({ ...formData, finish_date: e.target.value })}
-                                            disabled={readOnly}
+                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed')}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
