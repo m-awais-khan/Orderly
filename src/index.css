@@ -39,3 +39,43 @@ html:not(.dark) body {
 ::-webkit-scrollbar-thumb {
   @apply bg-gray-300 dark:bg-gray-700 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors;
 }
+
+/* Date Input Styling */
+input[type="date"] {
+  color-scheme: light;
+  position: relative;
+}
+
+.dark input[type="date"] {
+  color-scheme: dark;
+}
+
+/* Style the date input calendar icon */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 4px;
+  filter: none;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.7;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: rgba(59, 130, 246, 0.3);
+}
+
+/* Firefox date input */
+input[type="date"]::-moz-calendar-picker-indicator {
+  cursor: pointer;
+}
