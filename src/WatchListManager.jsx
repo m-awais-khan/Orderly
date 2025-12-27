@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import TmdbSearch from "./TmdbSearch";
 import axios from "axios";
 import {
@@ -36,7 +36,9 @@ import {
   RotateCcw,  // For Status
   List,
   PieChart,
-  Sparkles
+  Sparkles,
+  FileText,
+  Info
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -72,6 +74,11 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   const [watchOrderModal, setWatchOrderModal] = useState({ isOpen: false, title: "", watchOrder: [] });
   const [showStats, setShowStats] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('watchlist_viewMode');
+    return saved || 'list';
+  });
+  const [editingNoteId, setEditingNoteId] = useState(null);
 
   const [lists, setLists] = useState({});
 
@@ -1670,13 +1677,51 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     }
   };
 
-  const renderItem = (item, index) => {
+  const renderItem = (item, index, isGridView = false) => {
     // ------------------------------------------------------------------
     // 1. REFERENCE ITEM RENDERING (type: 'reference')
     // ------------------------------------------------------------------
     if (item.type === "reference") {
       const isExpanded = expandedRefs[item.id];
       const refList = lists[item.ref] || [];
+
+      // Grid View for Reference Items
+      if (isGridView) {
+        return (
+          <div key={item.id} className="h-full w-full flex items-center justify-center">
+            <div
+              className="group relative bg-purple-50 dark:bg-purple-900/30 rounded-xl overflow-hidden border border-purple-200 dark:border-purple-700/50 hover:border-purple-500 transition-all duration-300 cursor-pointer p-4 flex flex-col justify-center items-center aspect-[2/3] w-[85%] shadow-lg"
+              onClick={() => handleNavigate(item.ref)}
+            >
+              <Link size={40} className="text-purple-500 dark:text-purple-400 mb-3" />
+              <h4 className="text-sm font-medium text-purple-900 dark:text-purple-200 text-center truncate w-full" title={item.ref}>
+                {item.ref}
+              </h4>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">{refList.length} items</p>
+
+              {/* Delete Button */}
+              {!isListLocked && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openConfirmModal({
+                      title: "Delete Reference",
+                      message: `Delete reference to "${item.ref}"?`,
+                      isDangerous: true,
+                      confirmText: "Delete",
+                      onConfirm: () => deleteItem(item.id)
+                    });
+                  }}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                  title="Delete"
+                >
+                  <Trash2 size={12} className="text-white" />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
 
       return (
         <div key={item.id} className="mb-3">
@@ -1775,6 +1820,113 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       // ------------------------------------------------------------------
       // TEXT ITEM RENDERING
       // ------------------------------------------------------------------
+
+      // Grid View for Text Items
+      if (isGridView) {
+        return (
+          <div key={item.id} className="h-full w-full flex items-center justify-center">
+            <div
+              className="group relative bg-white dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 hover:border-amber-500/50 transition-all duration-300 p-4 flex flex-col justify-between aspect-[2/3] cursor-default w-[85%] shadow-lg"
+            // No onClick as text items are usually static/completed
+            >
+              {/* Status Badge */}
+              <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-green-500 shadow-md border border-white/10" title="Completed" />
+              {/* Text Content */}
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm text-gray-700 dark:text-gray-200 line-clamp-4 whitespace-pre-wrap">{item.text}</p>
+              </div>
+
+              {/* Note Icon */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (item.note) {
+                    setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                  } else if (!isListLocked) {
+                    setEditingNoteId(item.id);
+                  }
+                }}
+                className={`absolute top-2 right-2 p-1.5 rounded-md backdrop-blur-sm transition-colors z-20 ${item.note
+                  ? visibleNotes[item.id] ? 'bg-amber-600' : 'bg-amber-500/80 hover:bg-amber-500'
+                  : !isListLocked ? 'bg-gray-100/50 hover:bg-amber-100 dark:bg-gray-700/50 dark:hover:bg-gray-600' : 'hidden'
+                  }`}
+                title={item.note ? (visibleNotes[item.id] ? "Hide note" : "Show note") : "Add note"}
+              >
+                <FileText size={12} className={item.note ? "text-white" : "text-gray-400 dark:text-gray-300 hover:text-amber-500"} />
+              </button>
+
+              {/* Note Display/Editor */}
+              {((item.note && visibleNotes[item.id]) || editingNoteId === item.id) && (
+                <div className="absolute inset-x-2 top-10 p-2 bg-amber-900/95 rounded-lg shadow-xl backdrop-blur-md z-30 max-h-[80%] flex flex-col gap-2 border border-amber-700/50">
+                  {editingNoteId === item.id && !isListLocked ? (
+                    <textarea
+                      autoFocus
+                      defaultValue={item.note || ''}
+                      onBlur={(e) => {
+                        const newNote = e.target.value;
+                        if (newNote !== item.note) {
+                          handleUpdateItem({ ...item, note: newNote });
+                        }
+                        setEditingNoteId(null);
+                        if (newNote) {
+                          setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
+                        }
+                      }}
+                      className="w-full text-xs p-2 bg-black/20 text-amber-100 rounded resize-none outline-none border border-amber-800 focus:border-amber-500"
+                      rows={4}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <div className="text-xs text-amber-100 overflow-y-auto whitespace-pre-wrap max-h-24">
+                        {item.note}
+                      </div>
+                      {!isListLocked && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingNoteId(item.id);
+                          }}
+                          className="self-end text-[10px] bg-amber-800/80 hover:bg-amber-700 px-2 py-1 rounded text-amber-100 transition-colors border border-amber-700"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Bottom Actions */}
+              <div className="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700/50 flex justify-between items-center">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500">Text</span>
+                {!isListLocked && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openConfirmModal({
+                        title: "Delete Item",
+                        message: `Delete this text item?`,
+                        isDangerous: true,
+                        confirmText: "Delete",
+                        onConfirm: () => deleteItem(item.id)
+                      });
+                    }}
+                    className="p-1 bg-red-500/80 hover:bg-red-500 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete"
+                  >
+                    <Trash2 size={12} className="text-white" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       const itemContent = (
         <>
           <GripVertical
@@ -1799,10 +1951,48 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 <div className="flex-1 min-w-0">
                   <div className="mt-1 font-medium text-lg">{item.text}</div>
 
-                  {/* Display Note */}
-                  {item.note && visibleNotes[item.id] && (
-                    <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
-                      📝 {item.note}
+                  {/* Display Note / Editor */}
+                  {((item.note && visibleNotes[item.id]) || editingNoteId === item.id) && (
+                    <div className="mt-2 w-full relative group/note">
+                      {editingNoteId === item.id ? (
+                        <textarea
+                          autoFocus
+                          defaultValue={item.note || ''}
+                          onBlur={(e) => {
+                            const newNote = e.target.value;
+                            if (newNote !== item.note) {
+                              handleUpdateItem({ ...item, note: newNote });
+                            }
+                            setEditingNoteId(null);
+                            if (newNote) {
+                              setVisibleNotes(prev => ({ ...prev, [item.id]: true }));
+                            }
+                          }}
+                          className="w-full text-sm p-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-lg border border-blue-500 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                          rows={3}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            // Allow Enter for newlines
+                          }}
+                        />
+                      ) : (
+                        <div className="text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/display">
+                          <span className="mr-8">{item.note}</span>
+                          {!isListLocked && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEditingNoteId(item.id);
+                              }}
+                              className="absolute top-2 right-2 p-1 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 opacity-0 group-hover/display:opacity-100 transition-opacity"
+                              title="Edit Note"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1860,23 +2050,24 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               })()}
             </div>
 
-            {item.note && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  // Toggle Visibility
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (item.note) {
                   setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
-                }}
-                className={`p-2 rounded-full transition-colors ${item.note
-                  ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
-                  : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-                  }`}
-                title={visibleNotes[item.id] ? "Hide Note" : "Show Note"}
-              >
-                <MessageSquare size={18} />
-              </button>
-            )}
+                } else if (!isListLocked) {
+                  setEditingNoteId(item.id);
+                }
+              }}
+              className={`p-2 rounded-full transition-colors ${item.note
+                ? "text-amber-500 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-gray-100 dark:hover:bg-gray-600"
+                : !isListLocked ? "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-600" : "hidden"
+                }`}
+              title={item.note ? (visibleNotes[item.id] ? "Hide Note" : "Show Note") : "Add Note"}
+            >
+              <MessageSquare size={18} />
+            </button>
 
             {!isListLocked && (
               <button
@@ -1926,6 +2117,128 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       tmdbLink = `https://www.themoviedb.org/tv/${item.tmdb_id}/season/${item.season_number}`;
     }
 
+    // Grid View Card Rendering
+    if (isGridView) {
+      const statusColors = {
+        completed: 'bg-green-500',
+        dropped: 'bg-red-500',
+        watching: 'bg-blue-500',
+        rewatching: 'bg-orange-500',
+        plan_to_watch: 'bg-purple-500'
+      };
+
+      return (
+        <div
+          key={item.id}
+          className={`group relative bg-white dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300 ${!isListLocked ? 'hover:shadow-lg dark:hover:shadow-blue-500/10 cursor-pointer' : 'cursor-default'}`}
+          onClick={() => !isListLocked && setSelectedItemForModal(item)}
+        >
+          {/* Poster */}
+          <div className="aspect-[2/3] relative overflow-hidden">
+            {item.image ? (
+              <img
+                src={item.image.replace('/w92/', '/w300/')}
+                alt={item.text || item.title || item.name}
+                className={`w-full h-full object-cover transition-transform duration-300 ${!isListLocked ? 'group-hover:scale-105' : ''}`}
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <Film size={40} className="text-gray-300 dark:text-gray-600" />
+              </div>
+            )}
+
+            {/* Status Badge */}
+            {item.status && item.status !== 'none' && (
+              <div
+                className="absolute top-2 left-2 p-1.5 bg-black/40 backdrop-blur-md rounded-full shadow-lg z-10 transition-transform group-hover:scale-110 border border-white/10"
+                title={item.status}
+              >
+                <div className={`w-2 h-2 rounded-full ${statusColors[item.status] || 'bg-gray-500'} shadow-inner`} />
+              </div>
+            )}
+
+            {/* Note Icon */}
+            {item.note && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setVisibleNotes(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                }}
+                className={`absolute top-2 right-2 p-1.5 rounded-md backdrop-blur-sm transition-colors z-20 ${visibleNotes[item.id] ? 'bg-amber-600' : 'bg-amber-500/80 hover:bg-amber-500'}`}
+                title={visibleNotes[item.id] ? "Hide note" : "Show note"}
+              >
+                <FileText size={12} className="text-white" />
+              </button>
+            )}
+
+            {/* Note Display */}
+            {item.note && visibleNotes[item.id] && (
+              <div className="absolute inset-x-2 top-10 p-2 bg-amber-900/90 rounded-lg text-xs text-amber-100 backdrop-blur-sm z-30 max-h-20 overflow-y-auto whitespace-pre-wrap">
+                {item.note}
+              </div>
+            )}
+
+            {/* Score Badge */}
+            {item.score > 0 && (
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 bg-black/60 rounded-md backdrop-blur-sm text-xs font-bold text-yellow-400">
+                <Star size={10} className="fill-yellow-400" />
+                {item.score}
+              </div>
+            )}
+
+            {/* Hover Overlay with Actions */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-end gap-1">
+                {/* Watch Order Button (for TV) */}
+                {item.media_type === 'tv' && item.watch_order?.length > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setWatchOrderModal({ isOpen: true, title: item.text || item.name || item.title, watchOrder: item.watch_order });
+                    }}
+                    className="p-1.5 bg-blue-500/80 hover:bg-blue-500 rounded-md transition-colors"
+                    title="View Watch Order"
+                  >
+                    <List size={14} className="text-white" />
+                  </button>
+                )}
+
+                {/* Delete Button */}
+                {!isListLocked && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openConfirmModal({
+                        title: "Delete Item",
+                        message: `Delete "${item.text || item.title || item.name}"?`,
+                        isDangerous: true,
+                        confirmText: "Delete",
+                        onConfirm: () => deleteItem(item.id)
+                      });
+                    }}
+                    className="p-1.5 bg-red-500/80 hover:bg-red-500 rounded-md transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} className="text-white" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="p-3">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" title={item.text || item.title || item.name}>
+              {item.text || item.title || item.name}
+            </h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+              {item.media_type === 'movie' ? 'Movie' : item.media_type === 'tv_season' ? 'Season' : 'TV'} • {item.year || 'N/A'}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     // Split content into Clickable Area and Action Buttons
     const contentSection = (
       <>
@@ -1963,7 +2276,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
               {item.note && visibleNotes[item.id] && (
                 <div className="mt-2 text-sm text-amber-600 dark:text-amber-400 italic break-all whitespace-pre-wrap bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/30 inline-block w-full relative group/note">
-                  📝 {item.note}
+                  {item.note}
                 </div>
               )}
 
@@ -2781,6 +3094,40 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                       <span className="text-sm font-normal px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
                         {activeDisplayItems.length} items
                       </span>
+
+                      {/* View Toggle Buttons */}
+                      <div className="flex items-center gap-1 ml-auto bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+                        <button
+                          onClick={() => {
+                            setViewMode('list');
+                            localStorage.setItem('watchlist_viewMode', 'list');
+                          }}
+                          className={`p-1.5 rounded-md transition-all ${viewMode === 'list'
+                            ? 'bg-white dark:bg-gray-700 text-blue-500 shadow-sm'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                            }`}
+                          title="List View"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setViewMode('grid');
+                            localStorage.setItem('watchlist_viewMode', 'grid');
+                          }}
+                          className={`p-1.5 rounded-md transition-all ${viewMode === 'grid'
+                            ? 'bg-white dark:bg-gray-700 text-blue-500 shadow-sm'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                            }`}
+                          title="Grid View"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                          </svg>
+                        </button>
+                      </div>
                     </h2>
 
                     {/* List Description Area */}
@@ -2935,8 +3282,19 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                   </div>
                 )}
 
+                {/* Grid View Reorder Hint */}
+                {viewMode === 'grid' && !isListLocked && activeDisplayItems.length > 1 && (
+                  <div className="flex items-center justify-center gap-2 mb-6 text-gray-400 dark:text-gray-500 text-xs animate-fade-in">
+                    <Info size={14} />
+                    <span>Switch to <strong className="font-medium text-gray-600 dark:text-gray-300">List View</strong> to drag and reorder items</span>
+                  </div>
+                )}
+
                 {/* Items Grid/List */}
-                <div className="space-y-1">
+                <div className={viewMode === 'grid'
+                  ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+                  : "space-y-1"
+                }>
                   {activeDisplayItems.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
                       <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
@@ -3006,9 +3364,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                           );
 
                           return (
-                            <div key={item.id}>
+                            <Fragment key={item.id}>
                               {showSeparator && (
-                                <div className="flex items-center gap-4 my-6 opacity-80">
+                                <div className={`flex items-center gap-4 my-6 opacity-80 ${viewMode === 'grid' ? "col-span-full w-full" : ""}`}>
                                   <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
                                   <span className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 bg-white/50 dark:bg-gray-800/50 px-3 py-1 rounded-full backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 shadow-sm">
                                     {item.originalList}
@@ -3016,8 +3374,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                                   <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
                                 </div>
                               )}
-                              {renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE)}
-                            </div>
+                              {renderItem(item, index + (currentPage - 1) * ITEMS_PER_PAGE, viewMode === 'grid')}
+                            </Fragment>
                           );
                         })}
 
