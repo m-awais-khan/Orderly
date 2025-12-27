@@ -110,9 +110,12 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 const isAnimation = item.genre_ids && item.genre_ids.includes(16);
                 const minutesPerEp = isAnimation ? 24 : 50;
 
-                // For movies, rewatch length is 150m
+                // For movies, times_rewatched=1 means watched once (no extra time)
+                // Only add time for rewatches > 1 (actual re-watches)
                 if (type === 'movie') {
-                    totalMinutes += (item.times_rewatched * 150);
+                    if (item.times_rewatched > 1) {
+                        totalMinutes += ((item.times_rewatched - 1) * 150);
+                    }
                 } else if (item.episodes_watched) {
                     // For TV, rewatch length is total episodes * duration
                     totalMinutes += (item.times_rewatched * item.episodes_watched * minutesPerEp);
