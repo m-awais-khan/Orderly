@@ -49,6 +49,7 @@ import ItemDetailsModal from "./components/ItemDetailsModal";
 import WatchOrderViewModal from "./components/WatchOrderViewModal";
 import StatisticsOverlay from "./components/StatisticsOverlay";
 import AIRecommendationsOverlay from "./components/AIRecommendationsOverlay";
+import WarningsPanel from "./components/WarningsPanel";
 
 const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false }) => {
   // UI State
@@ -71,6 +72,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   });
 
   const [selectedItemForModal, setSelectedItemForModal] = useState(null);
+  const [showWarnings, setShowWarnings] = useState(false);
   const [watchOrderModal, setWatchOrderModal] = useState({ isOpen: false, title: "", watchOrder: [] });
   const [showStats, setShowStats] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
@@ -2566,6 +2568,14 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 </button>
 
                 <button
+                  onClick={() => setShowWarnings(true)}
+                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
+                  title="Data Warnings"
+                >
+                  <AlertTriangle size={20} />
+                </button>
+
+                <button
                   onClick={() => openConfirmModal({
                     title: "Sign Out",
                     message: "Are you sure you want to sign out?",
@@ -3765,6 +3775,17 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           showToast(`Added "${itemData.text}" to "${listName}"`, "success");
         }}
       />
+      {showWarnings && (
+        <WarningsPanel
+          lists={lists}
+          onClose={() => setShowWarnings(false)}
+          onNavigate={(listName, item) => {
+            if (isListLocked) return;
+            handleNavigate(listName);
+            setSelectedItemForModal(item);
+          }}
+        />
+      )}
     </div >
   );
 };
