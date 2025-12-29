@@ -41,12 +41,64 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let languageTimeCounts = {};
 
         // Flatten all lists and filter out references
-        // Filter out SEASONS explicitly
-        const allItems = Object.values(lists)
+        const allContent = Object.values(lists)
             .flat()
-            .filter(item => item.type !== 'reference' && item.media_type !== 'tv_season' && !item.isSeason);
+            .filter(item => item.type !== 'reference');
 
-        allItems.forEach(item => {
+        // Main items for full stats (Movies, Shows)
+        const mainItems = allContent.filter(item => item.media_type !== 'tv_season' && !item.isSeason);
+
+        // Season items ONLY for watch time/episode counts
+        const seasonItems = allContent.filter(item => item.media_type === 'tv_season' || item.isSeason);
+
+        const processItemTime = (item, type) => {
+            let itemTotalMinutes = 0;
+            let episodes = 0;
+            let rewatches = 0;
+
+            if (type === 'movie') {
+                const movieRuntime = item.runtime || 150;
+                if (item.status === 'completed') itemTotalMinutes += movieRuntime;
+                if (item.times_rewatched) {
+                    const actualRewatches = Math.max(0, item.times_rewatched - 1);
+                    rewatches += actualRewatches;
+                    if (actualRewatches > 0) itemTotalMinutes += (actualRewatches * movieRuntime);
+                }
+            } else {
+                // TV or Season
+                let minutesPerEp = 50;
+                if (item.episode_run_time && item.episode_run_time.length > 0) {
+                    minutesPerEp = Math.round(item.episode_run_time.reduce((a, b) => a + b, 0) / item.episode_run_time.length);
+                } else if (item.runtime) {
+                    minutesPerEp = item.runtime;
+                } else {
+                    const isAnimation = item.genre_ids && item.genre_ids.includes(16);
+                    minutesPerEp = isAnimation ? 24 : 50;
+                }
+
+                // Calculate episodes watched (Prioritize granular data to catch Specials)
+                if (item.season_watched_episodes && Object.keys(item.season_watched_episodes).length > 0) {
+                    episodes = Object.values(item.season_watched_episodes).reduce((acc, epArray) => acc + (Array.isArray(epArray) ? epArray.length : 0), 0);
+                } else if (item.episodes_watched) {
+                    episodes = item.episodes_watched;
+                }
+
+                if (episodes > 0) {
+                    itemTotalMinutes += (episodes * minutesPerEp);
+                }
+
+                if (item.times_rewatched) {
+                    rewatches += item.times_rewatched;
+                    if (episodes > 0) {
+                        itemTotalMinutes += (item.times_rewatched * episodes * minutesPerEp);
+                    }
+                }
+            }
+            return { itemTotalMinutes, episodes, rewatches };
+        };
+
+        // Process Main Items
+        mainItems.forEach(item => {
             totalItems++;
 
             // Language Stats Aggregation (Count)
@@ -88,7 +140,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 totalScoreSum += rawScore;
                 scoredItemCount++;
 
-                // Binning (Clamp 1-10)
                 if (binScore >= 1 && binScore <= 10) {
                     scoreCounts[binScore]++;
                     scoreByMediaType[binScore][type]++;
@@ -100,65 +151,26 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 scoreCounts[0]++;
             }
 
-            // Watch Stats (Weighted Time Calculation)
-            let itemTotalMinutes = 0;
-
-            if (type === 'movie') {
-                const movieRuntime = item.runtime || 150; // Use stored runtime or fallback
-
-                // Initial Watch
-                if (status === 'completed') {
-                    itemTotalMinutes += movieRuntime;
-                }
-
-                // Rewatches
-                if (item.times_rewatched) {
-                    const actualRewatches = Math.max(0, item.times_rewatched - 1);
-                    totalRewatches += actualRewatches;
-
-                    if (actualRewatches > 0) {
-                        itemTotalMinutes += (actualRewatches * movieRuntime);
-                    }
-                }
-            } else {
-                // TV Shows
-                let minutesPerEp = 50; // Default fallback
-
-                // 1. Try to find explicit runtime
-                if (item.episode_run_time && item.episode_run_time.length > 0) {
-                    minutesPerEp = Math.round(item.episode_run_time.reduce((a, b) => a + b, 0) / item.episode_run_time.length);
-                } else if (item.runtime) {
-                    minutesPerEp = item.runtime;
-                } else {
-                    // 2. Fallback based on Genre (Animation = 24m, others = 50m)
-                    const isAnimation = item.genre_ids && item.genre_ids.includes(16);
-                    minutesPerEp = isAnimation ? 24 : 50;
-                }
-
-                // Initial Watch
-                if (item.episodes_watched) {
-                    totalEpisodesWatched += item.episodes_watched;
-                    itemTotalMinutes += (item.episodes_watched * minutesPerEp);
-                }
-
-                // Rewatches
-                if (item.times_rewatched) {
-                    totalRewatches += item.times_rewatched;
-                    if (item.episodes_watched) {
-                        itemTotalMinutes += (item.times_rewatched * item.episodes_watched * minutesPerEp);
-                    }
-                }
-            }
-
+            // Watch Stats
+            const { itemTotalMinutes, episodes, rewatches } = processItemTime(item, type);
             totalMinutes += itemTotalMinutes;
+            totalEpisodesWatched += episodes;
+            totalRewatches += rewatches;
 
-            // Language Stats by Time (Accumulate duration for each language)
+            // Language Stats by Time
             if (itemTotalMinutes > 0 && item.watched_languages && Array.isArray(item.watched_languages)) {
                 item.watched_languages.forEach(lang => {
                     languageTimeCounts[lang] = (languageTimeCounts[lang] || 0) + itemTotalMinutes;
                 });
             }
+        });
 
+        // Process Season Items (ONLY for time/episodes)
+        seasonItems.forEach(item => {
+            const { itemTotalMinutes, episodes, rewatches } = processItemTime(item, 'tv'); // Treat seasons as TV logic
+            totalMinutes += itemTotalMinutes;
+            totalEpisodesWatched += episodes;
+            totalRewatches += rewatches;
         });
 
         const days = Math.floor(totalMinutes / 1440);

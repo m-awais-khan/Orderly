@@ -161,7 +161,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
 
-  const [newTextItem, setNewTextItem] = useState("");
+
   const [currentPage, setCurrentPage] = useState(1);
   const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
   const linkDropdownRef = useRef(null);
@@ -1211,6 +1211,34 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
             if (total > 0) {
               newItem.episodes_watched = total;
+
+              // Generate Granular Data for 'Completed' status
+              // This ensures StatisticsOverlay works immediately without needing a toggle
+              if (newItem.media_type === 'tv' && data.seasons) {
+                const sProgress = {};
+                const sWatched = {};
+
+                data.seasons.forEach(season => {
+                  // Skip if upcoming (0 episodes) or unreleased air date (future check implied by 0 episodes usually)
+                  if (season.episode_count > 0) {
+                    // Full progress for this season
+                    sProgress[season.season_number] = season.episode_count;
+                    // Generate array [1, 2, ... N]
+                    sWatched[season.season_number] = Array.from({ length: season.episode_count }, (_, k) => k + 1);
+                  }
+                });
+
+                newItem.season_progress = sProgress;
+                newItem.season_watched_episodes = sWatched;
+              }
+
+              // Handle Single Season Item Granular Data
+              if (newItem.media_type === 'tv_season' && data.episodes) {
+                const sNum = data.season_number;
+                const epCount = data.episodes.length;
+                newItem.season_progress = { [sNum]: epCount };
+                newItem.season_watched_episodes = { [sNum]: Array.from({ length: epCount }, (_, k) => k + 1) };
+              }
             }
 
             // Capture episode_run_time for TV shows
@@ -1320,58 +1348,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   }, [token]); 
   */
 
-  const handleAddNewTextItem = () => {
-    // 1. Check if list is unlocked and selected
-    if (isListLocked) {
-      showToast("List is locked. Unlock to add items.", "warning");
-      return;
-    }
 
-    if (!selectedList) {
-      showToast("Please select a list first.", "warning");
-      return;
-    }
-
-    // 2. Trim and validate input
-    const trimmedText = newTextItem.trim();
-    if (!trimmedText) {
-      showToast("Text cannot be empty.", "warning");
-      return;
-    }
-
-    // 3. Check for duplicates (case-insensitive)
-    const currentList = lists[selectedList] || [];
-    const isDuplicate = currentList.some(
-      (item) =>
-        item.type === "text" &&
-        item.text.toLowerCase() === trimmedText.toLowerCase()
-    );
-
-    if (isDuplicate) {
-      showToast(`"${trimmedText}" is already in the list.`, "warning");
-      return;
-    }
-
-    // 4. Create new text item
-    const newItem = {
-      id: Date.now(), // Unique ID based on timestamp
-      text: trimmedText,
-      type: "text",
-      note: "", // Empty note by default
-      status: 'completed' // Default to completed per user request
-    };
-
-    // Direct Add without Modal
-    setLists(prevLists => {
-      const updatedList = [...(prevLists[selectedList] || []), newItem];
-      const newLists = { ...prevLists, [selectedList]: updatedList };
-      saveData(newLists, selectedList, folders);
-      return newLists;
-    });
-
-    setNewTextItem("");
-    showToast("Text item added.", "success");
-  };
 
   const handleUpdateItem = (updatedItem) => {
     const targetList = updatedItem.originalList || selectedList;
@@ -2238,10 +2215,24 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
             {/* Score Badge */}
             {item.score > 0 && (
-              <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 bg-black/60 rounded-md backdrop-blur-sm text-xs font-bold text-yellow-400">
+              <button
+                onClick={(e) => {
+                  if (isListLocked) return;
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setScoreModal({
+                    isOpen: true,
+                    itemData: item.id,
+                    currentScore: item.score
+                  });
+                }}
+                disabled={isListLocked}
+                className={`absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 bg-black/60 rounded-md backdrop-blur-sm text-xs font-bold text-yellow-400 transition-colors z-20 ${!isListLocked ? 'hover:bg-black/80 cursor-pointer' : 'cursor-default'}`}
+                title={!isListLocked ? "Change Score" : `My Score: ${item.score}/10`}
+              >
                 <Star size={10} className="fill-yellow-400" />
                 {item.score}
-              </div>
+              </button>
             )}
 
             {/* Hover Overlay with Actions */}
@@ -3293,28 +3284,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
                     <div className="flex flex-col md:flex-row gap-4 mt-4">
                       {/* Add Text Item */}
-                      <div className="flex-1 flex gap-2">
-                        <input
-                          type="text"
-                          value={newTextItem}
-                          onChange={(e) => setNewTextItem(e.target.value)}
-                          onKeyDown={handleTextInputKeyPress}
-                          placeholder="Add a text note..."
-                          className="flex-1 px-4 py-2.5 rounded-xl border-none bg-white dark:bg-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500/50 outline-none text-sm transition-all"
-                          disabled={isListLocked}
-                        />
-                        <button
-                          onClick={handleAddNewTextItem}
-                          disabled={isListLocked}
-                          title="Use it if the item is not available in TMDB"
-                          className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg ${!isListLocked
-                            ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20"
-                            : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none dark:bg-gray-700 dark:text-gray-500"
-                            }`}
-                        >
-                          Add Text
-                        </button>
-                      </div>
+
 
                       {/* Add Reference */}
                       <div className="flex items-center gap-3 bg-white dark:bg-gray-700 px-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">

@@ -128,7 +128,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
     const handleAddSegment = () => {
         if (newSegment.type === 'episodes') {
-            if (!newSegment.season || !newSegment.start || !newSegment.end) return;
+            if ((newSegment.season === undefined || newSegment.season === null) || !newSegment.start || !newSegment.end) return;
             setFormData(prev => ({
                 ...prev,
                 watch_order: [...(prev.watch_order || []), {
@@ -843,8 +843,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     // Case 4: Force Reset Episodes when switching to Plan to Watch or Not Interested
                                                     if (newStatus === 'plan_to_watch' || newStatus === 'not_interested') {
                                                         updates.episodes_watched = 0;
-                                                        updates.watched_seasons = []; // Reset granular seasons
-                                                        updates.watched_episodes = []; // Reset granular episodes
+                                                        updates.watched_seasons = []; // Legacy
+                                                        updates.season_watched_episodes = {}; // Correct key for granular episodes
                                                         updates.season_progress = {}; // Reset season progress visualizer
                                                         updates.dropped_seasons = []; // Reset dropped seasons markup
                                                         updates.start_date = ""; // Reset dates
@@ -875,7 +875,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             <option value="plan_to_watch">Plan to Watch</option>
                                             {item.media_type !== 'movie' && <option value="watching" disabled>Watching</option>}
                                             <option value="completed" disabled={item.media_type !== 'movie'}>Completed</option>
-                                            <option value="dropped" disabled={item.media_type !== 'movie'}>Dropped</option>
+                                            {item.media_type !== 'movie' && <option value="dropped" disabled>Dropped</option>}
                                             <option value="not_interested">Not Interested</option>
                                         </select>
                                     </div>
@@ -945,8 +945,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         setFormData({ ...formData, times_rewatched: Math.max(minVal, val) });
                                                     }
                                                 }}
-                                                disabled={true} // Strictly disabled - controlled by season list
-                                                title="Use the Season List below to track progress"
+                                                disabled={item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason || formData.status === 'plan_to_watch' || formData.status === 'not_interested' || formData.status === 'dropped'}
+                                                title={item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason ? "Use the Season List below to track progress" : "Times Watched"}
                                                 className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             />
                                             {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
@@ -982,13 +982,14 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         const current = formData.season_progress?.[season.season_number] || 0;
                                                         const isDropped = formData.dropped_seasons?.includes(season.season_number);
                                                         const isFull = current === season.episode_count;
-                                                        const isEffectivelyFullyWatched = isFull || isDropped; // Treat dropped as "handled" for toggle logic
+                                                        const isEffectivelyFullyWatched = isFull || isDropped;
+                                                        const isUnreleased = !season.episode_count || season.episode_count === 0;
 
                                                         return (
                                                             <div
                                                                 key={season.id}
                                                                 onClick={() => {
-                                                                    if (readOnly || isDropped) return; // Strictly disable interaction on dropped seasons
+                                                                    if (readOnly || isDropped || isUnreleased) return;
                                                                     const newCount = isFull ? 0 : season.episode_count;
                                                                     const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
 
@@ -1000,12 +1001,14 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                     setFormData({ ...updates, season_watched_episodes: newGranular });
                                                                 }}
                                                                 className={`flex items-center gap-3 p-3 rounded-xl border transition-all relative
-                                                                    ${(!readOnly) ? "cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm" : ""}
-                                                                    ${isDropped
-                                                                        ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/30"
-                                                                        : (isFull
-                                                                            ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                                                                            : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700")}`}
+                                                                    ${(!readOnly && !isUnreleased) ? "cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm" : ""}
+                                                                    ${isUnreleased
+                                                                        ? "bg-gray-50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 opacity-60 cursor-not-allowed"
+                                                                        : isDropped
+                                                                            ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/30"
+                                                                            : (isFull
+                                                                                ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                                                                                : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700")}`}
                                                             >
                                                                 {/* Poster */}
                                                                 <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-gray-200 relative group/poster">
@@ -1048,8 +1051,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                                     }
                                                                                     setFormData(calculateUpdate(formData.season_progress, newDropped));
                                                                                 }}
-                                                                                disabled={isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'}
-                                                                                className={`p-1.5 rounded-full transition-colors ${isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'
+                                                                                disabled={isUnreleased || isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'}
+                                                                                className={`p-1.5 rounded-full transition-colors ${isUnreleased || isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'
                                                                                     ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
                                                                                     : isDropped
                                                                                         ? "bg-red-500 text-white hover:bg-red-600"
@@ -1062,79 +1065,87 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                         )}
                                                                     </div>
 
-                                                                    {/* Progress Control */}
-                                                                    <div className="flex items-center gap-3">
-                                                                        {/* Subtract */}
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                if (readOnly || isDropped || current <= 0) return;
-                                                                                const newCount = current - 1;
-                                                                                const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
-
-                                                                                // Sync Granular: strict sequential
-                                                                                // If we reduce count, we keep the first N episodes (assuming sequential)
-                                                                                const newEpisodes = Array.from({ length: newCount }, (_, i) => i + 1);
-                                                                                const newGranular = { ...formData.season_watched_episodes, [season.season_number]: newEpisodes };
-
-                                                                                const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
-                                                                                setFormData({ ...updates, season_watched_episodes: newGranular });
-                                                                            }}
-                                                                            disabled={readOnly || isDropped || current <= 0}
-                                                                            className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
-                                                                        >
-                                                                            -
-                                                                        </button>
-
-                                                                        {/* Bar */}
-                                                                        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden relative">
-                                                                            <div
-                                                                                className={`h-full rounded-full transition-all duration-300 ${isDropped ? "bg-red-500" : (isFull ? "bg-green-500" : "bg-blue-500")}`}
-                                                                                style={{ width: `${(current / season.episode_count) * 100}%` }}
-                                                                            />
-                                                                        </div>
-
-                                                                        {/* Add */}
-                                                                        {/* Add & Select */}
-                                                                        <div className="flex flex-col gap-1">
+                                                                    {/* Progress Control - Hidden if unreleased */}
+                                                                    {!isUnreleased && (
+                                                                        <div className="flex items-center gap-3">
+                                                                            {/* Subtract */}
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    if (readOnly || isDropped || current >= season.episode_count) return;
-
-                                                                                    const newCount = current + 1;
+                                                                                    if (readOnly || isDropped || current <= 0) return;
+                                                                                    const newCount = current - 1;
                                                                                     const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
 
                                                                                     // Sync Granular: strict sequential
+                                                                                    // If we reduce count, we keep the first N episodes (assuming sequential)
                                                                                     const newEpisodes = Array.from({ length: newCount }, (_, i) => i + 1);
                                                                                     const newGranular = { ...formData.season_watched_episodes, [season.season_number]: newEpisodes };
 
                                                                                     const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
                                                                                     setFormData({ ...updates, season_watched_episodes: newGranular });
                                                                                 }}
-                                                                                disabled={readOnly || isDropped || current >= season.episode_count}
+                                                                                disabled={readOnly || isDropped || current <= 0}
                                                                                 className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
-                                                                                title="Add Episode"
                                                                             >
-                                                                                +
+                                                                                -
                                                                             </button>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    if (readOnly || isDropped) return;
-                                                                                    fetchSeasonEpisodes(season.season_number);
-                                                                                }}
-                                                                                disabled={readOnly || isDropped}
-                                                                                className="w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-30 transition-colors"
-                                                                                title="Select Specific Episodes"
-                                                                            >
-                                                                                <ListChecks size={12} />
-                                                                            </button>
+
+                                                                            {/* Bar */}
+                                                                            <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden relative">
+                                                                                <div
+                                                                                    className={`h-full rounded-full transition-all duration-300 ${isDropped ? "bg-red-500" : (isFull ? "bg-green-500" : "bg-blue-500")}`}
+                                                                                    style={{ width: `${(current / season.episode_count) * 100}%` }}
+                                                                                />
+                                                                            </div>
+
+                                                                            {/* Add & Select */}
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        if (readOnly || isDropped || current >= season.episode_count) return;
+
+                                                                                        const newCount = current + 1;
+                                                                                        const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
+
+                                                                                        // Sync Granular: strict sequential
+                                                                                        const newEpisodes = Array.from({ length: newCount }, (_, i) => i + 1);
+                                                                                        const newGranular = { ...formData.season_watched_episodes, [season.season_number]: newEpisodes };
+
+                                                                                        const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
+                                                                                        setFormData({ ...updates, season_watched_episodes: newGranular });
+                                                                                    }}
+                                                                                    disabled={readOnly || isDropped || current >= season.episode_count}
+                                                                                    className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
+                                                                                    title="Add Episode"
+                                                                                >
+                                                                                    +
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        if (readOnly || isDropped) return;
+                                                                                        fetchSeasonEpisodes(season.season_number);
+                                                                                    }}
+                                                                                    disabled={readOnly || isDropped}
+                                                                                    className="w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-30 transition-colors"
+                                                                                    title="Select Specific Episodes"
+                                                                                >
+                                                                                    <ListChecks size={12} />
+                                                                                </button>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                    <div className="flex justify-between mt-1 px-1">
-                                                                        <span className="text-[10px] text-gray-400">{current} / {season.episode_count}</span>
-                                                                    </div>
+                                                                    )}
+                                                                    {!isUnreleased && (
+                                                                        <div className="flex justify-between mt-1 px-1">
+                                                                            <span className="text-[10px] text-gray-400">{current} / {season.episode_count}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {isUnreleased && (
+                                                                        <div className="flex justify-end mt-1 px-1">
+                                                                            <span className="text-[10px] font-medium text-gray-400">Upcoming</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         );
@@ -1227,7 +1238,10 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                             {segment.type === 'episodes' && (
                                                                 <>
                                                                     <Tv size={14} className="text-blue-500" />
-                                                                    <span>Season {segment.season}: Eps {segment.start}-{segment.end}</span>
+                                                                    <span>
+                                                                        {details?.seasons?.find(s => s.season_number === parseInt(segment.season))?.name || `Season ${segment.season}`}
+                                                                        : Eps {segment.start}-{segment.end}
+                                                                    </span>
                                                                 </>
                                                             )}
                                                             {segment.type === 'item' && (
@@ -1302,20 +1316,23 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                             <>
                                                                 <div className="flex-1">
                                                                     <label className="block text-[10px] uppercase text-gray-400 mb-1">Season</label>
-                                                                    <input
-                                                                        type="number" min="1"
+                                                                    <select
                                                                         value={newSegment.season}
-                                                                        onChange={e => setNewSegment(prev => ({ ...prev, season: e.target.value }))}
-                                                                        onBlur={e => {
-                                                                            let val = parseInt(e.target.value) || 1;
-                                                                            if (details?.seasons) {
-                                                                                const maxSeason = details.seasons.reduce((max, s) => Math.max(max, s.season_number), 1);
-                                                                                val = Math.min(Math.max(1, val), maxSeason);
-                                                                            }
+                                                                        onChange={e => {
+                                                                            const val = parseInt(e.target.value);
                                                                             setNewSegment(prev => ({ ...prev, season: val }));
                                                                         }}
-                                                                        className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
-                                                                    />
+                                                                        className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                                    >
+                                                                        {(details?.seasons || [])
+                                                                            .sort((a, b) => a.season_number - b.season_number)
+                                                                            .map(s => (
+                                                                                <option key={s.id} value={s.season_number}>
+                                                                                    {s.name && s.name.trim() !== "" ? s.name : `Season ${s.season_number}`}
+                                                                                </option>
+                                                                            ))
+                                                                        }
+                                                                    </select>
                                                                 </div>
                                                                 <div className="flex-1">
                                                                     <label className="block text-[10px] uppercase text-gray-400 mb-1">Start Ep</label>
@@ -1324,7 +1341,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                         value={newSegment.start}
                                                                         onChange={e => setNewSegment(prev => ({ ...prev, start: e.target.value }))}
                                                                         onBlur={e => {
-                                                                            let val = parseInt(e.target.value) || 1;
+                                                                            let val = parseInt(e.target.value);
+                                                                            if (isNaN(val)) val = 1;
+
                                                                             if (details?.seasons) {
                                                                                 // Note: parseInt(newSegment.season) ensures we compare numbers if state is temporarily string
                                                                                 const currentSeason = details.seasons.find(s => s.season_number === parseInt(newSegment.season));
@@ -1434,27 +1453,43 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                     )}
 
                                     {/* Dates */}
-                                    <div className="col-span-2 md:col-span-1">
-                                        <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Date Started</label>
-                                        <input
-                                            type="date"
-                                            value={formData.start_date || ""}
-                                            onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed') || (item.media_type !== 'movie' && formData.status === 'plan_to_watch') || isLockedPlanToWatch}
-                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                                        />
-                                    </div>
-                                    <div className="col-span-2 md:col-span-1">
-                                        <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Date Finished</label>
-                                        <input
-                                            type="date"
-                                            value={formData.finish_date || ""}
-                                            onChange={(e) => setFormData({ ...formData, finish_date: e.target.value })}
-                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed') || isLockedPlanToWatch || (item.media_type !== 'movie' && formData.status === 'watching')}
-                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                                        />
-                                    </div>
-                                </div >
+                                    {/* Dates */}
+                                    {item.media_type === 'movie' ? (
+                                        <div className="col-span-2">
+                                            <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Date Watched</label>
+                                            <input
+                                                type="date"
+                                                value={formData.finish_date || ""}
+                                                onChange={(e) => setFormData({ ...formData, finish_date: e.target.value })}
+                                                disabled={readOnly || formData.status !== 'completed' || isLockedPlanToWatch}
+                                                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="col-span-2 md:col-span-1">
+                                                <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Date Started</label>
+                                                <input
+                                                    type="date"
+                                                    value={formData.start_date || ""}
+                                                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                                                    disabled={readOnly || formData.status === 'plan_to_watch' || isLockedPlanToWatch}
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                />
+                                            </div>
+                                            <div className="col-span-2 md:col-span-1">
+                                                <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Date Finished</label>
+                                                <input
+                                                    type="date"
+                                                    value={formData.finish_date || ""}
+                                                    onChange={(e) => setFormData({ ...formData, finish_date: e.target.value })}
+                                                    disabled={readOnly || isLockedPlanToWatch || formData.status === 'watching'}
+                                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
 
                                 {/* Watched In Languages */}
                                 < div >
@@ -1498,8 +1533,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             <div className="relative inline-block" ref={langDropdownRef}>
                                                 <button
                                                     type="button"
+                                                    disabled={readOnly || (item.media_type === 'movie' && (formData.status === 'plan_to_watch' || formData.status === 'not_interested'))}
                                                     onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                                                    className="w-52 flex items-center justify-between gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-gray-300 cursor-pointer hover:bg-gray-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+                                                    className="w-52 flex items-center justify-between gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-gray-300 cursor-pointer hover:bg-gray-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <span>+ Add language</span>
                                                     <svg className={`w-4 h-4 transition-transform ${isLangDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1561,7 +1597,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         rows={4}
                                         value={formData.note}
                                         onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                                        disabled={readOnly || (isLockedPlanToWatch && formData.status !== 'dropped' && formData.status !== 'not_interested')}
+                                        disabled={readOnly || formData.status === 'plan_to_watch' || (isLockedPlanToWatch && formData.status !== 'dropped' && formData.status !== 'not_interested')}
                                         className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                                         placeholder={readOnly ? "No notes" : "Write your thoughts here..."}
                                     />
@@ -1707,8 +1743,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         <span className={`text-sm font-medium ${isWatched ? "text-blue-900 dark:text-blue-100" : "text-gray-700 dark:text-gray-300"}`}>
                                                             {ep.episode_number}. {ep.name}
                                                         </span>
-                                                        <span className="text-xs text-gray-400 tabular-nums">
-                                                            {ep.air_date?.split('-')[0]}
+                                                        <span className="text-xs text-gray-400 tabular-nums flex items-center gap-1">
+                                                            <span>{ep.air_date?.split('-')[0]}</span>
+                                                            {ep.runtime > 0 && <span>• {ep.runtime}m</span>}
                                                         </span>
                                                     </div>
                                                     {ep.overview && <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{ep.overview}</p>}
