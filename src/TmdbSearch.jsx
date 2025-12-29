@@ -158,73 +158,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
     }
   };
 
-  const [expandedShowId, setExpandedShowId] = useState(null);
-  const [seasonsData, setSeasonsData] = useState({}); // Cache for seasons: { showId: [season1, season2] }
 
-  // ----------------------------------------------------
-  // Season Fetching Logic
-  // ----------------------------------------------------
-  const handleFetchSeasons = async (show) => {
-    // If already expanded, collapse it
-    if (expandedShowId === show.id) {
-      setExpandedShowId(null);
-      return;
-    }
-
-    // If cached, just expand
-    if (seasonsData[show.id]) {
-      setExpandedShowId(show.id);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const res = await axios.get(`https://api.themoviedb.org/3/tv/${show.id}`, {
-        params: { api_key: API_KEY },
-      });
-
-      // Store seasons AND genres
-      const seasons = res.data.seasons || [];
-      const genres = res.data.genres || [];
-
-      setSeasonsData(prev => ({
-        ...prev,
-        [show.id]: { seasons, genres }
-      }));
-      setExpandedShowId(show.id);
-    } catch (err) {
-      console.error("Failed to fetch seasons", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSelectSeason = (show, season) => {
-    // Retrieve cached genres for this show
-    // The structure is now { showId: { seasons: [], genres: [] } }
-    // But we need to handle legacy/transition if needed, or just assume new structure. 
-    // Since we cleared state on reload, it's fine.
-    const showGenreIds = seasonsData[show.id]?.genres?.map(g => g.id) || show.genre_ids || [];
-
-    // Construct a "Season Item"
-    const seasonItem = {
-      id: `${show.id}_s${season.season_number}`, // Composite ID
-      tmdb_id: show.id, // Store original show ID for fetches
-      season_number: season.season_number,
-      title: `${show.name}: ${season.name}`,
-      name: `${show.name}: ${season.name}`,
-      media_type: 'tv_season',
-      poster_path: season.poster_path || show.poster_path, // Fallback to show poster if season has none
-      air_date: season.air_date,
-      overview: season.overview,
-      genre_ids: showGenreIds // Attach genres!
-    };
-
-    onItemSelected(seasonItem);
-    setSearchTerm("");
-    setSearchResults([]);
-    setExpandedShowId(null);
-  };
 
   return (
     <div className="relative mb-4 group z-50">
@@ -237,7 +171,6 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
-            if (expandedShowId) setExpandedShowId(null); // Reset expansion on type
           }}
           onKeyDown={handleKeyDown}
           placeholder={
@@ -305,58 +238,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
                     </div>
                   </div>
 
-                  {/* Drill-down Button for TV Shows */}
-                  {item.media_type === 'tv' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFetchSeasons(item);
-                      }}
-                      className={`p-2 ml-2 rounded-lg transition-all ${expandedShowId === item.id
-                        ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
-                        : "text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20"}`}
-                      title="View Seasons"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="8" y1="6" x2="21" y2="6"></line>
-                        <line x1="8" y1="12" x2="21" y2="12"></line>
-                        <line x1="8" y1="18" x2="21" y2="18"></line>
-                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                      </svg>
-                    </button>
-                  )}
                 </div>
-
-                {/* Seasons List (Nested) */}
-                {expandedShowId === item.id && seasonsData[item.id] && (
-                  <div className="ml-14 mt-2 space-y-1 border-l-2 border-purple-100 dark:border-purple-900/30 pl-3 animate-slide-down">
-                    <div className="text-xs font-bold text-gray-400 uppercase mb-2">Select a Season</div>
-                    {seasonsData[item.id].seasons.map(season => (
-                      <div
-                        key={season.id}
-                        onClick={() => handleSelectSeason(item, season)}
-                        className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors"
-                      >
-                        <div className="w-8 h-12 flex-shrink-0 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
-                          {season.poster_path ? (
-                            <img src={`https://image.tmdb.org/t/p/w92${season.poster_path}`} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">?</div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{season.name}</div>
-                          <div className="text-xs text-gray-500">{season.episode_count} Episodes • {season.air_date?.slice(0, 4)}</div>
-                        </div>
-                        <div className="text-purple-500">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
           </div>

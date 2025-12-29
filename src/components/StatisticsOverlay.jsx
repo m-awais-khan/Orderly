@@ -11,7 +11,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let totalItems = 0;
         let totalMovies = 0;
         let totalTV = 0;
-        let totalSeasons = 0;
         let totalEpisodesWatched = 0;
         let totalRewatches = 0;
         let totalMinutes = 0; // Initialize for cumulative calculation
@@ -24,15 +23,14 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let statusByMediaType = {
             movie: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 },
             tv: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 },
-            tv_season: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 },
             other: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 }
         };
 
         // Completed Media Counts (For Pie Chart)
-        let completedMedia = { movie: 0, tv: 0, tv_season: 0 };
+        let completedMedia = { movie: 0, tv: 0 };
 
         // Score Distribution by Media Type (Stacked Bar Data)
-        let scoreByMediaType = Array(11).fill(null).map(() => ({ movie: 0, tv: 0, tv_season: 0, other: 0 }));
+        let scoreByMediaType = Array(11).fill(null).map(() => ({ movie: 0, tv: 0, other: 0 }));
 
         let scoreCounts = Array(11).fill(0); // Index 0 is "No Score", 1-10 are scores
         let totalScoreSum = 0;
@@ -43,7 +41,10 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let languageTimeCounts = {};
 
         // Flatten all lists and filter out references
-        const allItems = Object.values(lists).flat().filter(item => item.type !== 'reference');
+        // Filter out SEASONS explicitly
+        const allItems = Object.values(lists)
+            .flat()
+            .filter(item => item.type !== 'reference' && item.media_type !== 'tv_season' && !item.isSeason);
 
         allItems.forEach(item => {
             totalItems++;
@@ -56,14 +57,13 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             }
 
             // Normalize Media Type
-            const type = (item.media_type === 'movie' || item.media_type === 'tv' || item.media_type === 'tv_season')
+            const type = (item.media_type === 'movie' || item.media_type === 'tv')
                 ? item.media_type
                 : 'other';
 
             // Media Type Counts
             if (type === 'movie') totalMovies++;
             else if (type === 'tv') totalTV++;
-            else if (type === 'tv_season') totalSeasons++;
 
             // Status Normalization
             const status = (item.status && statusCounts[item.status] !== undefined) ? item.status : 'plan_to_watch';
@@ -78,7 +78,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             if (status === 'completed') {
                 if (type === 'movie') completedMedia.movie++;
                 else if (type === 'tv') completedMedia.tv++;
-                else if (type === 'tv_season') completedMedia.tv_season++;
             }
 
             // Score Stats
@@ -94,15 +93,11 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     scoreCounts[binScore]++;
                     scoreByMediaType[binScore][type]++;
                 } else if (binScore > 10) {
-                    // Handle edge case of >10 score (e.g. 100 base) by putting in 10 or ignoring? 
-                    // Putting in 10 for visibility usually best, or ignore.
-                    // safely put in 10
                     scoreCounts[10]++;
                     scoreByMediaType[10][type]++;
                 }
             } else {
                 scoreCounts[0]++;
-                // scoreByMediaType[0][type]++; // No need to track 0 scores in breakdown
             }
 
             // Watch Stats (Weighted Time Calculation)
@@ -118,7 +113,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
 
                 // Rewatches
                 if (item.times_rewatched) {
-                    // For movies, 1 means watched once (0 rewatches).
                     const actualRewatches = Math.max(0, item.times_rewatched - 1);
                     totalRewatches += actualRewatches;
 
@@ -127,7 +121,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     }
                 }
             } else {
-                // TV / Seasons
+                // TV Shows
                 let minutesPerEp = 50; // Default fallback
 
                 // 1. Try to find explicit runtime
@@ -175,7 +169,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             totalItems,
             totalMovies,
             totalTV,
-            totalSeasons,
             totalEpisodesWatched,
             totalRewatches,
             statusCounts,
@@ -198,7 +191,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
     const TYPE_COLORS = {
         movie: 'bg-orange-500',
         tv: 'bg-green-500',
-        tv_season: 'bg-purple-500',
         other: 'bg-gray-400'
     };
 
@@ -270,7 +262,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                         icon={<Film className="text-amber-500" />}
                         label="Content Split"
                         value={`${stats.totalMovies} Movies`}
-                        sub={`${stats.totalTV} TV Shows • ${stats.totalSeasons} Seasons`}
+                        sub={`${stats.totalTV} TV Shows`}
                     />
                 </div>
 
@@ -287,14 +279,12 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                 data={[
                                     { label: 'Movie', value: stats.completedMedia.movie, color: '#f97316' }, // orange-500
                                     { label: 'TV Show', value: stats.completedMedia.tv, color: '#22c55e' }, // green-500
-                                    { label: 'Season', value: stats.completedMedia.tv_season, color: '#a855f7' }, // purple-500
                                 ]}
                                 size={180}
                             />
                             <div className="space-y-3">
-                                <LegendItem color="bg-orange-500" label="Movie" value={stats.completedMedia.movie} total={stats.completedMedia.movie + stats.completedMedia.tv + stats.completedMedia.tv_season} />
-                                <LegendItem color="bg-green-500" label="TV Show" value={stats.completedMedia.tv} total={stats.completedMedia.movie + stats.completedMedia.tv + stats.completedMedia.tv_season} />
-                                <LegendItem color="bg-purple-500" label="TV Season" value={stats.completedMedia.tv_season} total={stats.completedMedia.movie + stats.completedMedia.tv + stats.completedMedia.tv_season} />
+                                <LegendItem color="bg-orange-500" label="Movie" value={stats.completedMedia.movie} total={stats.completedMedia.movie + stats.completedMedia.tv} />
+                                <LegendItem color="bg-green-500" label="TV Show" value={stats.completedMedia.tv} total={stats.completedMedia.movie + stats.completedMedia.tv} />
                             </div>
                         </div>
                     </div>
@@ -321,8 +311,8 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                         Status Distribution by Media Type
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-8">
-                        {['movie', 'tv', 'tv_season'].map(type => {
-                            const typeLabel = type === 'movie' ? 'Movie' : type === 'tv' ? 'TV Show' : 'TV Season';
+                        {['movie', 'tv'].map(type => {
+                            const typeLabel = type === 'movie' ? 'Movie' : 'TV Show';
                             const data = stats.statusByMediaType[type];
                             const totalForType = data.completed + data.watching + data.dropped + data.plan_to_watch;
 

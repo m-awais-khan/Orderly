@@ -17,6 +17,7 @@ import {
     Maximize2,
     Info,
     ArrowUp,
+    ListChecks,
     ArrowDown,
     Plus,
     Search,
@@ -59,25 +60,21 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         watched_languages: item.watched_languages || [],
         custom_completed: item.custom_completed || false,
         watched_seasons: item.watched_seasons || [], // [1, 2, ...]
-        watched_episodes: item.watched_episodes || []  // [1, 2, ...] for Season items
+        watched_episodes: item.watched_episodes || [],  // [1, 2, ...] for Season items
+        season_progress: item.season_progress || {},     // { "1": 5, "2": 10 }
+        season_watched_episodes: item.season_watched_episodes || {}, // { "1": [1, 2], "2": [5] } - Granular for TV Shows
+        dropped_seasons: item.dropped_seasons || []      // [1, 3]
     });
 
+    const [viewingSeasonEpisodes, setViewingSeasonEpisodes] = useState(null); // Season number (or null)
+    const [seasonEpisodesCache, setSeasonEpisodesCache] = useState({}); // { "season_1": [...] }
+
+    // Derived state for locking logic
+    const isLockedPlanToWatch = item.media_type !== 'movie' && (formData.status === 'plan_to_watch' || formData.status === 'not_interested' || formData.status === 'dropped');
+
     // Sync formData when item changes
-    useEffect(() => {
-        if (item) {
-            setFormData({
-                status: item.status || "plan_to_watch",
-                score: item.score || 0,
-                episodes_watched: item.episodes_watched || 0,
-                times_rewatched: item.times_rewatched || 0,
-                start_date: item.start_date || "",
-                finish_date: item.finish_date || "",
-                note: item.note || "",
-                watch_order: item.watch_order || [],
-                watched_languages: item.watched_languages || []
-            });
-        }
-    }, [item]);
+    // Sync formData when item changes - MERGED into main effect
+    // useEffect removed to prevent double-set and data loss
 
     // Close language dropdown on outside click
     useEffect(() => {
@@ -229,20 +226,22 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
         // 1. TV Show Season Migration
         if (item.media_type === 'tv' && details.seasons) {
-            if ((!formData.watched_seasons || formData.watched_seasons.length === 0) && formData.episodes_watched > 0) {
-                const watched = [];
-                let cum = 0;
-                const sortedSeasons = [...details.seasons].sort((a, b) => a.season_number - b.season_number);
-                sortedSeasons.forEach(s => {
-                    if (s.season_number === 0) return;
-                    if (formData.episodes_watched >= cum + s.episode_count) {
-                        watched.push(s.season_number);
-                    }
-                    cum += s.episode_count;
-                });
-                if (watched.length > 0) {
-                    setFormData(prev => ({ ...prev, watched_seasons: watched }));
+            // Initialize season_progress if missing
+            if (!formData.season_progress || Object.keys(formData.season_progress).length === 0) {
+                const progress = {};
+                if (formData.episodes_watched > 0) {
+                    let cum = 0;
+                    const sortedSeasons = [...details.seasons].sort((a, b) => a.season_number - b.season_number);
+                    sortedSeasons.forEach(s => {
+                        if (s.season_number === 0) return;
+                        const epsInSeason = Math.max(0, Math.min(s.episode_count, formData.episodes_watched - cum));
+                        if (epsInSeason > 0) {
+                            progress[s.season_number] = epsInSeason;
+                        }
+                        cum += s.episode_count;
+                    });
                 }
+                setFormData(prev => ({ ...prev, season_progress: progress }));
             }
         }
 
@@ -348,7 +347,10 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 watched_languages: item.watched_languages || [],
                 custom_completed: item.custom_completed || false,
                 watched_seasons: item.watched_seasons || [],
-                watched_episodes: item.watched_episodes || []
+                watched_episodes: item.watched_episodes || [],
+                season_progress: item.season_progress || {},
+                season_watched_episodes: item.season_watched_episodes || {},
+                dropped_seasons: item.dropped_seasons || []
             });
             setActiveTab("info"); // Reset to info tab
         }
@@ -376,6 +378,141 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
     const getStudios = () => {
         if (!details?.production_companies) return null;
         return details.production_companies.map(c => c.name).join(", ");
+    };
+
+    const calculateUpdate = (newProgress, newDroppedSeasons) => {
+        let allFinishedOrDropped = true;
+        let hasDropped = false;
+        let grandTotal = 0;
+
+        details.seasons.forEach(s => {
+            // SKIP SPECIALS from main count and status logic
+            if (s.season_number === 0) return;
+
+            const eps = newProgress[s.season_number] || 0;
+            grandTotal += eps;
+            const isDroppedSeason = newDroppedSeasons.includes(s.season_number);
+            const isFinished = eps >= s.episode_count;
+
+            if (isDroppedSeason) hasDropped = true;
+            if (!isFinished && !isDroppedSeason) {
+                allFinishedOrDropped = false;
+            }
+        });
+
+        let newStatus = formData.status;
+        let newScore = formData.score;
+        let newRewatch = formData.times_rewatched;
+
+        // Logic: All Locked (Green or Red)
+        if (allFinishedOrDropped) {
+            if (hasDropped) {
+                // If any dropped and all others are finished -> Dropped
+                newStatus = 'dropped';
+                newScore = 0;
+                newRewatch = 0;
+            } else {
+                // All finished, none dropped -> Completed
+                newStatus = 'completed';
+            }
+        } else {
+            // Partial
+            if (newStatus === 'completed' || newStatus === 'dropped' || newStatus === 'plan_to_watch' || newStatus === 'not_interested') {
+                newStatus = 'watching';
+            }
+
+            // Auto-switch to "Plan to Watch" if 0 episodes (even if some are dropped)
+            if (grandTotal === 0 && newStatus === 'watching') {
+                newStatus = 'plan_to_watch';
+                newScore = 0;
+                newRewatch = 0;
+                // Note: Dates will be cleared in the return object below
+                // ALSO: Clear dropped seasons as requested ("make all drop to normal")
+                newDroppedSeasons = [];
+            }
+        }
+
+        return {
+            ...formData,
+            season_progress: newProgress,
+            dropped_seasons: newDroppedSeasons,
+            episodes_watched: grandTotal,
+            status: newStatus,
+            score: newScore,
+            times_rewatched: newRewatch,
+            // Clear dates if switched to Plan to Watch
+            start_date: newStatus === 'plan_to_watch' ? "" : formData.start_date,
+            finish_date: newStatus === 'plan_to_watch' ? "" : formData.finish_date
+        };
+    };
+
+    // --- Granular Episode Logic ---
+
+    const fetchSeasonEpisodes = async (seasonNumber) => {
+        // 1. Open Modal Immediately (shows loading spinner if not cached)
+        setViewingSeasonEpisodes(seasonNumber);
+
+        const cacheKey = `season_${item.tmdb_id || item.id}_${seasonNumber}`;
+        if (seasonEpisodesCache[cacheKey]) {
+            return;
+        }
+
+        try {
+            const tmdbId = item.tmdb_id || item.id;
+            const response = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`, {
+                params: { api_key: API_KEY }
+            });
+            // Update cache
+            setSeasonEpisodesCache(prev => ({ ...prev, [cacheKey]: response.data.episodes }));
+        } catch (error) {
+            console.error("Failed to fetch season episodes:", error);
+            alert("Failed to load episodes. Please check your connection.");
+            setViewingSeasonEpisodes(null); // Close on error
+        }
+    };
+
+    const toggleSeasonEpisode = (seasonNumber, episodeNumber, totalEpsInSeason) => {
+        // 1. Get current list for this season
+        const currentList = formData.season_watched_episodes[seasonNumber] || [];
+        let newList;
+
+        // 2. Toggle
+        if (currentList.includes(episodeNumber)) {
+            newList = currentList.filter(e => e !== episodeNumber);
+        } else {
+            newList = [...currentList, episodeNumber];
+        }
+
+        // 3. Update Granular State
+        const newGranular = { ...formData.season_watched_episodes, [seasonNumber]: newList };
+
+        // 4. Update Count State
+        const newCount = newList.length;
+        const newProgress = { ...formData.season_progress, [seasonNumber]: newCount };
+
+        // 5. Update Total and Status via calculateUpdate
+        // calculateUpdate expects (newProgress, newDroppedSeasons)
+        const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
+
+        // Merge granular updates into the result
+        setFormData({ ...updates, season_watched_episodes: newGranular });
+    };
+
+    const handleSelectAllSeason = (seasonNumber, allEpisodes) => {
+        const currentList = formData.season_watched_episodes[seasonNumber] || [];
+        const isAllSelected = allEpisodes.every(ep => currentList.includes(ep.episode_number));
+
+        let newList;
+        if (isAllSelected) {
+            newList = []; // Deselect All
+        } else {
+            newList = allEpisodes.map(ep => ep.episode_number); // Select All
+        }
+
+        const newGranular = { ...formData.season_watched_episodes, [seasonNumber]: newList };
+        const newProgress = { ...formData.season_progress, [seasonNumber]: newList.length };
+        const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
+        setFormData({ ...updates, season_watched_episodes: newGranular });
     };
 
     return (
@@ -597,6 +734,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Studios / Producers</h3>
                                                     <p className="text-sm text-gray-800 dark:text-gray-200">{getStudios()}</p>
                                                 </div>
+
                                             )}
                                             {details?.first_air_date && (
                                                 <div>
@@ -616,6 +754,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                             </div>
                         ) : (
                             <div className="space-y-6 animate-fade-in max-w-xl">
+
+
                                 {/* My List Settings Form */}
                                 <div className="grid grid-cols-2 gap-6">
                                     {/* Status */}
@@ -633,9 +773,27 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     if (newStatus === 'completed' && details && !formData.custom_completed) {
                                                         let total = 0;
                                                         if (details.episodes && (details.isSeason || item.media_type === 'tv_season')) {
+                                                            // It's a Season
                                                             total = details.episodes.length;
+                                                            // Populate watched_episodes with all episode numbers
+                                                            updates.watched_episodes = details.episodes.map(ep => ep.episode_number);
                                                         } else if (details.number_of_episodes) {
+                                                            // It's a TV Show
                                                             total = details.number_of_episodes;
+                                                            // Populate watched_seasons with all season numbers
+                                                            if (details.seasons) {
+                                                                updates.watched_seasons = details.seasons
+                                                                    .filter(s => s.season_number > 0) // Exclude Specials usually
+                                                                    .map(s => s.season_number);
+
+                                                                // Also populate season_progress for visualizer
+                                                                updates.season_progress = {};
+                                                                details.seasons.forEach(s => {
+                                                                    if (s.season_number > 0) {
+                                                                        updates.season_progress[s.season_number] = s.episode_count;
+                                                                    }
+                                                                });
+                                                            }
                                                         }
 
                                                         if (total > 0) {
@@ -651,21 +809,60 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         updates.episodes_watched = 0;
                                                     }
 
-                                                    // Case 3: Switching to "plan_to_watch" or "dropped" -> Reset times_rewatched to 0 for movies
-                                                    if (item.media_type === 'movie' && (newStatus === 'plan_to_watch' || newStatus === 'dropped')) {
+                                                    // Case 2b: Switching FROM "Dropped" TO "Watching" -> Clear dropped seasons (Red -> Normal)
+                                                    if (prev.status === 'dropped' && newStatus === 'watching') {
+                                                        updates.dropped_seasons = [];
+                                                    }
+
+                                                    // Case 2c: Switching TO "Dropped" -> Mark all non-completed seasons as Dropped (Red)
+                                                    if (newStatus === 'dropped' && item.media_type !== 'movie' && details?.seasons) {
+                                                        const newDropped = [...(prev.dropped_seasons || [])];
+                                                        details.seasons.forEach(s => {
+                                                            if (s.season_number > 0) {
+                                                                const currentEps = formData.season_progress?.[s.season_number] || 0;
+                                                                const isFull = currentEps === s.episode_count;
+                                                                // If not full and not already dropped, add to dropped
+                                                                if (!isFull && !newDropped.includes(s.season_number)) {
+                                                                    newDropped.push(s.season_number);
+                                                                }
+                                                            }
+                                                        });
+                                                        updates.dropped_seasons = newDropped;
+                                                        updates.score = 0; // Reset score on drop as per previous request
+                                                        updates.times_rewatched = 0;
+                                                    }
+
+                                                    // Case 3: Switching to "plan_to_watch" or "dropped" or "not_interested" -> Reset times_rewatched to 0 for movies
+                                                    if (item.media_type === 'movie' && (newStatus === 'plan_to_watch' || newStatus === 'dropped' || newStatus === 'not_interested')) {
                                                         updates.times_rewatched = 0;
                                                         updates.score = 0; // Reset score too
                                                         updates.start_date = ""; // Reset dates
                                                         updates.finish_date = "";
                                                     }
 
-                                                    // Case 4: Force Reset Episodes when switching to Plan to Watch (Fix for "Watching" -> "Plan to Watch" lock)
-                                                    if (newStatus === 'plan_to_watch') {
+                                                    // Case 4: Force Reset Episodes when switching to Plan to Watch or Not Interested
+                                                    if (newStatus === 'plan_to_watch' || newStatus === 'not_interested') {
                                                         updates.episodes_watched = 0;
+                                                        updates.watched_seasons = []; // Reset granular seasons
+                                                        updates.watched_episodes = []; // Reset granular episodes
+                                                        updates.season_progress = {}; // Reset season progress visualizer
+                                                        updates.dropped_seasons = []; // Reset dropped seasons markup
+                                                        updates.start_date = ""; // Reset dates
+                                                        updates.finish_date = "";
+
+                                                        // New strict reset requirements for TV shows
+                                                        if (item.media_type !== 'movie') {
+                                                            if (newStatus === 'plan_to_watch') {
+                                                                updates.note = "";
+                                                            }
+                                                            updates.custom_completed = false;
+                                                            updates.watched_languages = [];
+                                                            updates.score = 0; // Ensure score is 0
+                                                        }
                                                     }
 
                                                     // Case 4: For TV/Seasons - Reset score if switching to non-ratable status
-                                                    if (item.media_type !== 'movie' && newStatus !== 'completed' && newStatus !== 'rewatching') {
+                                                    if (item.media_type !== 'movie' && newStatus !== 'completed') {
                                                         updates.score = 0;
                                                         updates.times_rewatched = 0;
                                                     }
@@ -676,40 +873,14 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         >
                                             <option value="plan_to_watch">Plan to Watch</option>
-                                            {item.media_type !== 'movie' && <option value="watching">Watching</option>}
-                                            {item.media_type !== 'movie' && <option value="rewatching">Rewatching</option>}
-                                            <option value="completed">Completed</option>
-                                            <option value="dropped">Dropped</option>
+                                            {item.media_type !== 'movie' && <option value="watching" disabled>Watching</option>}
+                                            <option value="completed" disabled={item.media_type !== 'movie'}>Completed</option>
+                                            <option value="dropped" disabled={item.media_type !== 'movie'}>Dropped</option>
+                                            <option value="not_interested">Not Interested</option>
                                         </select>
                                     </div>
 
-                                    {/* Intentional Completion Checkbox (TV Only) */}
-                                    {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
-                                        <div className="col-span-2 mt-2 flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                id="custom_complete"
-                                                checked={formData.custom_completed}
-                                                onChange={(e) => {
-                                                    const isChecked = e.target.checked;
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        custom_completed: isChecked,
-                                                        // If checking this box, assume they want it marked as Completed regardless of count
-                                                        status: isChecked ? 'completed' : prev.status
-                                                    }));
-                                                }}
-                                                disabled={readOnly}
-                                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-                                            />
-                                            <label htmlFor="custom_complete" className="text-xs text-gray-600 dark:text-gray-300 select-none cursor-pointer">
-                                                Mark as <strong>Completed</strong> even if not all episodes are watched?
-                                                <span className="block text-[10px] text-gray-400 font-normal">
-                                                    (Stats will count only the actually watched episodes)
-                                                </span>
-                                            </label>
-                                        </div>
-                                    )}
+
 
                                     {/* Score */}
                                     <div className="col-span-2 md:col-span-1">
@@ -721,7 +892,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                 item.media_type === 'movie'
                                                     ? formData.status !== 'completed'
                                                     : (formData.status !== 'completed' && formData.status !== 'rewatching')
-                                            )}
+                                            ) || isLockedPlanToWatch}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                             <option value={0}>Select Score...</option>
@@ -774,8 +945,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         setFormData({ ...formData, times_rewatched: Math.max(minVal, val) });
                                                     }
                                                 }}
-                                                disabled={readOnly || (item.media_type === 'movie' && (formData.status === 'plan_to_watch' || formData.status === 'dropped')) || (formData.watched_seasons?.length > 0) || (formData.watched_episodes?.length > 0)}
-                                                title={((formData.watched_seasons?.length > 0) || (formData.watched_episodes?.length > 0)) ? "controlled by season/episode selection" : ""}
+                                                disabled={true} // Strictly disabled - controlled by season list
+                                                title="Use the Season List below to track progress"
                                                 className="flex-1 px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             />
                                             {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
@@ -796,163 +967,175 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     min="0"
                                                     value={formData.times_rewatched}
                                                     onChange={(e) => setFormData({ ...formData, times_rewatched: parseInt(e.target.value) || 0 })}
-                                                    disabled={readOnly || (formData.status !== 'completed' && formData.status !== 'rewatching')}
+                                                    disabled={readOnly || isLockedPlanToWatch || formData.status === 'watching'}
                                                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                                 />
                                             </div>
                                         )}
 
 
-                                        {/* Season Breakdown Visualizer (Only for Full TV Shows) */}
+                                        {/* Season Breakdown Visualizer (Interactive) */}
                                         {item.media_type === 'tv' && !details?.isSeason && details?.seasons && (
-                                            <div className="mt-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                                            <div className="mt-4 space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
                                                 {details.seasons
-                                                    .filter(s => s.season_number > 0)
                                                     .map((season) => {
-                                                        // Calculate cumulative episodes up to this season
-                                                        const previousSeasons = details.seasons.filter(s => s.season_number > 0 && s.season_number < season.season_number);
-                                                        const epsBefore = previousSeasons.reduce((acc, s) => acc + s.episode_count, 0);
-                                                        const seasonEnd = epsBefore + season.episode_count;
-
-                                                        // Determine status (Granular)
-                                                        const isFullyWatched = formData.watched_seasons?.includes(season.season_number);
-                                                        const isWatching = false; // No more partial season watching logic for visualizer in this mode, purely binary per season? 
-                                                        // Or do we keep partial logic if they manually entered episodes?
-                                                        // Request says "User can select which episode he watch... in Seasons type"
-                                                        // For SHOW type, user selects seasons.
-                                                        // If they manually type episodes_watched, it might desync with buttons.
-                                                        // Let's rely on the BUTTONS being the primary driver now.
-
-                                                        const epsInSeason = isFullyWatched ? season.episode_count : 0;
-
-                                                        const isDropped = droppedSeasonNumbers.includes(season.season_number);
+                                                        const current = formData.season_progress?.[season.season_number] || 0;
+                                                        const isDropped = formData.dropped_seasons?.includes(season.season_number);
+                                                        const isFull = current === season.episode_count;
+                                                        const isEffectivelyFullyWatched = isFull || isDropped; // Treat dropped as "handled" for toggle logic
 
                                                         return (
                                                             <div
                                                                 key={season.id}
-                                                                className={`group/season relative flex items-center gap-3 p-2 rounded-lg border transition-all
+                                                                onClick={() => {
+                                                                    if (readOnly || isDropped) return; // Strictly disable interaction on dropped seasons
+                                                                    const newCount = isFull ? 0 : season.episode_count;
+                                                                    const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
+
+                                                                    // Sync Granular: strict sequential
+                                                                    const newEpisodes = newCount === 0 ? [] : Array.from({ length: newCount }, (_, i) => i + 1);
+                                                                    const newGranular = { ...formData.season_watched_episodes, [season.season_number]: newEpisodes };
+
+                                                                    const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
+                                                                    setFormData({ ...updates, season_watched_episodes: newGranular });
+                                                                }}
+                                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all relative
+                                                                    ${(!readOnly) ? "cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm" : ""}
                                                                     ${isDropped
                                                                         ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/30"
-                                                                        : (isFullyWatched
-                                                                            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                                                                            : (isWatching ? "bg-white dark:bg-gray-800 border-blue-500 shadow-sm" : "bg-gray-50 dark:bg-gray-800/50 border-transparent hover:bg-gray-100 dark:hover:bg-gray-800"))}`}
+                                                                        : (isFull
+                                                                            ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                                                                            : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700")}`}
                                                             >
-                                                                {/* Click Area */}
-                                                                <div
-                                                                    className={`flex-1 flex items-center gap-3 min-w-0 ${readOnly || isDropped ? "" : "cursor-pointer"}`}
-                                                                    onClick={() => {
-                                                                        if (!isDropped && !readOnly) {
-                                                                            const isWatched = formData.watched_seasons?.includes(season.season_number);
-                                                                            let newWatchedSeasons = [...(formData.watched_seasons || [])];
+                                                                {/* Poster */}
+                                                                <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-gray-200 relative group/poster">
+                                                                    {season.poster_path ? (
+                                                                        <>
+                                                                            <img src={`https://image.tmdb.org/t/p/w92${season.poster_path}`} alt={season.name} className={`w-full h-full object-cover ${isDropped ? "grayscale" : ""}`} />
+                                                                            <div
+                                                                                className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setZoomedImage(`https://image.tmdb.org/t/p/original${season.poster_path}`);
+                                                                                }}
+                                                                            >
+                                                                                <Maximize2 className="text-white" size={16} />
+                                                                            </div>
+                                                                        </>
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">?</div>
+                                                                    )}
+                                                                </div>
 
-                                                                            if (isWatched) {
-                                                                                newWatchedSeasons = newWatchedSeasons.filter(sn => sn !== season.season_number);
-                                                                            } else {
-                                                                                if (!newWatchedSeasons.includes(season.season_number)) {
-                                                                                    newWatchedSeasons.push(season.season_number);
-                                                                                }
-                                                                            }
-
-                                                                            // Recalculate Total Episodes Watched
-                                                                            const newTotal = details.seasons.reduce((acc, s) => {
-                                                                                if (newWatchedSeasons.includes(s.season_number)) {
-                                                                                    return acc + s.episode_count;
-                                                                                }
-                                                                                return acc;
-                                                                            }, 0);
-
-                                                                            let updates = {
-                                                                                watched_seasons: newWatchedSeasons,
-                                                                                episodes_watched: newTotal
-                                                                            };
-
-                                                                            // Auto-update status if everything watched
-                                                                            const allSeasons = details.seasons.filter(s => s.season_number > 0 && !droppedSeasonNumbers.includes(s.season_number));
-                                                                            const allWatched = allSeasons.every(s => newWatchedSeasons.includes(s.season_number));
-
-                                                                            if (allWatched && formData.status !== 'completed') {
-                                                                                updates.status = 'completed';
-                                                                            } else if (!allWatched && formData.status === 'completed' && !formData.custom_completed) {
-                                                                                updates.status = 'watching';
-                                                                            }
-
-                                                                            setFormData(prev => ({ ...prev, ...updates }));
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    {/* Season Poster */}
-                                                                    <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-gray-200 relative group/poster">
-                                                                        {season.poster_path ? (
-                                                                            <>
-                                                                                <img src={`https://image.tmdb.org/t/p/w92${season.poster_path}`} alt={season.name} className={`w-full h-full object-cover ${isDropped ? "grayscale" : ""}`} />
-                                                                                <div
-                                                                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        setZoomedImage(`https://image.tmdb.org/t/p/original${season.poster_path}`);
-                                                                                    }}
-                                                                                >
-                                                                                    <Maximize2 className="text-white" size={16} />
-                                                                                </div>
-                                                                            </>
-                                                                        ) : (
-                                                                            <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">?</div>
+                                                                {/* Info & Controls */}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className={`font-semibold text-sm truncate ${isDropped ? "text-red-700 dark:text-red-400" : "text-gray-800 dark:text-gray-200"}`}>
+                                                                            {season.name}
+                                                                        </span>
+                                                                        {/* Drop Button */}
+                                                                        {!readOnly && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (isFull) return;
+                                                                                    const newDropped = [...(formData.dropped_seasons || [])];
+                                                                                    if (isDropped) {
+                                                                                        const idx = newDropped.indexOf(season.season_number);
+                                                                                        if (idx > -1) newDropped.splice(idx, 1);
+                                                                                    } else {
+                                                                                        newDropped.push(season.season_number);
+                                                                                    }
+                                                                                    setFormData(calculateUpdate(formData.season_progress, newDropped));
+                                                                                }}
+                                                                                disabled={isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'}
+                                                                                className={`p-1.5 rounded-full transition-colors ${isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'
+                                                                                    ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                                                                                    : isDropped
+                                                                                        ? "bg-red-500 text-white hover:bg-red-600"
+                                                                                        : "text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                                    }`}
+                                                                                title={isFull ? "Season Completed" : ((formData.status === 'plan_to_watch' || formData.status === 'not_interested') ? "Start watching to drop" : (isDropped ? "Restore Season" : "Drop Season"))}
+                                                                            >
+                                                                                {isDropped ? <ArrowUp size={14} /> : <X size={14} />}
+                                                                            </button>
                                                                         )}
                                                                     </div>
 
+                                                                    {/* Progress Control */}
+                                                                    <div className="flex items-center gap-3">
+                                                                        {/* Subtract */}
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                if (readOnly || isDropped || current <= 0) return;
+                                                                                const newCount = current - 1;
+                                                                                const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
 
-                                                                    {/* Info */}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="flex justify-between items-center mb-1">
-                                                                            <span className={`font-semibold text-sm ${isDropped ? "text-red-700 dark:text-red-400" : "text-gray-800 dark:text-gray-200"}`}>
-                                                                                {season.name} {isDropped && "(Dropped)"}
-                                                                            </span>
-                                                                            <span className="text-xs font-medium text-gray-500">
-                                                                                {epsInSeason} / {season.episode_count} eps
-                                                                            </span>
-                                                                        </div>
+                                                                                // Sync Granular: strict sequential
+                                                                                // If we reduce count, we keep the first N episodes (assuming sequential)
+                                                                                const newEpisodes = Array.from({ length: newCount }, (_, i) => i + 1);
+                                                                                const newGranular = { ...formData.season_watched_episodes, [season.season_number]: newEpisodes };
 
-                                                                        {/* Progress Bar */}
-                                                                        <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                                const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
+                                                                                setFormData({ ...updates, season_watched_episodes: newGranular });
+                                                                            }}
+                                                                            disabled={readOnly || isDropped || current <= 0}
+                                                                            className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
+                                                                        >
+                                                                            -
+                                                                        </button>
+
+                                                                        {/* Bar */}
+                                                                        <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden relative">
                                                                             <div
-                                                                                className={`h-full rounded-full transition-all duration-500 ${isDropped ? "bg-red-500" : (isFullyWatched ? "bg-green-500" : "bg-blue-500")}`}
-                                                                                style={{ width: `${isDropped ? 0 : (isFullyWatched ? 100 : 0)}%` }}
+                                                                                className={`h-full rounded-full transition-all duration-300 ${isDropped ? "bg-red-500" : (isFull ? "bg-green-500" : "bg-blue-500")}`}
+                                                                                style={{ width: `${(current / season.episode_count) * 100}%` }}
                                                                             />
                                                                         </div>
+
+                                                                        {/* Add */}
+                                                                        {/* Add & Select */}
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (readOnly || isDropped || current >= season.episode_count) return;
+
+                                                                                    const newCount = current + 1;
+                                                                                    const newProgress = { ...formData.season_progress, [season.season_number]: newCount };
+
+                                                                                    // Sync Granular: strict sequential
+                                                                                    const newEpisodes = Array.from({ length: newCount }, (_, i) => i + 1);
+                                                                                    const newGranular = { ...formData.season_watched_episodes, [season.season_number]: newEpisodes };
+
+                                                                                    const updates = calculateUpdate(newProgress, formData.dropped_seasons || []);
+                                                                                    setFormData({ ...updates, season_watched_episodes: newGranular });
+                                                                                }}
+                                                                                disabled={readOnly || isDropped || current >= season.episode_count}
+                                                                                className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 transition-colors"
+                                                                                title="Add Episode"
+                                                                            >
+                                                                                +
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (readOnly || isDropped) return;
+                                                                                    fetchSeasonEpisodes(season.season_number);
+                                                                                }}
+                                                                                disabled={readOnly || isDropped}
+                                                                                className="w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-30 transition-colors"
+                                                                                title="Select Specific Episodes"
+                                                                            >
+                                                                                <ListChecks size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex justify-between mt-1 px-1">
+                                                                        <span className="text-[10px] text-gray-400">{current} / {season.episode_count}</span>
                                                                     </div>
                                                                 </div>
-
-                                                                {/* Drop Season Button or Dropped Badge */}
-                                                                {!isFullyWatched && !isDropped && !readOnly && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            if (onDropSeason) {
-                                                                                setConfirmModal({
-                                                                                    isOpen: true,
-                                                                                    title: `Drop "${season.name}"?`,
-                                                                                    message: `This will add '${season.name}' as a separate item in your Dropped list.`,
-                                                                                    isDangerous: true,
-                                                                                    confirmText: "Drop Season",
-                                                                                    onConfirm: () => {
-                                                                                        onDropSeason(item, season, epsInSeason);
-                                                                                        onClose();
-                                                                                        setConfirmModal({ isOpen: false });
-                                                                                    }
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                        className="absolute right-2 p-1.5 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover/season:opacity-100 transition-all z-20"
-                                                                        title="Drop this Season"
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
-                                                                )}
-                                                                {isDropped && (
-                                                                    <div className="absolute right-2 p-1.5 bg-red-100 dark:bg-red-900/30 rounded-full text-red-500 cursor-default" title="Season Dropped">
-                                                                        <X size={14} />
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         );
                                                     })}
@@ -1062,7 +1245,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                             )}
                                                         </div>
                                                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            {!readOnly && (
+                                                            {!readOnly && !isLockedPlanToWatch && (
                                                                 <>
                                                                     <button
                                                                         onClick={(e) => { e.preventDefault(); handleMoveSegment(index, -1); }}
@@ -1097,7 +1280,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             </div>
 
                                             {/* Add Segment Controls */}
-                                            {!readOnly && (
+                                            {!readOnly && !isLockedPlanToWatch && (
                                                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700/50">
                                                     <div className="flex gap-2 mb-3">
                                                         {['episodes', 'item', 'list'].map(type => (
@@ -1257,7 +1440,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             type="date"
                                             value={formData.start_date || ""}
                                             onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed')}
+                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed') || (item.media_type !== 'movie' && formData.status === 'plan_to_watch') || isLockedPlanToWatch}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
@@ -1267,14 +1450,14 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             type="date"
                                             value={formData.finish_date || ""}
                                             onChange={(e) => setFormData({ ...formData, finish_date: e.target.value })}
-                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed')}
+                                            disabled={readOnly || (item.media_type === 'movie' && formData.status !== 'completed') || isLockedPlanToWatch || (item.media_type !== 'movie' && formData.status === 'watching')}
                                             className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
-                                </div>
+                                </div >
 
                                 {/* Watched In Languages */}
-                                <div>
+                                < div >
                                     <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2">Watched In</label>
                                     <div className="flex flex-wrap gap-2 mb-2">
                                         {formData.watched_languages && formData.watched_languages.length > 0 && formData.watched_languages.map((lang, idx) => {
@@ -1310,63 +1493,65 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             );
                                         })}
                                     </div>
-                                    {!readOnly && (
-                                        <div className="relative inline-block" ref={langDropdownRef}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
-                                                className="w-52 flex items-center justify-between gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-gray-300 cursor-pointer hover:bg-gray-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
-                                            >
-                                                <span>+ Add language</span>
-                                                <svg className={`w-4 h-4 transition-transform ${isLangDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
+                                    {
+                                        !readOnly && !isLockedPlanToWatch && (
+                                            <div className="relative inline-block" ref={langDropdownRef}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
+                                                    className="w-52 flex items-center justify-between gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-gray-300 cursor-pointer hover:bg-gray-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+                                                >
+                                                    <span>+ Add language</span>
+                                                    <svg className={`w-4 h-4 transition-transform ${isLangDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
 
-                                            {isLangDropdownOpen && (
-                                                <div className="absolute top-full left-0 mt-1 w-52 max-h-48 overflow-y-auto bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
-                                                    <div className="p-1">
-                                                        {[
-                                                            { code: 'English', flag: '🇺🇸' },
-                                                            { code: 'Japanese', flag: '🇯🇵' },
-                                                            { code: 'Korean', flag: '🇰🇷' },
-                                                            { code: 'Spanish', flag: '🇪🇸' },
-                                                            { code: 'French', flag: '🇫🇷' },
-                                                            { code: 'German', flag: '🇩🇪' },
-                                                            { code: 'Chinese', flag: '🇨🇳' },
-                                                            { code: 'Hindi', flag: '🇮🇳' },
-                                                            { code: 'Urdu', flag: '🇵🇰' },
-                                                            { code: 'Arabic', flag: '🇸🇦' },
-                                                            { code: 'Russian', flag: '🇷🇺' },
-                                                            { code: 'Portuguese', flag: '🇧🇷' },
-                                                            { code: 'Italian', flag: '🇮🇹' },
-                                                            { code: 'Thai', flag: '🇹🇭' },
-                                                            { code: 'Turkish', flag: '🇹🇷' }
-                                                        ].filter(lang => !formData.watched_languages?.includes(lang.code)).map(lang => (
-                                                            <button
-                                                                key={lang.code}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setFormData(prev => ({
-                                                                        ...prev,
-                                                                        watched_languages: [...(prev.watched_languages || []), lang.code]
-                                                                    }));
-                                                                    setIsLangDropdownOpen(false);
-                                                                }}
-                                                                className="w-full text-left px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
-                                                            >
-                                                                <span>{lang.flag}</span>
-                                                                <span>{lang.code}</span>
-                                                            </button>
-                                                        ))}
-                                                        {formData.watched_languages?.length >= 15 && (
-                                                            <div className="px-3 py-2 text-xs text-gray-500 text-center">All languages selected</div>
-                                                        )}
+                                                {isLangDropdownOpen && (
+                                                    <div className="absolute top-full left-0 mt-1 w-52 max-h-48 overflow-y-auto bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
+                                                        <div className="p-1">
+                                                            {[
+                                                                { code: 'English', flag: '🇺🇸' },
+                                                                { code: 'Japanese', flag: '🇯🇵' },
+                                                                { code: 'Korean', flag: '🇰🇷' },
+                                                                { code: 'Spanish', flag: '🇪🇸' },
+                                                                { code: 'French', flag: '🇫🇷' },
+                                                                { code: 'German', flag: '🇩🇪' },
+                                                                { code: 'Chinese', flag: '🇨🇳' },
+                                                                { code: 'Hindi', flag: '🇮🇳' },
+                                                                { code: 'Urdu', flag: '🇵🇰' },
+                                                                { code: 'Arabic', flag: '🇸🇦' },
+                                                                { code: 'Russian', flag: '🇷🇺' },
+                                                                { code: 'Portuguese', flag: '🇧🇷' },
+                                                                { code: 'Italian', flag: '🇮🇹' },
+                                                                { code: 'Thai', flag: '🇹🇭' },
+                                                                { code: 'Turkish', flag: '🇹🇷' }
+                                                            ].filter(lang => !formData.watched_languages?.includes(lang.code)).map(lang => (
+                                                                <button
+                                                                    key={lang.code}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setFormData(prev => ({
+                                                                            ...prev,
+                                                                            watched_languages: [...(prev.watched_languages || []), lang.code]
+                                                                        }));
+                                                                        setIsLangDropdownOpen(false);
+                                                                    }}
+                                                                    className="w-full text-left px-3 py-2 rounded-md text-sm text-gray-200 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                                                                >
+                                                                    <span>{lang.flag}</span>
+                                                                    <span>{lang.code}</span>
+                                                                </button>
+                                                            ))}
+                                                            {formData.watched_languages?.length >= 15 && (
+                                                                <div className="px-3 py-2 text-xs text-gray-500 text-center">All languages selected</div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                )}
+                                            </div>
+                                        )
+                                    }
                                 </div>
 
                                 {/* Notes */}
@@ -1376,7 +1561,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                         rows={4}
                                         value={formData.note}
                                         onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                                        disabled={readOnly}
+                                        disabled={readOnly || (isLockedPlanToWatch && formData.status !== 'dropped' && formData.status !== 'not_interested')}
                                         className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                                         placeholder={readOnly ? "No notes" : "Write your thoughts here..."}
                                     />
@@ -1449,6 +1634,104 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                     </div>
                 )
             }
+
+            {/* Episode Selection Overlay */}
+            {viewingSeasonEpisodes !== null && (
+                <div
+                    className="fixed inset-0 z-[75] flex items-center justify-center p-4 animate-fade-in"
+                    onClick={() => setViewingSeasonEpisodes(null)}
+                >
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+                    <div
+                        className="relative z-10 bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+                            <div>
+                                <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100">
+                                    Season {viewingSeasonEpisodes}
+                                </h3>
+                                <p className="text-xs text-gray-500">Select episodes you have watched</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {/* Select All Button */}
+                                <button
+                                    onClick={() => handleSelectAllSeason(
+                                        viewingSeasonEpisodes,
+                                        seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] || []
+                                    )}
+                                    className="text-xs font-medium text-blue-600 hover:text-blue-700 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
+                                >
+                                    Toggle All
+                                </button>
+                                <button
+                                    onClick={() => setViewingSeasonEpisodes(null)}
+                                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* List */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                            {!seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] ? (
+                                <div className="flex flex-col items-center justify-center h-40 gap-3 text-gray-400">
+                                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Loading episodes...</span>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-1">
+                                    {(seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] || []).map(ep => {
+                                        const isWatched = (formData.season_watched_episodes[viewingSeasonEpisodes] || []).includes(ep.episode_number);
+                                        return (
+                                            <div
+                                                key={ep.id}
+                                                className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border
+                                                    ${isWatched
+                                                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50"
+                                                        : "bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-gray-800"}`}
+                                                onClick={() => toggleSeasonEpisode(
+                                                    viewingSeasonEpisodes,
+                                                    ep.episode_number,
+                                                    seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`].length
+                                                )}
+                                            >
+                                                <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center transition-colors ${isWatched ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-transparent"}`}>
+                                                    <Check size={14} strokeWidth={3} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className={`text-sm font-medium ${isWatched ? "text-blue-900 dark:text-blue-100" : "text-gray-700 dark:text-gray-300"}`}>
+                                                            {ep.episode_number}. {ep.name}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 tabular-nums">
+                                                            {ep.air_date?.split('-')[0]}
+                                                        </span>
+                                                    </div>
+                                                    {ep.overview && <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{ep.overview}</p>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end">
+                            <button
+                                onClick={() => setViewingSeasonEpisodes(null)}
+                                className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

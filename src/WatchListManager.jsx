@@ -33,12 +33,13 @@ import {
   Check,     // For Status
   Clock,     // For Status
   MinusCircle, // For Status
-  RotateCcw,  // For Status
+  EyeOff,  // For Status
   List,
   PieChart,
   Sparkles,
   FileText,
-  Info
+  Info,
+  RotateCcw
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -91,7 +92,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       watching: [],
       dropped: [],
       plan_to_watch: [],
-      rewatching: []
+      not_interested: []
     };
 
 
@@ -104,6 +105,26 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     });
 
     return smart;
+  }, [lists]);
+
+  // Calculate Warning Count (Replicates logic from WarningsPanel)
+  const warningCount = useMemo(() => {
+    let count = 0;
+    Object.values(lists).forEach(items => {
+      items.forEach(item => {
+        if (item.status === 'completed') {
+          // Check 1: No Rating
+          if (!item.score || item.score === 0) {
+            count++;
+          }
+          // Check 2: No Language Selected
+          if (!item.watched_languages || item.watched_languages.length === 0) {
+            count++;
+          }
+        }
+      });
+    });
+    return count;
   }, [lists]);
 
 
@@ -441,6 +462,36 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           console.error("Failed to delete account:", err);
           showToast("Error deleting account", "error");
         }
+      }
+    });
+  };
+
+  const resetAccount = () => {
+    openConfirmModal({
+      title: "Factory Reset Data",
+      message: "Are you sure you want to wipe ALL your data? This will delete all lists, folders, and items. Your account will remain active but empty. This cannot be undone.",
+      isDangerous: true,
+      confirmText: "Wipe Everything",
+      onConfirm: () => {
+        // 1. Reset State
+        const emptyLists = {};
+        const emptyFolders = {};
+        const emptyDescriptions = {};
+        const emptySelected = null;
+
+        setLists(emptyLists);
+        setFolders(emptyFolders);
+        setListDescriptions(emptyDescriptions);
+        setSelectedList(emptySelected);
+        setSharedLists([]);
+
+        // 2. Clear Search
+        setSearchQuery("");
+
+        // 3. Save Empty Data to Server & LocalStorage
+        saveData(emptyLists, emptySelected, emptyFolders, emptyDescriptions);
+
+        showToast("All data has been wiped successfully.", "success");
       }
     });
   };
@@ -2332,7 +2383,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 case 'completed': return "text-green-500 bg-green-50/50 dark:bg-green-900/10";
                 case 'dropped': return "text-red-500 bg-red-50/50 dark:bg-red-900/10";
                 case 'watching': return "text-blue-500 bg-blue-50/50 dark:bg-blue-900/10";
-                case 'rewatching': return "text-orange-500 bg-orange-50/50 dark:bg-orange-900/10";
+                case 'not_interested': return "text-gray-500 bg-gray-50/50 dark:bg-gray-900/10";
                 case 'plan_to_watch': return "text-purple-500 bg-purple-50/50 dark:bg-purple-900/10";
                 default: return "text-gray-400";
               }
@@ -2346,7 +2397,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               case 'completed': return <Check size={18} />;
               case 'dropped': return <X size={18} />;
               case 'watching': return <Play size={18} />;
-              case 'rewatching': return <RotateCcw size={18} />;
+              case 'not_interested': return <EyeOff size={18} />;
               case 'plan_to_watch': return <Clock size={18} />;
               default: return <MinusCircle size={18} />;
             }
@@ -2568,11 +2619,24 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 </button>
 
                 <button
+                  onClick={resetAccount}
+                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-500 hover:shadow-md hover:scale-105 active:scale-95 bg-orange-50/50 dark:bg-orange-900/10"
+                  title="Factory Reset Data (Wipe All)"
+                >
+                  <RotateCcw size={20} />
+                </button>
+
+                <button
                   onClick={() => setShowWarnings(true)}
-                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
+                  className="relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
                   title="Data Warnings"
                 >
                   <AlertTriangle size={20} />
+                  {warningCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                      {warningCount > 9 ? '9+' : warningCount}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -2764,7 +2828,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                       watching: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', icon: Play, label: "Watching" },
                       dropped: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', icon: X, label: "Dropped" },
                       plan_to_watch: { color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', icon: Clock, label: "Plan to Watch" },
-                      rewatching: { color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', icon: RotateCcw, label: "Rewatching" }
+                      not_interested: { color: 'text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900/20', icon: EyeOff, label: "Not Interested" }
                     }[key];
 
                     if (!config) return null;
@@ -2999,7 +3063,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                             watching: { color: 'text-blue-500', icon: Play, label: "Watching Items" },
                             dropped: { color: 'text-red-500', icon: X, label: "Dropped Items" },
                             plan_to_watch: { color: 'text-purple-500', icon: Clock, label: "Plan to Watch" },
-                            rewatching: { color: 'text-orange-500', icon: RotateCcw, label: "Rewatching Items" }
+                            not_interested: { color: 'text-gray-500', icon: EyeOff, label: "Not Interested" }
                           }[key];
                           const Icon = config.icon;
                           return (
@@ -3780,7 +3844,10 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           lists={lists}
           onClose={() => setShowWarnings(false)}
           onNavigate={(listName, item) => {
-            if (isListLocked) return;
+            if (isListLocked) {
+              showToast("Please unlock the list to view details.", "warning");
+              return;
+            }
             handleNavigate(listName);
             setSelectedItemForModal(item);
           }}
