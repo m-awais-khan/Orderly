@@ -1875,19 +1875,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             </span>
             {/* Delete Button (Hidden if locked) */}
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
-              {!isListLocked && (
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setItemToMove({ item, fromList: item.originalList || selectedList });
-                  }}
-                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-full transition-colors"
-                  title="Move Reference"
-                >
-                  <CornerUpRight size={18} />
-                </button>
-              )}
+
               {!isListLocked && (
                 <button
                   onClick={(e) => {
