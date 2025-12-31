@@ -39,7 +39,8 @@ import {
   Sparkles,
   FileText,
   Info,
-  RotateCcw
+  RotateCcw,
+  CornerUpRight
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -153,6 +154,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   });
   const [isListLocked, setIsListLocked] = useState(true); // Default locked locally, logic will override if needed, but for restricted it stays locked
   const [editingListName, setEditingListName] = useState(null);
+  const [itemToMove, setItemToMove] = useState(null); // { item, fromList }
 
   const [sharedLists, setSharedLists] = useState([]); // Array of { listName, shareId }
   const [showShareModal, setShowShareModal] = useState(false); // Toggle for share modal
@@ -1537,6 +1539,71 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     saveData(newLists, selectedList, folders);
   };
 
+  const handleMoveItemConfirm = (targetList) => {
+    if (!itemToMove || !targetList) return;
+    const { item, fromList } = itemToMove;
+
+    if (targetList === fromList) {
+      setItemToMove(null);
+      return;
+    }
+
+    const newLists = { ...lists };
+
+    // Check for duplicates in target list
+    const targetListItems = newLists[targetList] || [];
+    const isDuplicate = targetListItems.some(existingItem => {
+      // TMDB Items - Robust ID Checking
+      // Manually added items use 'id' as TMDB ID. AI items use 'tmdb_id'.
+      if ((item.tmdb_id || item.type === 'tmdb') && (existingItem.tmdb_id || existingItem.type === 'tmdb')) {
+        const id1 = item.tmdb_id || item.id;
+        const id2 = existingItem.tmdb_id || existingItem.id;
+
+        // Compare loosely to handle string/number differences
+        if (id1 == id2 && existingItem.media_type === item.media_type) {
+          return true;
+        }
+      }
+
+      // Reference Items
+      if (item.type === 'reference') {
+        return existingItem.type === 'reference' && existingItem.ref === item.ref;
+      }
+      // Text Items
+      if (item.type === 'text' || (!item.tmdb_id && !item.type && item.text)) {
+        return existingItem.text === item.text && !existingItem.tmdb_id;
+      }
+
+      return false;
+    });
+
+    if (isDuplicate) {
+      showToast(`Item already exists in "${targetList}"`, "warning");
+      // Keep modal open by NOT clearing itemToMove
+      return;
+    }
+
+    // Remove from source list
+    if (newLists[fromList]) {
+      newLists[fromList] = newLists[fromList].filter(i => i.id !== item.id);
+    }
+
+    // Add to target list
+    if (newLists[targetList]) {
+      // Create a copy of the item and update originalList if it exists
+      const newItem = { ...item };
+      if (newItem.originalList) {
+        newItem.originalList = targetList;
+      }
+      newLists[targetList] = [...newLists[targetList], newItem];
+    }
+
+    setLists(newLists);
+    saveData(newLists, selectedList, folders);
+    setItemToMove(null);
+    showToast(`Moved "${item.text || item.title || item.name || item.ref}" to "${targetList}"`, "success");
+  };
+
   const handleDragStart = (e, index) => {
     if (!dragActiveRef.current) {
       e.preventDefault();
@@ -1807,7 +1874,20 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               {item.ref} <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">({refList.length} items)</span>
             </span>
             {/* Delete Button (Hidden if locked) */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
+              {!isListLocked && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setItemToMove({ item, fromList: item.originalList || selectedList });
+                  }}
+                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-full transition-colors"
+                  title="Move Reference"
+                >
+                  <CornerUpRight size={18} />
+                </button>
+              )}
               {!isListLocked && (
                 <button
                   onClick={(e) => {
@@ -2453,6 +2533,21 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             title="View Watch Order"
           >
             <List size={18} />
+          </button>
+        )}
+
+        {!isListLocked && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setItemToMove({ item, fromList: item.originalList || selectedList });
+            }}
+            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-full transition-colors"
+            title="Move Item"
+          >
+            <CornerUpRight size={18} />
           </button>
         )}
 
@@ -3573,6 +3668,46 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               </div>
               <button
                 onClick={() => setMovingFolder(null)}
+                className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Move Item Modal */}
+      {
+        itemToMove && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fade-in" onClick={() => setItemToMove(null)}>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-96 border border-gray-100 dark:border-gray-700 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+              <h3 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <CornerUpRight size={24} className="text-blue-500" />
+                Move Item
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 truncate">
+                Select a list to move <strong>"{itemToMove.item.text || itemToMove.item.title || itemToMove.item.name}"</strong> to:
+              </p>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                {Object.keys(lists)
+                  .filter(listName => listName !== itemToMove.fromList)
+                  .map((listName) => (
+                    <button
+                      key={listName}
+                      onClick={() => handleMoveItemConfirm(listName)}
+                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/10 text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-900/30"
+                    >
+                      <List size={18} className="text-blue-500" />
+                      {listName}
+                    </button>
+                  ))}
+                {Object.keys(lists).filter(listName => listName !== itemToMove.fromList).length === 0 && (
+                  <div className="text-center text-gray-400 py-4 italic">No other lists available</div>
+                )}
+              </div>
+              <button
+                onClick={() => setItemToMove(null)}
                 className="mt-6 w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
                 Cancel
