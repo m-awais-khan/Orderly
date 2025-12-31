@@ -172,7 +172,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   const linkDropdownRef = useRef(null);
 
   // Update Timer State
-  const [lastUpdateCheck, setLastUpdateCheck] = useState(Date.now());
+  const [lastUpdateCheck, setLastUpdateCheck] = useState(null);
   const [showTimerOverlay, setShowTimerOverlay] = useState(false);
 
   // Profile Menu State
@@ -181,8 +181,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   const [highlightedItemId, setHighlightedItemId] = useState(null); // ID of item to scroll to and highlight
   const highlightTimeoutRef = useRef(null);
 
-
-
+  // List Owner
   const [listOwner, setListOwner] = useState(null); // Owner of the shared list
 
   // --- Derived State ---
@@ -197,6 +196,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
   // Update Check Logic
   const isUpdateDue = useMemo(() => {
+    if (!lastUpdateCheck) return false;
     const diffTime = Math.abs(new Date() - new Date(lastUpdateCheck));
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 30;
@@ -2652,7 +2652,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md p-2 rounded-xl border border-white/20 dark:border-gray-700/50 shadow-md text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2 hover:scale-105 transition-transform"
           >
             <Clock size={16} className={isUpdateDue ? "text-red-500 animate-pulse" : "text-blue-500"} />
-            <span>Last: {new Date(lastUpdateCheck).toLocaleDateString()}</span>
+            <span>Last: {lastUpdateCheck ? new Date(lastUpdateCheck).toLocaleDateString() : "Loading..."}</span>
           </button>
         </div>
       )}
