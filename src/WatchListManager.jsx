@@ -554,7 +554,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         folders: newFolders,
         sharedLists: sharedLists, // Also persist shared lists reference
         listDescriptions: newDescriptions !== null ? newDescriptions : listDescriptions,
-        lastUpdateCheck: newLastUpdateCheck !== null ? newLastUpdateCheck : lastUpdateCheck
+        lastUpdateCheck: (newLastUpdateCheck !== null) ? newLastUpdateCheck : (lastUpdateCheck || Date.now())
       };
 
       // 1. Save to User-Specific LocalStorage (Backup)
