@@ -757,6 +757,16 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
 
                                 {/* My List Settings Form */}
+                                {/* My List Settings Form */}
+                                {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
+                                    <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3">
+                                        <Info className="text-blue-500 shrink-0 mt-0.5" size={16} />
+                                        <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+                                            If you think that seasons information or episodes info is wrong then you have to request or change data in <a href={`https://www.themoviedb.org/${item.media_type}/${item.tmdb_id || item.id}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-600">TMDB</a> as the data directly comes from the TMDB.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-6">
                                     {/* Status */}
                                     <div className="col-span-2 md:col-span-1">

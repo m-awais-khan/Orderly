@@ -40,7 +40,8 @@ import {
   FileText,
   Info,
   RotateCcw,
-  CornerUpRight
+  CornerUpRight,
+  User,
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -52,6 +53,7 @@ import WatchOrderViewModal from "./components/WatchOrderViewModal";
 import StatisticsOverlay from "./components/StatisticsOverlay";
 import AIRecommendationsOverlay from "./components/AIRecommendationsOverlay";
 import WarningsPanel from "./components/WarningsPanel";
+import TimerOverlay from "./components/TimerOverlay";
 
 const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false }) => {
   // UI State
@@ -166,7 +168,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
   const [currentPage, setCurrentPage] = useState(1);
   const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
+
   const linkDropdownRef = useRef(null);
+
+  // Update Timer State
+  const [lastUpdateCheck, setLastUpdateCheck] = useState(Date.now());
+  const [showTimerOverlay, setShowTimerOverlay] = useState(false);
+
+  // Profile Menu State
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const [highlightedItemId, setHighlightedItemId] = useState(null); // ID of item to scroll to and highlight
   const highlightTimeoutRef = useRef(null);
@@ -184,6 +194,13 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     }
     return lists[selectedList] || [];
   }, [selectedList, lists, smartLists]);
+
+  // Update Check Logic
+  const isUpdateDue = useMemo(() => {
+    const diffTime = Math.abs(new Date() - new Date(lastUpdateCheck));
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 30;
+  }, [lastUpdateCheck]);
 
   // --- UI Helpers ---
   const showToast = (message, type = 'info') => {
@@ -393,8 +410,12 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           setSharedLists(parsed.sharedLists || []);
           setListDescriptions(parsed.listDescriptions || {});
 
+          setSharedLists(parsed.sharedLists || []);
+          setListDescriptions(parsed.listDescriptions || {});
+          setLastUpdateCheck(parsed.lastUpdateCheck || Date.now());
+
           // Re-save to ensure it's in the correct user-key and synced to API if possible
-          saveData(parsed.lists, parsed.selectedList, parsed.folders, parsed.listDescriptions);
+          saveData(parsed.lists, parsed.selectedList, parsed.folders, parsed.listDescriptions, parsed.lastUpdateCheck || Date.now());
           return;
         }
       }
@@ -405,7 +426,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         setFolders(data.folders || {});
         setSelectedList(data.selectedList || Object.keys(data.lists || {})[0] || null);
         setSharedLists(data.sharedLists || []);
+        setSharedLists(data.sharedLists || []);
         setListDescriptions(data.listDescriptions || {});
+        setLastUpdateCheck(data.lastUpdateCheck || Date.now());
       }
 
       setListOwner(null);
@@ -523,14 +546,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     }
   };
 
-  const saveData = async (newLists, newSelected, newFolders, newDescriptions = null) => {
+  const saveData = async (newLists, newSelected, newFolders, newDescriptions = null, newLastUpdateCheck = null) => {
     try {
       const payload = {
         lists: newLists,
         selectedList: newSelected,
         folders: newFolders,
         sharedLists: sharedLists, // Also persist shared lists reference
-        listDescriptions: newDescriptions !== null ? newDescriptions : listDescriptions // Include list descriptions
+        listDescriptions: newDescriptions !== null ? newDescriptions : listDescriptions,
+        lastUpdateCheck: newLastUpdateCheck !== null ? newLastUpdateCheck : lastUpdateCheck
       };
 
       // 1. Save to User-Specific LocalStorage (Backup)
@@ -1281,6 +1305,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     showToast(`Added "${newItem.text}" to list.`, "success");
     setSearchQuery(""); // Clear search
   };
+
+
 
   // Sync Dark Mode state to DOM
   useEffect(() => {
@@ -2372,7 +2398,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             dragActiveRef.current = false;
           }}
           className={`text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing hover:text-blue-500 dark:hover:text-blue-400
-            ${isListLocked ? "opacity-0 w-0 pointer-events-none" : "opacity-100"}`}
+            ${(isListLocked || isSmartList) ? "hidden" : "opacity-100"}`}
         />
 
 
@@ -2524,7 +2550,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           </button>
         )}
 
-        {!isListLocked && (
+        {!isListLocked && !isSmartList && (
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
@@ -2617,6 +2643,20 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[100px] animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
       </div>
 
+      {/* Top Left Timer Widget */}
+      {/* Top Left Timer Widget */}
+      {token && (
+        <div className="fixed top-6 left-6 z-20">
+          <button
+            onClick={() => setShowTimerOverlay(true)}
+            className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md p-2 rounded-xl border border-white/20 dark:border-gray-700/50 shadow-md text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-2 hover:scale-105 transition-transform"
+          >
+            <Clock size={16} className={isUpdateDue ? "text-red-500 animate-pulse" : "text-blue-500"} />
+            <span>Last: {new Date(lastUpdateCheck).toLocaleDateString()}</span>
+          </button>
+        </div>
+      )}
+
       <div className="w-full max-w-7xl relative z-10">
         {/* Restricted Mobile Banner */}
         {isRestrictedMobile && (
@@ -2674,78 +2714,126 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           </div>
 
           <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/20 dark:border-gray-700/50 shadow-sm">
-            <button
-              onClick={toggleDarkMode}
-              className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:shadow-md hover:scale-105 active:scale-95"
-              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-blue-600" />}
-            </button>
+            <div className="flex items-center gap-3 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/20 dark:border-gray-700/50 shadow-sm relative">
 
-            {token && (
-              <>
-                <button
-                  onClick={deleteAccount}
-                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10"
-                  title="Delete Account"
-                >
-                  <Trash2 size={20} />
-                </button>
+              {/* Expanded Buttons */}
+              {/* Theme Toggle - Always Visible */}
+              <button
+                onClick={toggleDarkMode}
+                className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:shadow-md hover:scale-105 active:scale-95 border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-blue-600" />}
+              </button>
 
-                <button
-                  onClick={resetAccount}
-                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-500 hover:shadow-md hover:scale-105 active:scale-95 bg-orange-50/50 dark:bg-orange-900/10"
-                  title="Factory Reset Data (Wipe All)"
-                >
-                  <RotateCcw size={20} />
-                </button>
+              {/* Authenticated User Menu */}
+              {token && (
+                <>
+                  {/* Collapsible Menu Items */}
+                  <div className={`flex items-center gap-3 transition-all duration-500 ease-in-out overflow-hidden ${isProfileMenuOpen ? 'max-w-[800px] opacity-100 mr-2' : 'max-w-0 opacity-0'}`}>
+                    {/* Timer Button */}
+                    <button
+                      onClick={() => setShowTimerOverlay(true)}
+                      className={`p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95 ${isUpdateDue ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 animate-pulse' : ''}`}
+                      title="Check Updates Timer"
+                    >
+                      <Clock size={20} />
+                    </button>
 
-                <button
-                  onClick={() => setShowWarnings(true)}
-                  className="relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
-                  title="Data Warnings"
-                >
-                  <AlertTriangle size={20} />
-                  {warningCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
-                      {warningCount > 9 ? '9+' : warningCount}
-                    </span>
-                  )}
-                </button>
+                    <button
+                      onClick={deleteAccount}
+                      disabled={isListLocked}
+                      className={`p-2.5 rounded-xl transition-all duration-300 text-gray-600 dark:text-gray-300 
+                        ${isListLocked
+                          ? 'opacity-40 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
+                          : 'hover:bg-white dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-500 hover:shadow-md hover:scale-105 active:scale-95 bg-red-50/50 dark:bg-red-900/10'
+                        }`}
+                      title={isListLocked ? "Unlock list to delete account" : "Delete Account"}
+                    >
+                      <Trash2 size={20} />
+                    </button>
 
-                <button
-                  onClick={() => openConfirmModal({
-                    title: "Sign Out",
-                    message: "Are you sure you want to sign out?",
-                    confirmText: "Sign Out",
-                    onConfirm: onLogout,
-                    isDangerous: false
-                  })}
-                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
-                  title="Sign Out"
-                >
-                  <LogOut size={20} />
-                </button>
+                    <button
+                      onClick={resetAccount}
+                      disabled={isListLocked}
+                      className={`p-2.5 rounded-xl transition-all duration-300 text-gray-600 dark:text-gray-300 
+                        ${isListLocked
+                          ? 'opacity-40 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
+                          : 'hover:bg-white dark:hover:bg-gray-700 hover:text-orange-600 dark:hover:text-orange-500 hover:shadow-md hover:scale-105 active:scale-95 bg-orange-50/50 dark:bg-orange-900/10'
+                        }`}
+                      title={isListLocked ? "Unlock list to reset data" : "Factory Reset Data (Wipe All)"}
+                    >
+                      <RotateCcw size={20} />
+                    </button>
 
-                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
+                    <button
+                      onClick={() => setShowWarnings(true)}
+                      className="relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
+                      title="Data Warnings"
+                    >
+                      <AlertTriangle size={20} />
+                      {(warningCount > 0 || isUpdateDue) && (
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                          {(warningCount + (isUpdateDue ? 1 : 0)) > 9 ? '9+' : (warningCount + (isUpdateDue ? 1 : 0))}
+                        </span>
+                      )}
+                    </button>
 
-                <button
-                  onClick={exportData}
-                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95"
-                  title="Export Data"
-                >
-                  <Download size={20} />
-                </button>
+                    <button
+                      onClick={() => openConfirmModal({
+                        title: "Sign Out",
+                        message: "Are you sure you want to sign out?",
+                        confirmText: "Sign Out",
+                        onConfirm: onLogout,
+                        isDangerous: false
+                      })}
+                      className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:shadow-md hover:scale-105 active:scale-95"
+                      title="Sign Out"
+                    >
+                      <LogOut size={20} />
+                    </button>
 
-                <button
-                  onClick={() => document.getElementById("import-file").click()}
-                  className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-400 hover:shadow-md hover:scale-105 active:scale-95"
-                  title="Import Data"
-                >
-                  <Upload size={20} />
-                </button>
-              </>
-            )}
+                    <div className="w-px h-6 bg-gray-200 dark:bg-gray-700"></div>
+
+                    <button
+                      onClick={exportData}
+                      className="p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md hover:scale-105 active:scale-95"
+                      title="Export Data"
+                    >
+                      <Download size={20} />
+                    </button>
+
+                    <button
+                      onClick={() => !isListLocked && document.getElementById("import-file").click()}
+                      disabled={isListLocked}
+                      className={`p-2.5 rounded-xl transition-all duration-300 text-gray-600 dark:text-gray-300 
+                        ${isListLocked
+                          ? 'opacity-40 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
+                          : 'hover:bg-white dark:hover:bg-gray-700 hover:text-teal-600 dark:hover:text-teal-400 hover:shadow-md hover:scale-105 active:scale-95'
+                        }`}
+                      title={isListLocked ? "Unlock list to import data" : "Import Data"}
+                    >
+                      <Upload size={20} />
+                    </button>
+                  </div>
+
+                  {/* Profile Toggle Button */}
+                  <button
+                    onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                    className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-2 border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                    title="Profile & Settings"
+                  >
+                    {(user?.photoURL || user?.picture) ? (
+                      <img src={user.photoURL || user.picture} alt="Profile" className="w-9 h-9 rounded-full object-cover shadow-sm" />
+                    ) : (
+                      <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-sm">
+                        <User size={20} />
+                      </div>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -2850,6 +2938,45 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                   </div>
                 </div>
 
+                {/* Special Status Lists - Compact Row */}
+                <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+                  {[
+                    { key: 'completed', icon: Check, label: "Completed", color: 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400', ring: 'ring-green-500' },
+                    { key: 'watching', icon: Play, label: "Watching", color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400', ring: 'ring-blue-500' },
+                    { key: 'dropped', icon: X, label: "Dropped", color: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400', ring: 'ring-red-500' },
+                    { key: 'plan_to_watch', icon: Clock, label: "Plan to Watch", color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400', ring: 'ring-purple-500' },
+                    { key: 'not_interested', icon: EyeOff, label: "Not Interested", color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300', ring: 'ring-gray-500' }
+                  ].map(({ key, icon: Icon, label, color, ring }) => {
+                    const isSelected = selectedList === `special:${key}`;
+                    const count = smartLists[key]?.length || 0;
+                    if (count === 0 && !isSelected) return null; // Only hide if empty AND not selected (optional: keep visible?) - Let's keep visible if it was visible before. The previous logic was "if items.length === 0 return null". Let's assume user wants to see them to access them? Actually previous code HID them if empty: `if (items.length === 0) return null;`. I will respect that.
+
+                    if (smartLists[key]?.length === 0 && !isSelected) return null;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedList(`special:${key}`)}
+                        className={`relative p-2.5 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 group
+                          ${isSelected
+                            ? `${color} ring-2 ${ring} shadow-md`
+                            : `${color.replace('bg-', 'hover:bg-').replace('100', '50')} opacity-70 hover:opacity-100`
+                          }
+                          ${!isSelected ? 'bg-gray-50 dark:bg-gray-800' : ''} 
+                        `}
+                        title={`${label} (${count})`}
+                      >
+                        <Icon size={20} />
+                        {count > 0 && (
+                          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white dark:bg-gray-900 text-[10px] font-bold shadow-sm border border-gray-100 dark:border-gray-700">
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* Add Inputs */}
                 <div className="space-y-3 mb-4">
                   {showAddFolder && (
@@ -2894,48 +3021,6 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 </div>
 
                 <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 custom-scrollbar">
-                  {/* 1. Smart Status Lists */}
-                  {Object.entries(smartLists).map(([key, items]) => {
-                    if (items.length === 0) return null;
-                    const config = {
-                      completed: { color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20', icon: Check, label: "Completed" },
-                      watching: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', icon: Play, label: "Watching" },
-                      dropped: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', icon: X, label: "Dropped" },
-                      plan_to_watch: { color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', icon: Clock, label: "Plan to Watch" },
-                      not_interested: { color: 'text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900/20', icon: EyeOff, label: "Not Interested" }
-                    }[key];
-
-                    if (!config) return null;
-                    const Icon = config.icon;
-                    const isSelected = selectedList === `special:${key}`;
-
-                    return (
-                      <div
-                        key={`smart-${key}`}
-                        onClick={() => setSelectedList(`special:${key}`)}
-                        className={`group flex justify-between items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent mb-1
-                        ${isSelected
-                            ? `bg-white dark:bg-gray-800 shadow-md border-${config.color.split('-')[1]}-200 dark:border-${config.color.split('-')[1]}-800 ring-1 ring-${config.color.split('-')[1]}-500`
-                            : "bg-white dark:bg-gray-800/50 hover:bg-white hover:shadow-md dark:hover:bg-gray-800"
-                          }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded-lg ${config.bg} ${config.color}`}>
-                            <Icon size={16} />
-                          </div>
-                          <span className={`font-medium ${isSelected ? config.color : 'text-gray-700 dark:text-gray-300'}`}>
-                            {config.label}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                          {items.length}
-                        </span>
-                      </div>
-                    );
-                  })}
-
-
-
                   {/* 2. Render Root Lists */}
                   {Object.keys(lists)
                     .filter((listName) => !Object.values(folders).some((folderLists) => folderLists.includes(listName)))
@@ -3584,8 +3669,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </div >
+      </div >
 
       {/* Move List Modal */}
       {
@@ -3932,20 +4017,44 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           showToast(`Added "${itemData.text}" to "${listName}"`, "success");
         }}
       />
-      {showWarnings && (
-        <WarningsPanel
-          lists={lists}
-          onClose={() => setShowWarnings(false)}
-          onNavigate={(listName, item) => {
-            if (isListLocked) {
-              showToast("Please unlock the list to view details.", "warning");
-              return;
-            }
-            handleNavigate(listName);
-            setSelectedItemForModal(item);
-          }}
-        />
-      )}
+      {/* Timer Overlay */}
+      {
+        showTimerOverlay && (
+          <TimerOverlay
+            lastCheckDate={lastUpdateCheck}
+            onReset={() => {
+              const now = Date.now();
+              setLastUpdateCheck(now);
+              saveData(lists, selectedList, folders, listDescriptions, now);
+            }}
+            onClose={() => setShowTimerOverlay(false)}
+          />
+        )
+      }
+
+      {
+        showWarnings && (
+          <WarningsPanel
+            lists={lists}
+            onClose={() => setShowWarnings(false)}
+            onNavigate={(listName, item) => {
+              if (isListLocked) {
+                showToast("Please unlock the list to view details.", "warning");
+                return;
+              }
+              handleNavigate(listName);
+              // setHighlightedItemId(item.id); // Handled inside manage if needed
+            }}
+            isUpdateDue={isUpdateDue}
+            onResetUpdateCheck={() => {
+              const now = Date.now();
+              setLastUpdateCheck(now);
+              saveData(lists, selectedList, folders, listDescriptions, now);
+            }}
+          />
+        )
+      }
+
     </div >
   );
 };

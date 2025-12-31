@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, X, ChevronDown, ChevronRight, Star, Globe, ExternalLink } from 'lucide-react';
+import { AlertTriangle, X, ChevronDown, ChevronRight, Star, Globe, ExternalLink, Clock, CheckCircle } from 'lucide-react';
 
-const WarningsPanel = ({ lists, onClose, onNavigate }) => {
-    const [expandedType, setExpandedType] = useState(null);
+const WarningsPanel = ({ lists, onClose, onNavigate, isUpdateDue, onResetUpdateCheck }) => {
+    const [expandedType, setExpandedType] = useState(isUpdateDue ? 'update_check' : null);
 
     // Real-time calculation of warnings
     const warningData = useMemo(() => {
@@ -49,9 +49,25 @@ const WarningsPanel = ({ lists, onClose, onNavigate }) => {
                 bgColor: 'bg-blue-50 dark:bg-blue-900/10',
                 items: noLanguageItems
             }
-        ].filter(w => w.items.length > 0); // Only return categories with actual warnings
+        ].filter(w => w.items.length > 0);
 
-    }, [lists]);
+        // Add Update Check Warning if Due
+        if (isUpdateDue) {
+            return [{
+                id: 'update_check',
+                title: 'Review Lists for Updates (30+ Days)',
+                icon: Clock,
+                color: 'text-red-500',
+                borderColor: 'border-red-200 dark:border-red-900/30',
+                bgColor: 'bg-red-50 dark:bg-red-900/10',
+                items: [{ id: 'update_action', text: "It's been over 30 days. Please review your lists for new seasons.", listName: "System" }],
+                isSystemAction: true
+            }, ...baseWarnings];
+        }
+
+        return baseWarnings;
+
+    }, [lists, isUpdateDue]);
 
     const totalWarnings = warningData.reduce((acc, curr) => acc + curr.items.length, 0);
 
@@ -135,17 +151,30 @@ const WarningsPanel = ({ lists, onClose, onNavigate }) => {
                                                     </div>
                                                 </div>
 
-                                                {onNavigate && (
+                                                {group.isSystemAction ? (
                                                     <button
                                                         onClick={() => {
-                                                            onNavigate(item.listName, item);
+                                                            onResetUpdateCheck();
                                                             onClose();
                                                         }}
-                                                        className="p-1.5 opacity-0 group-hover/item:opacity-100 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-all"
-                                                        title="Go to item"
+                                                        className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1"
                                                     >
-                                                        <ExternalLink size={16} />
+                                                        <CheckCircle size={14} />
+                                                        Mark Reviewed
                                                     </button>
+                                                ) : (
+                                                    onNavigate && (
+                                                        <button
+                                                            onClick={() => {
+                                                                onNavigate(item.listName, item);
+                                                                onClose();
+                                                            }}
+                                                            className="p-1.5 opacity-0 group-hover/item:opacity-100 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-all"
+                                                            title="Go to item"
+                                                        >
+                                                            <ExternalLink size={16} />
+                                                        </button>
+                                                    )
                                                 )}
                                             </div>
                                         ))}
