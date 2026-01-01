@@ -26,6 +26,7 @@ import {
   Share2,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Search,
   Star,
   AlertTriangle,
@@ -85,6 +86,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     return saved || 'list';
   });
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const [lists, setLists] = useState({});
 
@@ -235,6 +237,27 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   // Auto-scroll refs
   const scrollContainerRef = useRef(null);
   const scrollIntervalRef = useRef(null);
+
+  // Scroll to Top Logic
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -3884,6 +3907,16 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           />
         ))}
       </div>
+
+      {/* Scroll to Top Button */}
+      <button
+        onClick={scrollToTop}
+        className={`fixed bottom-8 right-8 z-40 p-3 rounded-full shadow-lg transition-all duration-300 transform ${showScrollTop ? "translate-y-0 opacity-100 bg-blue-600 text-white hover:bg-blue-700 hover:scale-110" : "translate-y-10 opacity-0 pointer-events-none"
+          }`}
+        aria-label="Scroll to top"
+      >
+        <ArrowUp size={24} />
+      </button>
 
       {/* Item Details Modal */}
       <ItemDetailsModal
