@@ -66,6 +66,27 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 }
             } else {
                 // TV or Season
+
+                // PREFER PRE-CALCULATED ACCURATE TIME
+                if (item.total_watched_minutes && type === 'tv') {
+                    itemTotalMinutes = item.total_watched_minutes;
+
+                    // Add Rewatch Time
+                    if (item.times_rewatched > 0) {
+                        itemTotalMinutes += (item.times_rewatched * item.total_watched_minutes);
+                        rewatches = item.times_rewatched;
+                    }
+
+                    // Get Episode Count for display
+                    if (item.season_watched_episodes && Object.keys(item.season_watched_episodes).length > 0) {
+                        episodes = Object.values(item.season_watched_episodes).reduce((acc, epArray) => acc + (Array.isArray(epArray) ? epArray.length : 0), 0);
+                    } else if (item.episodes_watched) {
+                        episodes = item.episodes_watched;
+                    }
+
+                    return { itemTotalMinutes, episodes, rewatches };
+                }
+
                 let minutesPerEp = 50;
                 if (item.episode_run_time && item.episode_run_time.length > 0) {
                     minutesPerEp = Math.round(item.episode_run_time.reduce((a, b) => a + b, 0) / item.episode_run_time.length);

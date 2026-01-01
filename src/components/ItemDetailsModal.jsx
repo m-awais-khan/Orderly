@@ -191,7 +191,13 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         if (details.isSeason || item.media_type === 'tv_season') {
             total = details.episodes?.length || 0;
         } else if (item.media_type === 'tv') {
-            total = details.number_of_episodes || 0;
+            // Use season sum for accuracy
+            if (details.seasons) {
+                total = details.seasons
+                    .filter(s => s.season_number > 0)
+                    .reduce((acc, s) => acc + s.episode_count, 0);
+            }
+            if (total === 0) total = details.number_of_episodes || 0;
 
             // Calculate dropped episodes count
             if (details.seasons && droppedSeasonNumbers?.length > 0) {
@@ -262,6 +268,22 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
             }
         }
     }, [details]); // Run once when details load
+
+    // Sync episodes_watched with season_progress (Source of Truth for TV)
+    useEffect(() => {
+        if (item.media_type === 'tv' && details?.seasons && formData.season_progress) {
+            let total = 0;
+            details.seasons.forEach(s => {
+                if (s.season_number > 0) {
+                    total += (formData.season_progress[s.season_number] || 0);
+                }
+            });
+
+            if (total !== formData.episodes_watched) {
+                setFormData(prev => ({ ...prev, episodes_watched: total }));
+            }
+        }
+    }, [formData.season_progress, details, item.media_type, formData.episodes_watched]);
 
 
 
@@ -356,17 +378,80 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         }
     }, [isOpen, item]);
 
-    const handleSave = () => {
-        const updatedItem = {
-            ...item,
-            ...formData,
-            watched_languages: formData.watched_languages || [],
-            // Persist runtime info if available from details
-            runtime: details?.runtime || item.runtime,
-            episode_run_time: details?.episode_run_time || item.episode_run_time
-        };
-        onSave(updatedItem);
-        onClose();
+    const handleSave = async () => {
+        setIsLoading(true);
+        try {
+            const updatedItem = {
+                ...item,
+                ...formData,
+                watched_languages: formData.watched_languages || [],
+                // Persist runtime info if available from details
+                runtime: details?.runtime || item.runtime,
+                episode_run_time: details?.episode_run_time || item.episode_run_time
+            };
+
+            // Calculate precise total watch time for TV shows
+            if (item.media_type === 'tv' && formData.season_watched_episodes) {
+                let totalMin = 0;
+                const isAnimation = (item.genre_ids?.includes(16)) || (details?.genres?.some(g => g.id === 16));
+
+                // Determine fallback (Priority: Average -> Animation/Normal Default)
+                let fallback = isAnimation ? 24 : 50;
+                if (details?.episode_run_time?.length > 0) {
+                    fallback = Math.round(details.episode_run_time.reduce((a, b) => a + b, 0) / details.episode_run_time.length);
+                }
+
+                const seasonsToProcess = Object.entries(formData.season_watched_episodes);
+
+                // Pre-fetch missing cache data
+                for (const [sNum, eps] of seasonsToProcess) {
+                    if (!Array.isArray(eps) || eps.length === 0) continue;
+
+                    const key = `season_${item.tmdb_id || item.id}_${sNum}`;
+                    if (!seasonEpisodesCache[key]) {
+                        try {
+                            const tmdbId = item.tmdb_id || item.id;
+                            const res = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${sNum}`, {
+                                params: { api_key: API_KEY }
+                            });
+                            // Temporarily update our local reference (can't rely on state update being immediate for calculation)
+                            seasonEpisodesCache[key] = res.data.episodes;
+                            // Also update state for UI consistency if needed, though we are closing
+                            setSeasonEpisodesCache(prev => ({ ...prev, [key]: res.data.episodes }));
+                        } catch (err) {
+                            console.error(`Failed to fetch season ${sNum} for calculation`, err);
+                        }
+                    }
+                }
+
+                // Calculate
+                seasonsToProcess.forEach(([sNum, eps]) => {
+                    if (!Array.isArray(eps)) return;
+                    const key = `season_${item.tmdb_id || item.id}_${sNum}`;
+                    const cached = seasonEpisodesCache[key];
+
+                    eps.forEach(epNum => {
+                        let runtime = fallback;
+                        if (cached) {
+                            const epData = cached.find(e => e.episode_number == epNum);
+                            if (epData && epData.runtime) {
+                                runtime = epData.runtime;
+                            }
+                        }
+                        totalMin += runtime;
+                    });
+                });
+                updatedItem.total_watched_minutes = totalMin;
+            }
+
+            onSave(updatedItem);
+            onClose();
+        } catch (error) {
+            console.error("Save failed", error);
+            // Optionally show error to user
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const getDirector = () => {
@@ -935,7 +1020,13 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                 onChange={(e) => {
                                                     let val = parseInt(e.target.value) || 0;
                                                     if (item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) {
-                                                        const maxEpisodes = details?.number_of_episodes || details?.episodes?.length;
+                                                        let maxEpisodes = details?.number_of_episodes || details?.episodes?.length;
+                                                        if (item.media_type === 'tv' && details?.seasons) {
+                                                            const seasonSum = details.seasons
+                                                                .filter(s => s.season_number > 0)
+                                                                .reduce((acc, s) => acc + s.episode_count, 0);
+                                                            if (seasonSum > 0) maxEpisodes = seasonSum;
+                                                        }
                                                         if (maxEpisodes) {
                                                             val = Math.min(Math.max(0, val), maxEpisodes);
                                                         } else {
@@ -961,7 +1052,15 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             />
                                             {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
                                                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                    / {details?.number_of_episodes || details?.episodes?.length || "?"}
+                                                    / {(() => {
+                                                        if (item.media_type === 'tv' && details?.seasons) {
+                                                            const seasonSum = details.seasons
+                                                                .filter(s => s.season_number > 0)
+                                                                .reduce((acc, s) => acc + s.episode_count, 0);
+                                                            return seasonSum || details.number_of_episodes || "?";
+                                                        }
+                                                        return details?.number_of_episodes || details?.episodes?.length || "?";
+                                                    })()}
                                                 </span>
                                             )}
                                         </div>
