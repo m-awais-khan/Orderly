@@ -16,14 +16,14 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let totalMinutes = 0; // Initialize for cumulative calculation
 
         // Status Counts Overall
-        let statusCounts = { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 };
+        let statusCounts = { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 };
 
         // Status by Media Type (Stacked Bar Data)
         // Structure: { movie: { completed: 0, ... }, tv: { ... } }
         let statusByMediaType = {
-            movie: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 },
-            tv: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 },
-            other: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0 }
+            movie: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 },
+            tv: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 },
+            other: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 }
         };
 
         // Completed Media Counts (For Pie Chart)
@@ -207,11 +207,13 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
     };
 
     // Status colors are: Completed=Green, Watching=Blue, Plan=Gray/Purple, Dropped=Red to match bars
+    // Status colors are: Completed=Green, Watching=Blue, Plan=Gray/Purple, Dropped=Red to match bars
     const STATUS_COLORS = {
         completed: 'bg-green-500',
         watching: 'bg-blue-500',
-        plan_to_watch: 'bg-gray-400',
-        dropped: 'bg-red-500'
+        plan_to_watch: 'bg-purple-500',
+        dropped: 'bg-red-500',
+        not_interested: 'bg-slate-500'
     };
 
     // Exclude index 0 (Unrated) from max calculation so 1-10 bars scale properly
@@ -310,8 +312,9 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                         <div className="space-y-6 flex flex-col justify-center flex-1">
                             <ProgressBar label="Completed" count={stats.statusCounts.completed} total={stats.totalItems} color="bg-green-500" />
                             <ProgressBar label="Watching" count={stats.statusCounts.watching} total={stats.totalItems} color="bg-blue-500" />
-                            <ProgressBar label="Plan to Watch" count={stats.statusCounts.plan_to_watch} total={stats.totalItems} color="bg-gray-400" />
+                            <ProgressBar label="Plan to Watch" count={stats.statusCounts.plan_to_watch} total={stats.totalItems} color="bg-purple-500" />
                             <ProgressBar label="Dropped" count={stats.statusCounts.dropped} total={stats.totalItems} color="bg-red-500" />
+                            <ProgressBar label="Not Interested" count={stats.statusCounts.not_interested} total={stats.totalItems} color="bg-slate-500" />
                         </div>
                     </div>
                 </div>
@@ -326,7 +329,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                         {['movie', 'tv'].map(type => {
                             const typeLabel = type === 'movie' ? 'Movie' : 'TV Show';
                             const data = stats.statusByMediaType[type];
-                            const totalForType = data.completed + data.watching + data.dropped + data.plan_to_watch;
+                            const totalForType = data.completed + data.watching + data.dropped + data.plan_to_watch + data.not_interested;
 
                             return (
                                 <div key={type} className="flex flex-col gap-2">
@@ -338,8 +341,9 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                         segments={[
                                             { value: data.completed, color: 'bg-green-500', tooltip: `Completed: ${data.completed}` },
                                             { value: data.watching, color: 'bg-blue-500', tooltip: `Watching: ${data.watching}` },
-                                            { value: data.plan_to_watch, color: 'bg-gray-400', tooltip: `Plan: ${data.plan_to_watch}` },
+                                            { value: data.plan_to_watch, color: 'bg-purple-500', tooltip: `Plan: ${data.plan_to_watch}` },
                                             { value: data.dropped, color: 'bg-red-500', tooltip: `Dropped: ${data.dropped}` },
+                                            { value: data.not_interested, color: 'bg-slate-500', tooltip: `Not Interested: ${data.not_interested}` },
                                         ]}
                                         total={totalForType}
                                         height="h-48"
@@ -353,8 +357,9 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                             <div className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Legend</div>
                             <LegendItem color="bg-green-500" label="Completed" />
                             <LegendItem color="bg-blue-500" label="Watching" />
-                            <LegendItem color="bg-gray-400" label="Plan to Watch" />
+                            <LegendItem color="bg-purple-500" label="Plan to Watch" />
                             <LegendItem color="bg-red-500" label="Dropped" />
+                            <LegendItem color="bg-slate-500" label="Not Interested" />
                         </div>
                     </div>
                 </div>
