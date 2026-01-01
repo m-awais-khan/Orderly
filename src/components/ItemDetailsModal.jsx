@@ -63,7 +63,16 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         watched_episodes: item.watched_episodes || [],  // [1, 2, ...] for Season items
         season_progress: item.season_progress || {},     // { "1": 5, "2": 10 }
         season_watched_episodes: item.season_watched_episodes || {}, // { "1": [1, 2], "2": [5] } - Granular for TV Shows
-        dropped_seasons: item.dropped_seasons || []      // [1, 3]
+        dropped_seasons: item.dropped_seasons || [],      // [1, 3]
+        is_manual_mode: item.is_manual_mode || false,
+        seasons: item.seasons || [] // Custom seasons array for manual mode
+    });
+
+    const [addSeasonModal, setAddSeasonModal] = useState({
+        isOpen: false,
+        poster: "",
+        episodeCount: "",
+        runtime: ""
     });
 
     const [viewingSeasonEpisodes, setViewingSeasonEpisodes] = useState(null); // Season number (or null)
@@ -192,16 +201,22 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
             total = details.episodes?.length || 0;
         } else if (item.media_type === 'tv') {
             // Use season sum for accuracy
-            if (details.seasons) {
-                total = details.seasons
+            // Priority: Manual Seasons -> Details Seasons
+            const seasonsToUse = (formData.is_manual_mode && formData.seasons && formData.seasons.length > 0)
+                ? formData.seasons
+                : (details?.seasons || []);
+
+            if (seasonsToUse.length > 0) {
+                total = seasonsToUse
                     .filter(s => s.season_number > 0)
                     .reduce((acc, s) => acc + s.episode_count, 0);
             }
-            if (total === 0) total = details.number_of_episodes || 0;
+
+            if (total === 0 && !formData.is_manual_mode) total = details.number_of_episodes || 0;
 
             // Calculate dropped episodes count
-            if (details.seasons && droppedSeasonNumbers?.length > 0) {
-                droppedCount = details.seasons
+            if (seasonsToUse.length > 0 && droppedSeasonNumbers?.length > 0) {
+                droppedCount = seasonsToUse
                     .filter(s => droppedSeasonNumbers.includes(s.season_number))
                     .reduce((acc, s) => acc + s.episode_count, 0);
             }
@@ -224,7 +239,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 }
             }
         }
-    }, [formData.episodes_watched, details, item.media_type, formData.status, droppedSeasonNumbers, formData.custom_completed]);
+    }, [formData.episodes_watched, details, item.media_type, formData.status, droppedSeasonNumbers, formData.custom_completed, formData.seasons]);
 
     // Migration: Populate watched_seasons/episodes from legacy data
     useEffect(() => {
@@ -372,13 +387,29 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 watched_episodes: item.watched_episodes || [],
                 season_progress: item.season_progress || {},
                 season_watched_episodes: item.season_watched_episodes || {},
-                dropped_seasons: item.dropped_seasons || []
+                dropped_seasons: item.dropped_seasons || [],
+                is_manual_mode: item.is_manual_mode || false,
+                seasons: item.seasons || []
             });
             setActiveTab("info"); // Reset to info tab
         }
     }, [isOpen, item]);
 
     const handleSave = async () => {
+        // Validation: Manual Mode requires at least one season
+        if (formData.is_manual_mode && (!formData.seasons || formData.seasons.length === 0)) {
+            setConfirmModal({
+                isOpen: true,
+                title: "Cannot Save",
+                message: "Manual Mode enabled: You must add at least one season before saving.",
+                confirmText: "OK",
+                cancelText: null, // Hide cancel button
+                isDangerous: false,
+                onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+            });
+            return;
+        }
+
         setIsLoading(true);
         try {
             const updatedItem = {
@@ -409,17 +440,30 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
                     const key = `season_${item.tmdb_id || item.id}_${sNum}`;
                     if (!seasonEpisodesCache[key]) {
-                        try {
-                            const tmdbId = item.tmdb_id || item.id;
-                            const res = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${sNum}`, {
-                                params: { api_key: API_KEY }
-                            });
-                            // Temporarily update our local reference (can't rely on state update being immediate for calculation)
-                            seasonEpisodesCache[key] = res.data.episodes;
-                            // Also update state for UI consistency if needed, though we are closing
-                            setSeasonEpisodesCache(prev => ({ ...prev, [key]: res.data.episodes }));
-                        } catch (err) {
-                            console.error(`Failed to fetch season ${sNum} for calculation`, err);
+                        // Check manual seasons first
+                        let foundManual = false;
+                        if (formData.seasons) {
+                            const manualSeason = formData.seasons.find(s => s.season_number == sNum); // Loose equality just in case
+                            if (manualSeason && manualSeason.episodes && manualSeason.episodes.length > 0) {
+                                seasonEpisodesCache[key] = manualSeason.episodes;
+                                setSeasonEpisodesCache(prev => ({ ...prev, [key]: manualSeason.episodes }));
+                                foundManual = true;
+                            }
+                        }
+
+                        if (!foundManual) {
+                            try {
+                                const tmdbId = item.tmdb_id || item.id;
+                                const res = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${sNum}`, {
+                                    params: { api_key: API_KEY }
+                                });
+                                // Temporarily update our local reference (can't rely on state update being immediate for calculation)
+                                seasonEpisodesCache[key] = res.data.episodes;
+                                // Also update state for UI consistency if needed, though we are closing
+                                setSeasonEpisodesCache(prev => ({ ...prev, [key]: res.data.episodes }));
+                            } catch (err) {
+                                console.error(`Failed to fetch season ${sNum} for calculation`, err);
+                            }
                         }
                     }
                 }
@@ -470,7 +514,13 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         let hasDropped = false;
         let grandTotal = 0;
 
-        details.seasons.forEach(s => {
+
+
+        const seasonsToUse = (formData.is_manual_mode && formData.seasons && formData.seasons.length > 0)
+            ? formData.seasons
+            : (details?.seasons || []);
+
+        seasonsToUse.forEach(s => {
             // SKIP SPECIALS from main count and status logic
             if (s.season_number === 0) return;
 
@@ -540,6 +590,15 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
         const cacheKey = `season_${item.tmdb_id || item.id}_${seasonNumber}`;
         if (seasonEpisodesCache[cacheKey]) {
             return;
+        }
+
+        // Check if we have manual episodes for this season
+        if (formData.seasons) {
+            const manualSeason = formData.seasons.find(s => s.season_number === seasonNumber);
+            if (manualSeason && manualSeason.episodes && manualSeason.episodes.length > 0) {
+                setSeasonEpisodesCache(prev => ({ ...prev, [cacheKey]: manualSeason.episodes }));
+                return;
+            }
         }
 
         try {
@@ -842,7 +901,55 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
 
                                 {/* My List Settings Form */}
-                                {/* My List Settings Form */}
+                                {item.media_type === 'tv' && (
+                                    <>
+                                        <div className={`${formData.is_manual_mode ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700" : "bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30"} p-4 rounded-xl border flex justify-between items-center mb-4`}>
+                                            <div>
+                                                <h4 className={`text-sm font-bold ${formData.is_manual_mode ? "text-gray-700 dark:text-gray-300" : "text-red-800 dark:text-red-200"}`}>Manual Season Management</h4>
+                                                <p className={`text-xs mt-1 ${formData.is_manual_mode ? "text-gray-500 dark:text-gray-400" : "text-red-600 dark:text-red-400"}`}>
+                                                    Enable to manually add or remove seasons.
+                                                    <br />
+                                                    <span className="font-bold">Warning:</span> Enabling this will DELETE the existing season list. Cannot be disabled once turned on.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={formData.is_manual_mode}
+                                                        disabled={formData.is_manual_mode || readOnly}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setConfirmModal({
+                                                                    isOpen: true,
+                                                                    title: "Enable Manual Mode?",
+                                                                    message: "This will remove all current seasons and let you add them manually. This action cannot be undone.",
+                                                                    isDangerous: true,
+                                                                    onConfirm: () => {
+                                                                        setFormData(prev => ({
+                                                                            ...prev,
+                                                                            is_manual_mode: true,
+                                                                            seasons: [], // Clear seasons list as requested
+                                                                            // Also clear granular progress since seasons are gone
+                                                                            season_watched_episodes: {},
+                                                                            season_progress: {},
+                                                                            episodes_watched: 0,
+                                                                            status: 'plan_to_watch' // Reset status to Plan to Watch
+                                                                        }));
+                                                                        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                                                    }
+                                                                });
+                                                            }
+                                                        }}
+                                                    />
+                                                    <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${formData.is_manual_mode ? 'peer-checked:bg-gray-600' : 'peer-checked:bg-red-600'}`}></div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+
                                 {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
                                     <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3">
                                         <Info className="text-blue-500 shrink-0 mt-0.5" size={16} />
@@ -1021,8 +1128,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                     let val = parseInt(e.target.value) || 0;
                                                     if (item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) {
                                                         let maxEpisodes = details?.number_of_episodes || details?.episodes?.length;
-                                                        if (item.media_type === 'tv' && details?.seasons) {
-                                                            const seasonSum = details.seasons
+                                                        if (item.media_type === 'tv' && (details?.seasons || (formData.is_manual_mode && formData.seasons))) {
+                                                            const seasons = (formData.is_manual_mode && formData.seasons && formData.seasons.length > 0) ? formData.seasons : details.seasons;
+                                                            const seasonSum = seasons
                                                                 .filter(s => s.season_number > 0)
                                                                 .reduce((acc, s) => acc + s.episode_count, 0);
                                                             if (seasonSum > 0) maxEpisodes = seasonSum;
@@ -1053,6 +1161,12 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                             {(item.media_type === 'tv' || item.media_type === 'tv_season' || details?.isSeason) && (
                                                 <span className="text-sm text-gray-500 dark:text-gray-400">
                                                     / {(() => {
+                                                        // Always use manual seasons count if in manual mode
+                                                        if (item.media_type === 'tv' && formData.is_manual_mode) {
+                                                            const seasons = formData.seasons || [];
+                                                            const seasonSum = seasons.reduce((acc, s) => acc + s.episode_count, 0);
+                                                            return seasonSum || "?";
+                                                        }
                                                         if (item.media_type === 'tv' && details?.seasons) {
                                                             const seasonSum = details.seasons
                                                                 .filter(s => s.season_number > 0)
@@ -1084,9 +1198,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
 
                                         {/* Season Breakdown Visualizer (Interactive) */}
-                                        {item.media_type === 'tv' && !details?.isSeason && details?.seasons && (
+                                        {item.media_type === 'tv' && !details?.isSeason && ((details?.seasons) || (formData.is_manual_mode)) && (
                                             <div className="mt-4 space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
-                                                {details.seasons
+                                                {(formData.is_manual_mode ? (formData.seasons || []) : details.seasons)
                                                     .map((season) => {
                                                         const current = formData.season_progress?.[season.season_number] || 0;
                                                         const isDropped = formData.dropped_seasons?.includes(season.season_number);
@@ -1096,7 +1210,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
                                                         return (
                                                             <div
-                                                                key={season.id}
+                                                                key={season.id || season.season_number}
                                                                 onClick={() => {
                                                                     if (readOnly || isDropped || isUnreleased) return;
                                                                     const newCount = isFull ? 0 : season.episode_count;
@@ -1123,12 +1237,12 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                 <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-gray-200 relative group/poster">
                                                                     {season.poster_path ? (
                                                                         <>
-                                                                            <img src={`https://image.tmdb.org/t/p/w92${season.poster_path}`} alt={season.name} className={`w-full h-full object-cover ${isDropped ? "grayscale" : ""}`} />
+                                                                            <img src={season.poster_path.startsWith('http') ? season.poster_path : `https://image.tmdb.org/t/p/w92${season.poster_path}`} alt={season.name} className={`w-full h-full object-cover ${isDropped ? "grayscale" : ""}`} />
                                                                             <div
                                                                                 className="absolute inset-0 bg-black/40 opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    setZoomedImage(`https://image.tmdb.org/t/p/original${season.poster_path}`);
+                                                                                    setZoomedImage(season.poster_path.startsWith('http') ? season.poster_path : `https://image.tmdb.org/t/p/original${season.poster_path}`);
                                                                                 }}
                                                                             >
                                                                                 <Maximize2 className="text-white" size={16} />
@@ -1145,33 +1259,117 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                         <span className={`font-semibold text-sm truncate ${isDropped ? "text-red-700 dark:text-red-400" : "text-gray-800 dark:text-gray-200"}`}>
                                                                             {season.name}
                                                                         </span>
-                                                                        {/* Drop Button */}
-                                                                        {!readOnly && (
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    if (isFull) return;
-                                                                                    const newDropped = [...(formData.dropped_seasons || [])];
-                                                                                    if (isDropped) {
-                                                                                        const idx = newDropped.indexOf(season.season_number);
-                                                                                        if (idx > -1) newDropped.splice(idx, 1);
-                                                                                    } else {
-                                                                                        newDropped.push(season.season_number);
-                                                                                    }
-                                                                                    setFormData(calculateUpdate(formData.season_progress, newDropped));
-                                                                                }}
-                                                                                disabled={isUnreleased || isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'}
-                                                                                className={`p-1.5 rounded-full transition-colors ${isUnreleased || isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'
-                                                                                    ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
-                                                                                    : isDropped
-                                                                                        ? "bg-red-500 text-white hover:bg-red-600"
-                                                                                        : "text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                                                    }`}
-                                                                                title={isFull ? "Season Completed" : ((formData.status === 'plan_to_watch' || formData.status === 'not_interested') ? "Start watching to drop" : (isDropped ? "Restore Season" : "Drop Season"))}
-                                                                            >
-                                                                                {isDropped ? <ArrowUp size={14} /> : <X size={14} />}
-                                                                            </button>
-                                                                        )}
+                                                                        <div className="flex items-center gap-2">
+                                                                            {/* Delete Button (Manual Mode Only) */}
+                                                                            {formData.is_manual_mode && !readOnly && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        // Confirm?
+                                                                                        setConfirmModal({
+                                                                                            isOpen: true,
+                                                                                            title: "Delete Season?",
+                                                                                            message: `Are you sure you want to delete ${season.name}? This action cannot be undone.`,
+                                                                                            isDangerous: true,
+                                                                                            onConfirm: () => {
+                                                                                                setFormData(prev => {
+                                                                                                    const newSeasons = prev.seasons.filter(s => s.season_number !== season.season_number);
+
+                                                                                                    // Cleanup progress
+                                                                                                    const newProgress = { ...prev.season_progress };
+                                                                                                    delete newProgress[season.season_number];
+
+                                                                                                    const newGranular = { ...prev.season_watched_episodes };
+                                                                                                    delete newGranular[season.season_number];
+
+                                                                                                    const newDropped = (prev.dropped_seasons || []).filter(n => n !== season.season_number);
+
+                                                                                                    // Recalculate total
+                                                                                                    const newTotal = Object.values(newProgress).reduce((a, b) => a + b, 0);
+
+                                                                                                    // Recalculate Status
+                                                                                                    let newStatus = prev.status;
+                                                                                                    let allFinishedOrDropped = true;
+                                                                                                    let hasDropped = false;
+
+                                                                                                    if (newSeasons.length === 0) {
+                                                                                                        newStatus = 'plan_to_watch';
+                                                                                                    } else {
+                                                                                                        newSeasons.forEach(s => {
+                                                                                                            if (s.season_number === 0) return;
+                                                                                                            const eps = newProgress[s.season_number] || 0;
+                                                                                                            const isDroppedSeason = newDropped.includes(s.season_number);
+                                                                                                            const isFinished = eps >= s.episode_count;
+
+                                                                                                            if (isDroppedSeason) hasDropped = true;
+                                                                                                            if (!isFinished && !isDroppedSeason) {
+                                                                                                                allFinishedOrDropped = false;
+                                                                                                            }
+                                                                                                        });
+
+                                                                                                        if (allFinishedOrDropped) {
+                                                                                                            newStatus = hasDropped ? 'dropped' : 'completed';
+                                                                                                        } else {
+                                                                                                            // Revert "final" statuses if no longer applicable
+                                                                                                            if (['completed', 'dropped'].includes(prev.status)) {
+                                                                                                                newStatus = newTotal > 0 ? 'watching' : 'plan_to_watch';
+                                                                                                            }
+                                                                                                            // Handle zero progress
+                                                                                                            if (prev.status === 'watching' && newTotal === 0) {
+                                                                                                                newStatus = 'plan_to_watch';
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }
+
+                                                                                                    return {
+                                                                                                        ...prev,
+                                                                                                        seasons: newSeasons,
+                                                                                                        season_progress: newProgress,
+                                                                                                        season_watched_episodes: newGranular,
+                                                                                                        dropped_seasons: newDropped,
+                                                                                                        episodes_watched: newTotal,
+                                                                                                        status: newStatus
+                                                                                                    };
+                                                                                                });
+                                                                                                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                                                                            }
+                                                                                        });
+                                                                                    }}
+                                                                                    className="p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                                    title="Delete Season"
+                                                                                >
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            )}
+
+                                                                            {/* Drop Button */}
+                                                                            {!readOnly && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        if (isFull) return;
+                                                                                        const newDropped = [...(formData.dropped_seasons || [])];
+                                                                                        if (isDropped) {
+                                                                                            const idx = newDropped.indexOf(season.season_number);
+                                                                                            if (idx > -1) newDropped.splice(idx, 1);
+                                                                                        } else {
+                                                                                            newDropped.push(season.season_number);
+                                                                                        }
+                                                                                        setFormData(calculateUpdate(formData.season_progress, newDropped));
+                                                                                    }}
+                                                                                    disabled={isUnreleased || isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'}
+                                                                                    className={`p-1.5 rounded-full transition-colors ${isUnreleased || isFull || formData.status === 'plan_to_watch' || formData.status === 'not_interested'
+                                                                                        ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                                                                                        : isDropped
+                                                                                            ? "bg-red-500 text-white hover:bg-red-600"
+                                                                                            : "text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                                        }`}
+                                                                                    title={isFull ? "Season Completed" : ((formData.status === 'plan_to_watch' || formData.status === 'not_interested') ? "Start watching to drop" : (isDropped ? "Restore Season" : "Drop Season"))}
+                                                                                >
+                                                                                    {isDropped ? <ArrowUp size={14} /> : <X size={14} />}
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
 
                                                                     {/* Progress Control - Hidden if unreleased */}
@@ -1259,6 +1457,16 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                             </div>
                                                         );
                                                     })}
+                                                {/* Add Manual Season Button */}
+                                                {formData.is_manual_mode && (
+                                                    <button
+                                                        onClick={() => setAddSeasonModal({ isOpen: true, poster: "", episodeCount: "", runtime: "" })}
+                                                        className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 mt-2"
+                                                    >
+                                                        <Plus size={16} />
+                                                        <span className="text-sm font-medium">Add Manual Season</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -1878,6 +2086,153 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                     </div>
                 </div>
             )}
+
+            {/* Add Season Modal */}
+            {addSeasonModal.isOpen && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddSeasonModal({ ...addSeasonModal, isOpen: false })} />
+                    <div className="relative z-10 bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Manual Season</h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Poster URL (Optional)</label>
+                                <input
+                                    type="text"
+                                    placeholder="https://..."
+                                    value={addSeasonModal.poster}
+                                    onChange={e => setAddSeasonModal({ ...addSeasonModal, poster: e.target.value })}
+                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Episodes</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={addSeasonModal.episodeCount}
+                                        onChange={e => setAddSeasonModal({ ...addSeasonModal, episodeCount: e.target.value })}
+                                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Runtime/Ep (min)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={addSeasonModal.runtime}
+                                        onChange={e => setAddSeasonModal({ ...addSeasonModal, runtime: e.target.value })}
+                                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setAddSeasonModal({ ...addSeasonModal, isOpen: false })}
+                                className="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const count = parseInt(addSeasonModal.episodeCount);
+                                    const runtime = parseInt(addSeasonModal.runtime);
+
+                                    if (!count || count < 1) {
+                                        setConfirmModal({
+                                            isOpen: true,
+                                            title: "Invalid Input",
+                                            message: "Please enter a valid episode count (must be greater than 0).",
+                                            confirmText: "OK",
+                                            cancelText: null,
+                                            isDangerous: false,
+                                            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+                                        });
+                                        return;
+                                    }
+                                    if (!runtime || runtime < 1) {
+                                        setConfirmModal({
+                                            isOpen: true,
+                                            title: "Invalid Input",
+                                            message: "Please enter a valid runtime in minutes (must be greater than 0).",
+                                            confirmText: "OK",
+                                            cancelText: null,
+                                            isDangerous: false,
+                                            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+                                        });
+                                        return;
+                                    }
+
+                                    // Calculate next season number
+                                    const currentSeasons = formData.seasons || details?.seasons || [];
+                                    // Make sure we compare numbers properly
+                                    const maxSeason = currentSeasons.reduce((max, s) => Math.max(max, s.season_number), 0);
+                                    const nextNum = maxSeason + 1;
+
+                                    const newSeason = {
+                                        id: Date.now(), // Temporary ID
+                                        season_number: nextNum,
+                                        name: `Season ${nextNum}`,
+                                        episode_count: count,
+                                        poster_path: addSeasonModal.poster || null,
+                                        overview: "Manually added season",
+                                        air_date: new Date().toISOString().split('T')[0],
+                                        episodes: Array.from({ length: count }, (_, i) => ({
+                                            id: Date.now() + i,
+                                            episode_number: i + 1,
+                                            name: `Episode ${i + 1}`,
+                                            overview: "No details available",
+                                            air_date: "",
+                                            runtime: runtime,
+                                            vote_average: 0
+                                        }))
+                                    };
+
+                                    // Pre-populate cache so we don't try to fetch it
+                                    const key = `season_${item.tmdb_id || item.id}_${nextNum}`;
+                                    setSeasonEpisodesCache(prev => ({ ...prev, [key]: newSeason.episodes }));
+
+                                    // Ensure seasons array exists in formData
+                                    const existingSeasons = (formData.seasons && formData.seasons.length > 0)
+                                        ? formData.seasons
+                                        : (formData.is_manual_mode ? [] : (JSON.parse(JSON.stringify(details?.seasons || []))));
+
+                                    // If adding a season, and status is completed, revert to watching
+                                    let newStatus = formData.status;
+                                    if (formData.status === 'completed') {
+                                        newStatus = 'watching';
+                                    }
+
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        seasons: [...existingSeasons, newSeason],
+                                        status: newStatus
+                                    }));
+                                    setAddSeasonModal({ isOpen: false, poster: "", episodeCount: "", runtime: "" });
+                                }}
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                Add Season
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                isDangerous={confirmModal.isDangerous}
+                confirmText={confirmModal.confirmText}
+                cancelText={confirmModal.cancelText}
+            />
         </div >
     );
 };

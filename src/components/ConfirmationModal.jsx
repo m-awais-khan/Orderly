@@ -28,17 +28,19 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel, confir
                 </p>
 
                 <div className="flex justify-end gap-3">
-                    <button
-                        onClick={onCancel}
-                        className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                    >
-                        {cancelText}
-                    </button>
+                    {cancelText && (
+                        <button
+                            onClick={onCancel}
+                            className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                            {cancelText}
+                        </button>
+                    )}
                     <button
                         onClick={onConfirm}
                         className={`px-4 py-2 font-medium text-white rounded-lg shadow-sm transition-all ${isDangerous
-                                ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
-                                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                            ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+                            : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
                             }`}
                     >
                         {confirmText}
