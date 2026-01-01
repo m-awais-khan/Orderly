@@ -2773,7 +2773,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     >
                       <AlertTriangle size={20} />
                       {(warningCount > 0 || isUpdateDue) && (
-                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                        <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
                           {(warningCount + (isUpdateDue ? 1 : 0)) > 9 ? '9+' : (warningCount + (isUpdateDue ? 1 : 0))}
                         </span>
                       )}
