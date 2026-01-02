@@ -4076,7 +4076,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 return;
               }
               handleNavigate(listName);
-              // setHighlightedItemId(item.id); // Handled inside manage if needed
+              setSelectedItemForModal(item);
             }}
             isUpdateDue={isUpdateDue}
             onResetUpdateCheck={() => {
