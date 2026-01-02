@@ -833,7 +833,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     const contents = folders[folderName] || [];
 
     return (
-      <div className="group/folder mb-2">
+      <div id={`folder-${folderName}`} className="group/folder mb-2">
         <div
           className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent
           ${editingListName === `folder:${folderName}` ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`}
@@ -3350,6 +3350,64 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                                       type="button"
                                     >
                                       <Share2 size={20} />
+                                    </button>
+                                  )}
+
+                                  {/* Show in Folder Button */}
+                                  {Object.keys(folders).find(f => folders[f].includes(`folder:${selectedList}`) || folders[f].includes(selectedList)) && (
+                                    <button
+                                      onClick={() => {
+                                        // 1. Find the immediate parent folder definition
+                                        // We look for containing EITHER the raw list name OR "folder:<listname>"
+                                        let immediateParent = Object.keys(folders).find(f =>
+                                          folders[f].includes(selectedList) || folders[f].includes(`folder:${selectedList}`)
+                                        );
+
+                                        if (!immediateParent) return;
+
+                                        // 2. Recursive ancestor finding (to expand everything up to the root)
+                                        const ancestorsToExpand = [];
+                                        let currentChild = immediateParent;
+
+                                        // Max depth safety (though circular refs shouldn't exist)
+                                        let safetyCounter = 0;
+                                        while (currentChild && safetyCounter < 20) {
+                                          ancestorsToExpand.push(currentChild);
+
+                                          // Find the parent of 'currentChild'
+                                          const parentOfChild = Object.keys(folders).find(f =>
+                                            folders[f].includes(`folder:${currentChild}`)
+                                          );
+
+                                          currentChild = parentOfChild; // Move up one level
+                                          safetyCounter++;
+                                        }
+
+                                        // 3. Expand all ancestors
+                                        setExpandedFolders(prev => {
+                                          const nextState = { ...prev };
+                                          ancestorsToExpand.forEach(folder => {
+                                            nextState[folder] = true;
+                                          });
+                                          return nextState;
+                                        });
+
+                                        // 4. Scroll to the immediate parent folder
+                                        setTimeout(() => {
+                                          const folderEl = document.getElementById(`folder-${immediateParent}`);
+                                          if (folderEl) {
+                                            folderEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            // Optional highlight visual could go here
+                                            // showToast(`Shown in folder "${immediateParent}"`, "success");
+                                          } else {
+                                            showToast(`Opened "${immediateParent}" (Folder hidden)`, "success");
+                                          }
+                                        }, 100); // Small delay for React state update & render
+                                      }}
+                                      className="ml-2 p-2 rounded-lg text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-all duration-200"
+                                      title="Show in Folder"
+                                    >
+                                      <Folder size={20} />
                                     </button>
                                   )}
                                 </>

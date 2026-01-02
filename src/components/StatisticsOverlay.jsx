@@ -489,32 +489,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     )}
                 </div>
 
-                {/* Insights / Fun Stats */}
-                <div className="bg-purple-600 text-white rounded-3xl p-8 shadow-xl overflow-hidden relative">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                    <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                        <div>
-                            <h3 className="text-2xl font-bold mb-2">Completionist?</h3>
-                            <p className="text-purple-100 max-w-md">
-                                You've completed <strong>{((stats.statusCounts.completed / stats.totalItems) * 100).toFixed(0)}%</strong> of your list.
-                                {stats.statusCounts.plan_to_watch > stats.statusCounts.completed
-                                    ? " Looks like you have a growing backlog!"
-                                    : " You're on top of your game!"}
-                            </p>
-                        </div>
-                        <div className="flex gap-4">
-                            <div className="text-center p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
-                                <div className="text-3xl font-bold">{stats.totalItems - stats.statusCounts.completed}</div>
-                                <div className="text-xs uppercase tracking-wider text-purple-200 mt-1">Remaining</div>
-                            </div>
-                            <div className="text-center p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
-                                <div className="text-3xl font-bold">{stats.scoreCounts[10]}</div>
-                                <div className="text-xs uppercase tracking-wider text-purple-200 mt-1">Masterpieces</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
     );
