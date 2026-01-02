@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import WatchListManager from "./WatchListManager";
 import AuthPage from "./AuthPage";
+import LandingPage from "./LandingPage";
 import MobileBlocker from "./MobileBlocker";
 
 const AppContent = () => {
@@ -90,59 +91,101 @@ const AppContent = () => {
     // 2. Mobile Restricted (Phones in desktop mode)
     // OR Mobile Shared View (Always strict view)
     if (isMobile === 'mobile_restricted' || (isMobile === 'mobile_blocked' && isSharedRoute)) {
-
+      // ... (existing mobile logic can stay or be adapted, but for now focusing on main routes)
       // If NOT shared route and NO token -> Show AuthPage (in desktop wrapper)
-      if (!isSharedRoute && !token) {
-        return (
-          <div style={{ minWidth: '1024px', minHeight: '100vh', overflowX: 'auto', backgroundColor: '#fff' }}>
-            {/* Ensure bg is white or dark depending on theme, but AuthPage handles its own mostly. 
-                    Added minHeight to ensure full screen cover. */}
-            <AuthPage onLogin={handleLogin} />
-          </div>
-        );
-      }
+      // Logic below handles this via Routes now, but for specific "restricted" view we might need care.
+      // For simplicity, let's keep the restricted view logic but point it to the new components.
 
-      return (
-        <div style={{ minWidth: '1024px', overflowX: 'auto' }}>
-          <WatchListManager
-            token={token} // Pass token if authenticated
-            user={user} // Pass user info
-            onLogout={handleLogout} // Pass logout if authenticated
-            isRestrictedMobile={!isSharedRoute} // Only restrict if NOT a shared route (shared routes have their own read-only logic)
-          />
-        </div>
-      );
+      if (!isSharedRoute && !token) {
+        // For restricted mobile, we might still want to show AuthPage directly or maybe LandingPage?
+        // Let's forward to standard routing but wrapped if needed, or keep this "forced" view.
+        // Given the complexity, let's keep the existing "forced wrapper" for Auth if not logged in.
+        // BUT, the user wants Landing Page first now.
+        // So, if not logged in, maybe show Landing Page instead of AuthPage here?
+        // Let's default to standard routing which will handle the flow.
+        // The "Existing Logic" returned specific JSX. We should try to use Routes if possible.
+        // However, to minimize breakage of this specific "Mobile Restricted" feature, let's leave straightforward logic.
+      }
     }
 
-    // 3. Desktop / Tablet Standard View
+    // 3. Desktop / Tablet Standard View (and refactored Mobile Restricted)
     return (
       <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<LandingPage isLoggedIn={!!token} />} />
+
+        {/* Shared Routes */}
         <Route
           path="/share/:shareId"
           element={<WatchListManager />}
         />
+
+        {/* Auth Route */}
         <Route
-          path="/"
+          path="/login"
           element={
             !!token ? (
-              <WatchListManager token={token} user={user} onLogout={handleLogout} />
+              <Navigate to="/dashboard" replace />
             ) : (
               <AuthPage onLogin={handleLogin} />
             )
           }
         />
+
+        {/* Protected Dashboard Route */}
+        <Route
+          path="/dashboard"
+          element={
+            !!token ? (
+              <WatchListManager token={token} user={user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        {/* Catch-all redirect */}
+        <Route extract path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   };
 
   // Simplified Render
   const content = getRenderContent();
-  if (content.type === MobileBlocker) return content;
-  // If it's the specific wrapper for restricted/shared:
-  if (content.props.style?.minWidth) return content;
 
-  // Default routing
-  return content;
+  // Handle Mobile Blocked directly
+  if (isMobile === 'mobile_blocked' && !isSharedRoute) {
+    return <MobileBlocker />;
+  }
+
+  // Handle Mobile Restricted "Wrapper" logic RE-IMPLEMENTATION for the new Routing
+  // The original code returned a specific <div> wrapper.
+  // We can wrap the Routes in that div if isMobile is restricted.
+  if (isMobile === 'mobile_restricted' || (isMobile === 'mobile_blocked' && isSharedRoute)) {
+    return (
+      <div style={{ minWidth: '1024px', minHeight: '100vh', overflowX: 'auto', backgroundColor: '#000' }}>
+        <Routes>
+          <Route path="/" element={<LandingPage isLoggedIn={!!token} />} />
+          <Route path="/share/:shareId" element={<WatchListManager />} />
+          <Route path="/login" element={!!token ? <Navigate to="/dashboard" /> : <AuthPage onLogin={handleLogin} />} />
+          <Route path="/dashboard" element={!!token ? <WatchListManager token={token} user={user} onLogout={handleLogout} isRestrictedMobile={true} /> : <Navigate to="/login" />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </div>
+    );
+  }
+
+  // Desktop View
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage isLoggedIn={!!token} />} />
+      <Route path="/share/:shareId" element={<WatchListManager />} />
+      <Route path="/login" element={!!token ? <Navigate to="/dashboard" /> : <AuthPage onLogin={handleLogin} />} />
+      <Route path="/dashboard" element={!!token ? <WatchListManager token={token} user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} />
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
 };
 
 function App() {
