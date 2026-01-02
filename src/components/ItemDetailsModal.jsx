@@ -156,12 +156,13 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                     id: Date.now(),
                     type: 'item',
                     itemId: newSegment.itemId,
-                    name: newSegment.itemName,
-                    listName: newSegment.itemList
+                    name: newSegment.name || newSegment.itemName, // Use customized name (e.g. "Title (Season 1)")
+                    listName: newSegment.itemList,
+                    seasonNumber: newSegment.seasonNumber // Store season number if selected
                 }]
             }));
             setSegmentSearchQuery("");
-            setNewSegment(prev => ({ ...prev, itemId: '', itemName: '', itemList: '' }));
+            setNewSegment(prev => ({ ...prev, itemId: '', itemName: '', itemList: '', seasonNumber: undefined, availableSeasons: [], isLoadingSeasons: false }));
         } else if (newSegment.type === 'list') {
             if (!newSegment.targetListName) return;
             setFormData(prev => ({
@@ -418,7 +419,9 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 watched_languages: formData.watched_languages || [],
                 // Persist runtime info if available from details
                 runtime: details?.runtime || item.runtime,
-                episode_run_time: details?.episode_run_time || item.episode_run_time
+                episode_run_time: details?.episode_run_time || item.episode_run_time,
+                // Persist seasons (Source of Truth for TV Shows)
+                seasons: details?.seasons || item.seasons || []
             };
 
             // Calculate precise total watch time for TV shows
@@ -1565,6 +1568,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                 <>
                                                                     <Link size={14} className="text-purple-500" />
                                                                     <span>{segment.name}</span>
+                                                                    {segment.seasonNumber && <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-800">S{segment.seasonNumber}</span>}
                                                                     <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded ml-1">{segment.listName}</span>
                                                                 </>
                                                             )}
@@ -1698,40 +1702,182 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                         {newSegment.type === 'item' && (
                                                             <div className="flex-1 relative">
                                                                 <label className="block text-[10px] uppercase text-gray-400 mb-1">Search Item</label>
-                                                                <div className="relative">
-                                                                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                                                                    <input
-                                                                        type="text" placeholder="Search..."
-                                                                        value={segmentSearchQuery}
-                                                                        onChange={e => {
-                                                                            setSegmentSearchQuery(e.target.value);
-                                                                            searchItemsForSegment(e.target.value);
-                                                                        }}
-                                                                        className="w-full pl-8 pr-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md"
-                                                                    />
-                                                                </div>
-                                                                {segmentSearchQuery && segmentSearchResults.length > 0 && (
-                                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-100 dark:border-gray-700 z-50 max-h-40 overflow-y-auto">
-                                                                        {segmentSearchResults.map(res => (
-                                                                            <div
-                                                                                key={res.id}
+
+                                                                {/* 1. Selection Mode (if item selected) */}
+                                                                {newSegment.itemId ? (
+                                                                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+                                                                        <div className="flex justify-between items-start mb-2">
+                                                                            <div className="text-xs text-green-600 flex items-center gap-1 font-medium">
+                                                                                <Check size={10} /> Selected: {newSegment.itemName}
+                                                                            </div>
+                                                                            <button
                                                                                 onClick={(e) => {
                                                                                     e.preventDefault();
-                                                                                    setNewSegment(prev => ({ ...prev, itemId: res.id, itemName: res.text, itemList: res.foundInList }));
-                                                                                    setSegmentSearchQuery(res.text);
-                                                                                    setSegmentSearchResults([]);
+                                                                                    setNewSegment(prev => ({ ...prev, itemId: '', itemName: '', itemList: '', seasonNumber: undefined }));
+                                                                                    setSegmentSearchQuery("");
+                                                                                    // Clear temp states
+                                                                                    // If we were using local state for "externalShowSeasons", we'd clear it here too, but it interacts with the map below logic
                                                                                 }}
-                                                                                className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-50 dark:border-gray-700/50 last:border-0"
+                                                                                className="text-[10px] text-gray-400 hover:text-red-500"
                                                                             >
-                                                                                <div className="text-xs font-medium text-gray-800 dark:text-gray-200">{res.text}</div>
-                                                                                <div className="text-[10px] text-gray-400">{res.foundInList} · {res.year || 'N/A'}</div>
+                                                                                Change
+                                                                            </button>
+                                                                        </div>
+
+                                                                        {/* If TV Show -> Show Season Selector */}
+                                                                        {newSegment.mediaType === 'tv' && (
+                                                                            <div className="space-y-2 animate-fade-in">
+                                                                                <div className="text-[10px] uppercase text-gray-400">Add As:</div>
+                                                                                <div className="flex flex-col gap-2">
+                                                                                    {/* Option A: Whole Show */}
+                                                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                                                        <input
+                                                                                            type="radio"
+                                                                                            name="tv_selection_mode"
+                                                                                            checked={!newSegment.seasonNumber}
+                                                                                            onChange={() => setNewSegment(prev => ({ ...prev, seasonNumber: undefined, name: prev.originalName }))} // Reset name to original
+                                                                                            className="w-3 h-3 text-blue-600"
+                                                                                        />
+                                                                                        <span className="text-xs text-gray-700 dark:text-gray-300">Whole Show</span>
+                                                                                    </label>
+
+                                                                                    {/* Option B: Specific Season */}
+                                                                                    <div className="space-y-1">
+                                                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                                                            <input
+                                                                                                type="radio"
+                                                                                                name="tv_selection_mode"
+                                                                                                checked={newSegment.seasonNumber !== undefined}
+                                                                                                onChange={() => {
+                                                                                                    // Default to Season 1 if switching to this mode
+                                                                                                    const defaultSeason = (newSegment.availableSeasons && newSegment.availableSeasons.length > 0)
+                                                                                                        ? newSegment.availableSeasons[0].season_number
+                                                                                                        : 1;
+                                                                                                    setNewSegment(prev => ({
+                                                                                                        ...prev,
+                                                                                                        seasonNumber: defaultSeason,
+                                                                                                        name: prev.originalName
+                                                                                                    }));
+                                                                                                }}
+                                                                                                className="w-3 h-3 text-blue-600"
+                                                                                            />
+                                                                                            <span className="text-xs text-gray-700 dark:text-gray-300">Specific Season</span>
+                                                                                        </label>
+
+                                                                                        {/* Season Dropdown (Only if Option B selected) */}
+                                                                                        {newSegment.seasonNumber !== undefined && (
+                                                                                            <select
+                                                                                                value={newSegment.seasonNumber}
+                                                                                                onChange={(e) => {
+                                                                                                    const val = parseInt(e.target.value);
+                                                                                                    setNewSegment(prev => ({
+                                                                                                        ...prev,
+                                                                                                        seasonNumber: val,
+                                                                                                        seasonNumber: val,
+                                                                                                        name: prev.originalName
+                                                                                                    }));
+                                                                                                }}
+                                                                                                className="w-32 ml-5 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded outline-none"
+                                                                                            >
+                                                                                                {newSegment.isLoadingSeasons ? (
+                                                                                                    <option>Loading seasons...</option>
+                                                                                                ) : (
+                                                                                                    (newSegment.availableSeasons || []).map(s => (
+                                                                                                        <option key={s.season_number} value={s.season_number}>
+                                                                                                            {s.name || `Season ${s.season_number}`}
+                                                                                                        </option>
+                                                                                                    ))
+                                                                                                )}
+                                                                                            </select>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
-                                                                        ))}
+                                                                        )}
                                                                     </div>
-                                                                )}
-                                                                {newSegment.itemId && (
-                                                                    <div className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                                                                        <Check size={10} /> Selected: {newSegment.itemName}
+                                                                ) : (
+                                                                    /* 2. Search Mode */
+                                                                    <div className="relative">
+                                                                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                                                        <input
+                                                                            type="text" placeholder="Search..."
+                                                                            value={segmentSearchQuery}
+                                                                            onChange={e => {
+                                                                                setSegmentSearchQuery(e.target.value);
+                                                                                searchItemsForSegment(e.target.value);
+                                                                            }}
+                                                                            className="w-full pl-8 pr-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                                        />
+                                                                        {segmentSearchQuery && segmentSearchResults.length > 0 && (
+                                                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-100 dark:border-gray-700 z-50 max-h-40 overflow-y-auto">
+                                                                                {segmentSearchResults.map(res => (
+                                                                                    <div
+                                                                                        key={res.id}
+                                                                                        onClick={async (e) => {
+                                                                                            e.preventDefault();
+                                                                                            e.stopPropagation();
+
+                                                                                            // Base Selection
+                                                                                            const baseSegment = {
+                                                                                                ...newSegment,
+                                                                                                itemId: res.id,
+                                                                                                itemName: res.text,
+                                                                                                originalName: res.text, // Keep original for resetting
+                                                                                                itemList: res.foundInList,
+                                                                                                mediaType: res.media_type // Ensure this is passed from search results
+                                                                                            };
+
+                                                                                            // Initial Set
+                                                                                            setNewSegment(baseSegment);
+                                                                                            setSegmentSearchQuery("");
+                                                                                            setSegmentSearchResults([]);
+
+                                                                                            // If TV Show, use saved seasons (User Requirement: Do not fetch from TMDB)
+                                                                                            if (res.media_type === 'tv') {
+                                                                                                // Check top-level seasons, then details.seasons, then empty
+                                                                                                const seasons = res.seasons || res.details?.seasons || [];
+
+                                                                                                if (seasons.length > 0) {
+                                                                                                    setNewSegment(prev => ({
+                                                                                                        ...prev,
+                                                                                                        isLoadingSeasons: false,
+                                                                                                        availableSeasons: seasons
+                                                                                                    }));
+                                                                                                } else {
+                                                                                                    // Fallback: Fetch from TMDB if local data is missing
+                                                                                                    setNewSegment(prev => ({ ...prev, isLoadingSeasons: true, availableSeasons: [] }));
+                                                                                                    const tmdbId = res.tmdb_id || res.id;
+
+                                                                                                    if (tmdbId) {
+                                                                                                        axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${API_KEY}`)
+                                                                                                            .then(response => {
+                                                                                                                setNewSegment(prev => ({
+                                                                                                                    ...prev,
+                                                                                                                    isLoadingSeasons: false,
+                                                                                                                    availableSeasons: response.data.seasons
+                                                                                                                }));
+                                                                                                            })
+                                                                                                            .catch(err => {
+                                                                                                                console.error("Season fetch failed", err);
+                                                                                                                setNewSegment(prev => ({ ...prev, isLoadingSeasons: false }));
+                                                                                                            });
+                                                                                                    } else {
+                                                                                                        setNewSegment(prev => ({ ...prev, isLoadingSeasons: false }));
+                                                                                                    }
+                                                                                                }
+                                                                                            }
+                                                                                        }}
+                                                                                        className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-50 dark:border-gray-700/50 last:border-0"
+                                                                                    >
+                                                                                        <div className="flex justify-between items-center">
+                                                                                            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{res.text}</span>
+                                                                                            <span className="text-[10px] text-gray-400 capitalize">{res.media_type === 'tv' ? 'TV' : 'Movie'}</span>
+                                                                                        </div>
+                                                                                        <div className="text-[10px] text-gray-400">{res.foundInList} · {res.year || 'N/A'}</div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1989,238 +2135,242 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
             }
 
             {/* Episode Selection Overlay */}
-            {viewingSeasonEpisodes !== null && (
-                <div
-                    className="fixed inset-0 z-[75] flex items-center justify-center p-4 animate-fade-in"
-                    onClick={() => setViewingSeasonEpisodes(null)}
-                >
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
+            {
+                viewingSeasonEpisodes !== null && (
                     <div
-                        className="relative z-10 bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
-                        onClick={(e) => e.stopPropagation()}
+                        className="fixed inset-0 z-[75] flex items-center justify-center p-4 animate-fade-in"
+                        onClick={() => setViewingSeasonEpisodes(null)}
                     >
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
-                            <div>
-                                <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100">
-                                    Season {viewingSeasonEpisodes}
-                                </h3>
-                                <p className="text-xs text-gray-500">Select episodes you have watched</p>
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+                        <div
+                            className="relative z-10 bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100">
+                                        Season {viewingSeasonEpisodes}
+                                    </h3>
+                                    <p className="text-xs text-gray-500">Select episodes you have watched</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {/* Select All Button */}
+                                    <button
+                                        onClick={() => handleSelectAllSeason(
+                                            viewingSeasonEpisodes,
+                                            seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] || []
+                                        )}
+                                        className="text-xs font-medium text-blue-600 hover:text-blue-700 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
+                                    >
+                                        Toggle All
+                                    </button>
+                                    <button
+                                        onClick={() => setViewingSeasonEpisodes(null)}
+                                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                {/* Select All Button */}
-                                <button
-                                    onClick={() => handleSelectAllSeason(
-                                        viewingSeasonEpisodes,
-                                        seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] || []
-                                    )}
-                                    className="text-xs font-medium text-blue-600 hover:text-blue-700 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
-                                >
-                                    Toggle All
-                                </button>
+
+                            {/* List */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                                {!seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] ? (
+                                    <div className="flex flex-col items-center justify-center h-40 gap-3 text-gray-400">
+                                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                        <span className="text-sm">Loading episodes...</span>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-1">
+                                        {(seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] || []).map(ep => {
+                                            const isWatched = (formData.season_watched_episodes[viewingSeasonEpisodes] || []).includes(ep.episode_number);
+                                            return (
+                                                <div
+                                                    key={ep.id}
+                                                    className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border
+                                                    ${isWatched
+                                                            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50"
+                                                            : "bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-gray-800"}`}
+                                                    onClick={() => toggleSeasonEpisode(
+                                                        viewingSeasonEpisodes,
+                                                        ep.episode_number,
+                                                        seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`].length
+                                                    )}
+                                                >
+                                                    <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center transition-colors ${isWatched ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-transparent"}`}>
+                                                        <Check size={14} strokeWidth={3} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start">
+                                                            <span className={`text-sm font-medium ${isWatched ? "text-blue-900 dark:text-blue-100" : "text-gray-700 dark:text-gray-300"}`}>
+                                                                {ep.episode_number}. {ep.name}
+                                                            </span>
+                                                            <span className="text-xs text-gray-400 tabular-nums flex items-center gap-1">
+                                                                <span>{ep.air_date?.split('-')[0]}</span>
+                                                                {ep.runtime > 0 && <span>• {ep.runtime}m</span>}
+                                                            </span>
+                                                        </div>
+                                                        {ep.overview && <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{ep.overview}</p>}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end">
                                 <button
                                     onClick={() => setViewingSeasonEpisodes(null)}
-                                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
                                 >
-                                    <X size={20} />
+                                    Done
                                 </button>
                             </div>
                         </div>
-
-                        {/* List */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                            {!seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] ? (
-                                <div className="flex flex-col items-center justify-center h-40 gap-3 text-gray-400">
-                                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                                    <span className="text-sm">Loading episodes...</span>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 gap-1">
-                                    {(seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`] || []).map(ep => {
-                                        const isWatched = (formData.season_watched_episodes[viewingSeasonEpisodes] || []).includes(ep.episode_number);
-                                        return (
-                                            <div
-                                                key={ep.id}
-                                                className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border
-                                                    ${isWatched
-                                                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50"
-                                                        : "bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-gray-800"}`}
-                                                onClick={() => toggleSeasonEpisode(
-                                                    viewingSeasonEpisodes,
-                                                    ep.episode_number,
-                                                    seasonEpisodesCache[`season_${item.tmdb_id || item.id}_${viewingSeasonEpisodes}`].length
-                                                )}
-                                            >
-                                                <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center transition-colors ${isWatched ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-transparent"}`}>
-                                                    <Check size={14} strokeWidth={3} />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-start">
-                                                        <span className={`text-sm font-medium ${isWatched ? "text-blue-900 dark:text-blue-100" : "text-gray-700 dark:text-gray-300"}`}>
-                                                            {ep.episode_number}. {ep.name}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400 tabular-nums flex items-center gap-1">
-                                                            <span>{ep.air_date?.split('-')[0]}</span>
-                                                            {ep.runtime > 0 && <span>• {ep.runtime}m</span>}
-                                                        </span>
-                                                    </div>
-                                                    {ep.overview && <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{ep.overview}</p>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end">
-                            <button
-                                onClick={() => setViewingSeasonEpisodes(null)}
-                                className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
-                            >
-                                Done
-                            </button>
-                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Add Season Modal */}
-            {addSeasonModal.isOpen && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 animate-fade-in">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddSeasonModal({ ...addSeasonModal, isOpen: false })} />
-                    <div className="relative z-10 bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Manual Season</h3>
+            {
+                addSeasonModal.isOpen && (
+                    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 animate-fade-in">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddSeasonModal({ ...addSeasonModal, isOpen: false })} />
+                        <div className="relative z-10 bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Manual Season</h3>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Poster URL (Optional)</label>
-                                <input
-                                    type="text"
-                                    placeholder="https://..."
-                                    value={addSeasonModal.poster}
-                                    onChange={e => setAddSeasonModal({ ...addSeasonModal, poster: e.target.value })}
-                                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Episodes</label>
+                                    <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Poster URL (Optional)</label>
                                     <input
-                                        type="number"
-                                        min="1"
-                                        value={addSeasonModal.episodeCount}
-                                        onChange={e => setAddSeasonModal({ ...addSeasonModal, episodeCount: e.target.value })}
+                                        type="text"
+                                        placeholder="https://..."
+                                        value={addSeasonModal.poster}
+                                        onChange={e => setAddSeasonModal({ ...addSeasonModal, poster: e.target.value })}
                                         className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Runtime/Ep (min)</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={addSeasonModal.runtime}
-                                        onChange={e => setAddSeasonModal({ ...addSeasonModal, runtime: e.target.value })}
-                                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Episodes</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={addSeasonModal.episodeCount}
+                                            onChange={e => setAddSeasonModal({ ...addSeasonModal, episodeCount: e.target.value })}
+                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">Runtime/Ep (min)</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={addSeasonModal.runtime}
+                                            onChange={e => setAddSeasonModal({ ...addSeasonModal, runtime: e.target.value })}
+                                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 dark:text-gray-200"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => setAddSeasonModal({ ...addSeasonModal, isOpen: false })}
-                                className="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const count = parseInt(addSeasonModal.episodeCount);
-                                    const runtime = parseInt(addSeasonModal.runtime);
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    onClick={() => setAddSeasonModal({ ...addSeasonModal, isOpen: false })}
+                                    className="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const count = parseInt(addSeasonModal.episodeCount);
+                                        const runtime = parseInt(addSeasonModal.runtime);
 
-                                    if (!count || count < 1) {
-                                        setConfirmModal({
-                                            isOpen: true,
-                                            title: "Invalid Input",
-                                            message: "Please enter a valid episode count (must be greater than 0).",
-                                            confirmText: "OK",
-                                            cancelText: null,
-                                            isDangerous: false,
-                                            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
-                                        });
-                                        return;
-                                    }
-                                    if (!runtime || runtime < 1) {
-                                        setConfirmModal({
-                                            isOpen: true,
-                                            title: "Invalid Input",
-                                            message: "Please enter a valid runtime in minutes (must be greater than 0).",
-                                            confirmText: "OK",
-                                            cancelText: null,
-                                            isDangerous: false,
-                                            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
-                                        });
-                                        return;
-                                    }
+                                        if (!count || count < 1) {
+                                            setConfirmModal({
+                                                isOpen: true,
+                                                title: "Invalid Input",
+                                                message: "Please enter a valid episode count (must be greater than 0).",
+                                                confirmText: "OK",
+                                                cancelText: null,
+                                                isDangerous: false,
+                                                onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+                                            });
+                                            return;
+                                        }
+                                        if (!runtime || runtime < 1) {
+                                            setConfirmModal({
+                                                isOpen: true,
+                                                title: "Invalid Input",
+                                                message: "Please enter a valid runtime in minutes (must be greater than 0).",
+                                                confirmText: "OK",
+                                                cancelText: null,
+                                                isDangerous: false,
+                                                onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+                                            });
+                                            return;
+                                        }
 
-                                    // Calculate next season number
-                                    const currentSeasons = formData.seasons || details?.seasons || [];
-                                    // Make sure we compare numbers properly
-                                    const maxSeason = currentSeasons.reduce((max, s) => Math.max(max, s.season_number), 0);
-                                    const nextNum = maxSeason + 1;
+                                        // Calculate next season number
+                                        const currentSeasons = formData.seasons || details?.seasons || [];
+                                        // Make sure we compare numbers properly
+                                        const maxSeason = currentSeasons.reduce((max, s) => Math.max(max, s.season_number), 0);
+                                        const nextNum = maxSeason + 1;
 
-                                    const newSeason = {
-                                        id: Date.now(), // Temporary ID
-                                        season_number: nextNum,
-                                        name: `Season ${nextNum}`,
-                                        episode_count: count,
-                                        poster_path: addSeasonModal.poster || null,
-                                        overview: "Manually added season",
-                                        air_date: new Date().toISOString().split('T')[0],
-                                        episodes: Array.from({ length: count }, (_, i) => ({
-                                            id: Date.now() + i,
-                                            episode_number: i + 1,
-                                            name: `Episode ${i + 1}`,
-                                            overview: "No details available",
-                                            air_date: "",
-                                            runtime: runtime,
-                                            vote_average: 0
-                                        }))
-                                    };
+                                        const newSeason = {
+                                            id: Date.now(), // Temporary ID
+                                            season_number: nextNum,
+                                            name: `Season ${nextNum}`,
+                                            episode_count: count,
+                                            poster_path: addSeasonModal.poster || null,
+                                            overview: "Manually added season",
+                                            air_date: new Date().toISOString().split('T')[0],
+                                            episodes: Array.from({ length: count }, (_, i) => ({
+                                                id: Date.now() + i,
+                                                episode_number: i + 1,
+                                                name: `Episode ${i + 1}`,
+                                                overview: "No details available",
+                                                air_date: "",
+                                                runtime: runtime,
+                                                vote_average: 0
+                                            }))
+                                        };
 
-                                    // Pre-populate cache so we don't try to fetch it
-                                    const key = `season_${item.tmdb_id || item.id}_${nextNum}`;
-                                    setSeasonEpisodesCache(prev => ({ ...prev, [key]: newSeason.episodes }));
+                                        // Pre-populate cache so we don't try to fetch it
+                                        const key = `season_${item.tmdb_id || item.id}_${nextNum}`;
+                                        setSeasonEpisodesCache(prev => ({ ...prev, [key]: newSeason.episodes }));
 
-                                    // Ensure seasons array exists in formData
-                                    const existingSeasons = (formData.seasons && formData.seasons.length > 0)
-                                        ? formData.seasons
-                                        : (formData.is_manual_mode ? [] : (JSON.parse(JSON.stringify(details?.seasons || []))));
+                                        // Ensure seasons array exists in formData
+                                        const existingSeasons = (formData.seasons && formData.seasons.length > 0)
+                                            ? formData.seasons
+                                            : (formData.is_manual_mode ? [] : (JSON.parse(JSON.stringify(details?.seasons || []))));
 
-                                    // If adding a season, and status is completed, revert to watching
-                                    let newStatus = formData.status;
-                                    if (formData.status === 'completed') {
-                                        newStatus = 'watching';
-                                    }
+                                        // If adding a season, and status is completed, revert to watching
+                                        let newStatus = formData.status;
+                                        if (formData.status === 'completed') {
+                                            newStatus = 'watching';
+                                        }
 
-                                    setFormData(prev => ({
-                                        ...prev,
-                                        seasons: [...existingSeasons, newSeason],
-                                        status: newStatus
-                                    }));
-                                    setAddSeasonModal({ isOpen: false, poster: "", episodeCount: "", runtime: "" });
-                                }}
-                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                            >
-                                Add Season
-                            </button>
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            seasons: [...existingSeasons, newSeason],
+                                            status: newStatus
+                                        }));
+                                        setAddSeasonModal({ isOpen: false, poster: "", episodeCount: "", runtime: "" });
+                                    }}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    Add Season
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Confirmation Modal */}
             <ConfirmationModal

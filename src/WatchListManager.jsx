@@ -354,13 +354,14 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           const element = document.getElementById(`item-${highlightedItemId}`);
           if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // Clear highlight after animation
-            if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-            highlightTimeoutRef.current = setTimeout(() => {
-              setHighlightedItemId(null);
-            }, 2000);
+            // Add temporary highlight class if needed (already handled by React state)
           }
+
+          // Clear highlight after animation (ALWAYS, to prevent stuck state)
+          if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+          highlightTimeoutRef.current = setTimeout(() => {
+            setHighlightedItemId(null);
+          }, 2000);
         }, 300); // Slight delay to ensure DOM update
       }
     }
@@ -1839,9 +1840,10 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       // Grid View for Reference Items
       if (isGridView) {
         return (
-          <div key={item.id} className="h-full w-full flex items-center justify-center">
+          <div key={item.id} id={`item-${item.id}`} className="h-full w-full flex items-center justify-center">
             <div
-              className="group relative bg-purple-50 dark:bg-purple-900/30 rounded-xl overflow-hidden border border-purple-200 dark:border-purple-700/50 hover:border-purple-500 transition-all duration-300 cursor-pointer p-4 flex flex-col justify-center items-center aspect-[2/3] w-[85%] shadow-lg"
+              className={`group relative bg-purple-50 dark:bg-purple-900/30 rounded-xl overflow-hidden border border-purple-200 dark:border-purple-700/50 hover:border-purple-500 transition-all duration-300 cursor-pointer p-4 flex flex-col justify-center items-center aspect-[2/3] w-[85%] shadow-lg 
+              ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
               onClick={() => handleNavigate(item.ref)}
             >
               <Link size={40} className="text-purple-500 dark:text-purple-400 mb-3" />
@@ -1875,7 +1877,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       }
 
       return (
-        <div key={item.id} className="mb-3">
+        <div key={item.id} id={`item-${item.id}`} className="mb-3">
           <div
             draggable={!isListLocked}
             onDragStart={(e) => handleDragStart(e, index)}
@@ -1884,7 +1886,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             onClick={() => toggleRefExpand(item.id)}
             className={`group flex items-center gap-3 p-4 border-l-4 border-purple-500 rounded-xl transition-all duration-200 
               bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm hover:shadow-md
-              ${isListLocked ? "cursor-default opacity-90" : "cursor-pointer hover:scale-[1.01]"}`}
+              ${isListLocked ? "cursor-default opacity-90" : "cursor-pointer hover:scale-[1.01]"}
+              ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
           >
             <GripVertical
               size={20}
@@ -1976,9 +1979,10 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       // Grid View for Text Items
       if (isGridView) {
         return (
-          <div key={item.id} className="h-full w-full flex items-center justify-center">
+          <div key={item.id} id={`item-${item.id}`} className="h-full w-full flex items-center justify-center">
             <div
-              className="group relative bg-white dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 hover:border-amber-500/50 transition-all duration-300 p-4 flex flex-col justify-between aspect-[2/3] cursor-default w-[85%] shadow-lg"
+              className={`group relative bg-white dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 hover:border-amber-500/50 transition-all duration-300 p-4 flex flex-col justify-between aspect-[2/3] cursor-default w-[85%] shadow-lg 
+              ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
             // No onClick as text items are usually static/completed
             >
               {/* Status Badge */}
@@ -2246,13 +2250,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       return (
         <div
           key={item.id}
+          id={`item-${item.id}`}
           draggable={!isListLocked && !item.originalList}
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={(e) => handleDragOver(e, index)}
           onDragEnd={handleDragEnd}
           className={`group flex items-center gap-3 p-4 mb-3 border border-transparent rounded-xl transition-all duration-200 
             bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm 
-            ${!isListLocked ? "hover:shadow-lg hover:scale-[1.01] hover:border-gray-200 dark:hover:border-gray-700" : ""}`}
+            ${!isListLocked ? "hover:shadow-lg hover:scale-[1.01] hover:border-gray-200 dark:hover:border-gray-700" : ""}
+            ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
         >
           {itemContent}
         </div>
@@ -2282,7 +2288,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       return (
         <div
           key={item.id}
-          className={`group relative bg-white dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300 ${!isListLocked ? 'hover:shadow-lg dark:hover:shadow-blue-500/10 cursor-pointer' : 'cursor-default'}`}
+          id={`item-${item.id}`}
+          className={`group relative bg-white dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700/50 hover:border-blue-500/50 transition-all duration-300 ${!isListLocked ? 'hover:shadow-lg dark:hover:shadow-blue-500/10 cursor-pointer' : 'cursor-default'} ${highlightedItemId === item.id ? 'ring-2 ring-blue-500 scale-[1.02] shadow-blue-500/20' : ''}`}
           onClick={() => !isListLocked && setSelectedItemForModal(item)}
         >
           {/* Poster */}
