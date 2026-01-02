@@ -51,6 +51,7 @@ const WatchOrderViewModal = ({ isOpen, onClose, title, watchOrder = [] }) => {
                                         <>
                                             <Link size={14} className="text-blue-500 shrink-0" />
                                             <span>{segment.name}</span>
+                                            {segment.seasonNumber && <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-800">S{segment.seasonNumber}</span>}
                                             {segment.listName && (
                                                 <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded ml-auto">
                                                     in {segment.listName}
