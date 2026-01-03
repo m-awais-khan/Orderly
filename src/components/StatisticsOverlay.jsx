@@ -416,7 +416,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                             { id: "Watching", label: "Watching", value: stats.statusCounts.watching, color: "#3b82f6" },
                                             { id: "Plan to Watch", label: "Plan", value: stats.statusCounts.plan_to_watch, color: "#a855f7" },
                                             { id: "Dropped", label: "Dropped", value: stats.statusCounts.dropped, color: "#ef4444" },
-                                            { id: "Other", label: "Other", value: stats.statusCounts.not_interested, color: "#64748b" },
+                                            { id: "Not Interested", label: "Not Interested", value: stats.statusCounts.not_interested, color: "#64748b" },
                                         ].filter(d => d.value > 0)}
                                         margin={{ top: 40, right: 80, bottom: 80, left: 80 }}
                                         innerRadius={0.6}
