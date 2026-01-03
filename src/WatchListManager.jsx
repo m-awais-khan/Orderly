@@ -1205,9 +1205,22 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
     // Check for duplicates
     const currentList = lists[selectedList] || [];
-    const isDuplicate = currentList.some(
-      (item) => item.id === itemData.id && item.type === "tmdb"
-    );
+    const isDuplicate = currentList.some((item) => {
+      // Normalize IDs to strings for comparison
+      const itemId = String(item.id);
+      const itemTmdbId = item.tmdb_id ? String(item.tmdb_id) : null;
+      const newDataId = String(itemData.id);
+      // If itemData.tmdb_id is missing (raw search result), use .id
+      const newDataTmdbId = itemData.tmdb_id ? String(itemData.tmdb_id) : newDataId;
+
+      return (
+        itemId === newDataId ||
+        itemId === newDataTmdbId ||
+        (itemTmdbId && itemTmdbId === newDataId) ||
+        (itemTmdbId && itemTmdbId === newDataTmdbId)
+      );
+    });
+
     if (isDuplicate) {
       showToast(`"${itemData.title || itemData.name}" is already in the list.`, "warning");
       return;
@@ -1223,7 +1236,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       media_type: itemData.media_type,
       // Store extra metadata if available (for seasons)
       season_number: itemData.season_number,
-      tmdb_id: itemData.tmdb_id,
+      tmdb_id: itemData.tmdb_id || itemData.id,
       year:
         (itemData.release_date || itemData.first_air_date || itemData.air_date)?.slice(0, 4) || null,
       image: itemData.poster_path
@@ -1265,6 +1278,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               // Generate Granular Data for 'Completed' status
               // This ensures StatisticsOverlay works immediately without needing a toggle
               if (newItem.media_type === 'tv' && data.seasons) {
+                // Canonical Name Update
+                if (data.name) newItem.text = data.name;
+
                 const sProgress = {};
                 const sWatched = {};
 
@@ -1309,8 +1325,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         if (apiKey) {
           const url = `https://api.themoviedb.org/3/movie/${newItem.id}?api_key=${apiKey}`;
           const response = await axios.get(url);
-          if (response.data?.runtime) {
-            newItem.runtime = response.data.runtime; // Store runtime in minutes
+          if (response.data) {
+            if (response.data.title) newItem.text = response.data.title; // Canonical Title Update
+            if (response.data.runtime) newItem.runtime = response.data.runtime; // Store runtime in minutes
           }
         }
       } catch (error) {
@@ -2759,6 +2776,20 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               {/* Authenticated User Menu */}
               {token && (
                 <>
+                  {/* Active Warnings - Always Visible Outside Menu */}
+                  {(warningCount > 0 || isUpdateDue) && (
+                    <button
+                      onClick={() => setShowWarnings(true)}
+                      className="mr-3 relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
+                      title="Data Warnings"
+                    >
+                      <AlertTriangle size={20} />
+                      <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                        {(warningCount + (isUpdateDue ? 1 : 0)) > 9 ? '9+' : (warningCount + (isUpdateDue ? 1 : 0))}
+                      </span>
+                    </button>
+                  )}
+
                   {/* Collapsible Menu Items */}
                   <div className={`flex items-center gap-3 transition-all duration-500 ease-in-out overflow-hidden ${isProfileMenuOpen ? 'max-w-[800px] opacity-100 mr-2' : 'max-w-0 opacity-0'}`}>
                     {/* Timer Button */}
@@ -2796,18 +2827,16 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                       <RotateCcw size={20} />
                     </button>
 
-                    <button
-                      onClick={() => setShowWarnings(true)}
-                      className="relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
-                      title="Data Warnings"
-                    >
-                      <AlertTriangle size={20} />
-                      {(warningCount > 0 || isUpdateDue) && (
-                        <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
-                          {(warningCount + (isUpdateDue ? 1 : 0)) > 9 ? '9+' : (warningCount + (isUpdateDue ? 1 : 0))}
-                        </span>
-                      )}
-                    </button>
+                    {/* Warning Button inside menu (Only if NO active warnings) */}
+                    {!(warningCount > 0 || isUpdateDue) && (
+                      <button
+                        onClick={() => setShowWarnings(true)}
+                        className="relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
+                        title="Data Warnings"
+                      >
+                        <AlertTriangle size={20} />
+                      </button>
+                    )}
 
                     <button
                       onClick={() => openConfirmModal({
@@ -4063,11 +4092,12 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         lists={lists}
         userId={user?._id || user?.email}
         token={token}
+        showToast={showToast}
         onAddItem={async (listName, itemData) => {
           // Direct add to specified list (bypassing addItem which uses selectedList)
           const currentList = lists[listName] || [];
 
-          // Check for duplicates
+          // Basic duplicate check (Backup)
           const isDuplicate = currentList.some(
             (item) => item.tmdb_id === itemData.tmdb_id && item.media_type === itemData.media_type
           );
@@ -4078,7 +4108,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
 
           // Create new item with unique ID
           const newItem = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: itemData.tmdb_id,
             text: itemData.text,
             type: "tmdb",
             media_type: itemData.media_type,
@@ -4086,22 +4116,33 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
             year: itemData.year,
             image: itemData.image ? `https://image.tmdb.org/t/p/w92${itemData.image}` : null,
             note: "",
-            status: "completed"
+            status: itemData.status || "plan_to_watch",
+            runtime: itemData.runtime,
+            episode_run_time: itemData.episode_run_time,
+            number_of_episodes: itemData.number_of_episodes,
+            number_of_seasons: itemData.number_of_seasons
           };
 
-          // AUTO-COMPLETE LOGIC: Fetch episode count for TV shows
-          if (itemData.media_type === 'tv') {
-            try {
-              const apiKey = import.meta.env.VITE_TMDB_API_KEY;
-              if (apiKey && itemData.tmdb_id) {
-                const response = await axios.get(`https://api.themoviedb.org/3/tv/${itemData.tmdb_id}?api_key=${apiKey}`);
-                const total = response.data.number_of_episodes || 0;
-                if (total > 0) {
-                  newItem.episodes_watched = total;
+          // AUTO-COMPLETE LOGIC: Fetch episode count for TV shows if not provided
+          if (itemData.media_type === 'tv' && newItem.status === 'completed') {
+            if (newItem.number_of_episodes) {
+              newItem.episodes_watched = newItem.number_of_episodes;
+            } else {
+              try {
+                const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+                if (apiKey && itemData.tmdb_id) {
+                  const response = await axios.get(`https://api.themoviedb.org/3/tv/${itemData.tmdb_id}?api_key=${apiKey}`);
+                  const total = response.data.number_of_episodes || 0;
+                  if (total > 0) {
+                    newItem.episodes_watched = total;
+                    // Backfill details if missing
+                    if (!newItem.number_of_episodes) newItem.number_of_episodes = total;
+                    if (!newItem.number_of_seasons) newItem.number_of_seasons = response.data.number_of_seasons;
+                  }
                 }
+              } catch (error) {
+                console.error("Failed to fetch episode count:", error);
               }
-            } catch (error) {
-              console.error("Failed to fetch episode count:", error);
             }
           }
 

@@ -190,3 +190,124 @@ const parseAIResponse = (aiText) => {
         throw new Error('Failed to parse AI recommendations');
     }
 };
+/**
+ * Get a Daily Challenge recommendation (Single Movie)
+ * @param {Object} watchlistSummary - Analyzed watchlist data
+ * @returns {Promise<Object>} Single movie recommendation
+ */
+export const getDailyChallenge = async (watchlistSummary) => {
+    if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not configured');
+    }
+
+    const prompt = buildDailyChallengePrompt(watchlistSummary);
+
+    try {
+        const response = await axios.post(
+            `${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`,
+            {
+                contents: [{
+                    parts: [{ text: prompt }]
+                }],
+                generationConfig: {
+                    temperature: 0.4, // Lower temperature for more consistent JSON
+                    maxOutputTokens: 8192, // Increased to prevent truncation
+                }
+            },
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const aiText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!aiText) throw new Error('Invalid response from Gemini API');
+
+        return parseDailyChallengeResponse(aiText);
+    } catch (error) {
+        console.error('Gemini Daily Challenge Error:', error);
+        throw new Error('Failed to get daily challenge');
+    }
+};
+
+/**
+ * Build prompt for Daily Challenge
+ */
+const buildDailyChallengePrompt = (summary) => {
+    const completedSample = summary.completed.slice(0, 10).map(i => i.title).join(', ');
+
+    return `You are a movie curator giving a "Daily Movie Challenge".
+User's taste based on recent watches: ${completedSample || 'General popular movies'}.
+
+TASK:
+Suggest EXACTLY ONE (1) movie that is a "Must Watch" challenge for today.
+- It should be a masterpiece, a cult classic, or a hidden gem that matches their taste.
+- Do NOT suggest generic blockbusters unless they are absolute cinema classics.
+- Do NOT suggest anything they have already watched.
+
+IMPORTANT:
+- Respond ONLY in valid JSON.
+- Do NOT use markdown code blocks.
+- Do NOT use double quotes (") inside the content strings. Use single quotes (') instead.
+- RETURN A SINGLE JSON OBJECT delimited by curly braces { }. DO NOT return a list [ ].
+- Keep the "reason" short (under 20 words).
+
+FORMAT:
+        {
+            "title": "Movie Title",
+            "year": 2000,
+            "type": "movie",
+            "reason": "Short reason why."
+        }`;
+};
+
+/**
+ * Parse Daily Challenge Response
+ */
+const parseDailyChallengeResponse = (aiText) => {
+    try {
+        let jsonString;
+        const firstBrace = aiText.indexOf('{');
+        let lastBrace = aiText.lastIndexOf('}');
+
+        // Handle Truncated JSON (Attempt Repair)
+        if (firstBrace !== -1 && lastBrace === -1) {
+            console.warn('Warning: JSON seems truncated. Attempting repair...');
+            // Most common truncation is inside the last string or just missing the closing brace
+            const trimmed = aiText.trim();
+            // If it ends with a quote, just add }
+            if (trimmed.endsWith('"') || trimmed.endsWith("'")) {
+                jsonString = trimmed.substring(firstBrace) + '}';
+            } else {
+                // assume it ended inside a string, close quote and brace
+                jsonString = trimmed.substring(firstBrace) + '"}';
+            }
+        }
+        else if (firstBrace !== -1 && lastBrace !== -1) {
+            // Standard object found
+            jsonString = aiText.substring(firstBrace, lastBrace + 1);
+        }
+        else {
+            // Fallback: Check for malformed [ ... ] array
+            const firstBracket = aiText.indexOf('[');
+            const lastBracket = aiText.lastIndexOf(']');
+            if (firstBracket !== -1 && lastBracket !== -1) {
+                const content = aiText.substring(firstBracket + 1, lastBracket).trim();
+                jsonString = `{${content}}`;
+            }
+        }
+
+        if (!jsonString) {
+            throw new Error('No valid JSON object character found');
+        }
+
+        const parsed = JSON.parse(jsonString);
+
+        if (!parsed.title || !parsed.year) {
+            throw new Error('Invalid challenge format: missing title or year');
+        }
+
+        return parsed;
+    } catch (error) {
+        console.error('Failed to parse daily challenge:', error);
+        console.error('Raw AI Text:', aiText);
+        throw new Error('Failed to parse daily challenge');
+    }
+};
