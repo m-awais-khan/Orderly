@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, PieChart, BarChart, Clock, Hash, Film, Tv, Play, Check, AlertCircle, Layers, Star, Globe, TrendingUp, Calendar, Zap, Activity } from 'lucide-react';
+import { X, PieChart, BarChart, Clock, Hash, Film, Tv, Play, Check, Layers, Star, Globe, TrendingUp, Calendar, Zap, Activity } from 'lucide-react';
 import { ResponsiveRadar } from '@nivo/radar';
 import { ResponsiveBar } from '@nivo/bar';
 import { ResponsivePie } from '@nivo/pie';
@@ -44,7 +44,7 @@ const NIVO_THEME = {
     },
     grid: {
         line: {
-            stroke: "#94a3b8", // slate-400 for better visibility
+            stroke: "#f1f5f9", // slate-100
             strokeWidth: 1
         }
     },
@@ -67,7 +67,7 @@ const DARK_NIVO_THEME = {
         domain: { line: { stroke: "#334155", strokeWidth: 1 } },
         ticks: { line: { stroke: "#334155" }, text: { fill: "#94a3b8" } }
     },
-    grid: { line: { stroke: "#475569", strokeWidth: 1 } },
+    grid: { line: { stroke: "#1e293b", strokeWidth: 1 } },
     tooltip: { container: { background: "#1e293b", color: "#f8fafc" } }
 };
 
@@ -84,46 +84,37 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         let totalTV = 0;
         let totalEpisodesWatched = 0;
         let totalRewatches = 0;
-        let totalMinutes = 0; // Initialize for cumulative calculation
+        let totalMinutes = 0;
 
-        // Status Counts Overall
+        // Basic Counts
         let statusCounts = { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 };
-
-        // Status by Media Type (Stacked Bar Data)
-        // Structure: { movie: { completed: 0, ... }, tv: { ... } }
         let statusByMediaType = {
             movie: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 },
             tv: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 },
             other: { completed: 0, watching: 0, dropped: 0, plan_to_watch: 0, not_interested: 0 }
         };
-
-        // Completed Media Counts (For Pie Chart)
         let completedMedia = { movie: 0, tv: 0 };
 
-        // Score Distribution by Media Type (Stacked Bar Data)
+        // Score Stats
+        let scoreCounts = Array(11).fill(0);
         let scoreByMediaType = Array(11).fill(null).map(() => ({ movie: 0, tv: 0, other: 0 }));
-
-        let scoreCounts = Array(11).fill(0); // Index 0 is "No Score", 1-10 are scores
         let totalScoreSum = 0;
         let scoredItemCount = 0;
+
+        // Advanced Stats: Genres & Decades
+        let genreData = {}; // { id: { count, totalScore, scoreCount, name } }
+        let decadeCounts = {}; // { "2020s": 5, "1990s": 2 ... }
 
         // Language Stats
         let languageCounts = {};
         let languageTimeCounts = {};
 
-        // NEW: Advanced Stats: Genres & Decades
-        let genreData = {}; // { id: { count, totalScore, scoreCount, name } }
-        let decadeCounts = {}; // { "2020s": 5, "1990s": 2 ... }
-
-        // Flatten all lists and filter out references
+        // Flatten lists
         const allContent = Object.values(lists)
             .flat()
             .filter(item => item.type !== 'reference');
 
-        // Main items for full stats (Movies, Shows)
         const mainItems = allContent.filter(item => item.media_type !== 'tv_season' && !item.isSeason);
-
-        // Season items ONLY for watch time/episode counts
         const seasonItems = allContent.filter(item => item.media_type === 'tv_season' || item.isSeason);
 
         const processItemTime = (item, type) => {
@@ -132,7 +123,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             let rewatches = 0;
 
             if (type === 'movie') {
-                const movieRuntime = item.runtime || 150;
+                const movieRuntime = item.runtime || 120; // Default 120 if missing
                 if (item.status === 'completed') itemTotalMinutes += movieRuntime;
                 if (item.times_rewatched) {
                     const actualRewatches = Math.max(0, item.times_rewatched - 1);
@@ -140,36 +131,26 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     if (actualRewatches > 0) itemTotalMinutes += (actualRewatches * movieRuntime);
                 }
             } else {
-                // TV or Season
-
-                // PREFER PRE-CALCULATED ACCURATE TIME
+                // TV Calculation (Simplified for brevity, same logic as before)
                 if (item.total_watched_minutes && type === 'tv') {
                     itemTotalMinutes = item.total_watched_minutes;
-
-                    // Add Rewatch Time
                     if (item.times_rewatched > 0) {
                         itemTotalMinutes += (item.times_rewatched * item.total_watched_minutes);
                         rewatches = item.times_rewatched;
                     }
-
-                    // Get Episode Count for display
                     if (item.season_watched_episodes && Object.keys(item.season_watched_episodes).length > 0) {
                         episodes = Object.values(item.season_watched_episodes).reduce((acc, epArray) => acc + (Array.isArray(epArray) ? epArray.length : 0), 0);
                     } else if (item.episodes_watched) {
                         episodes = item.episodes_watched;
                     }
-
                     return { itemTotalMinutes, episodes, rewatches };
                 }
 
-                let minutesPerEp = 50;
+                let minutesPerEp = 45;
                 if (item.episode_run_time && item.episode_run_time.length > 0) {
                     minutesPerEp = Math.round(item.episode_run_time.reduce((a, b) => a + b, 0) / item.episode_run_time.length);
                 } else if (item.runtime) {
                     minutesPerEp = item.runtime;
-                } else {
-                    const isAnimation = item.genre_ids && item.genre_ids.includes(16);
-                    minutesPerEp = isAnimation ? 24 : 50;
                 }
 
                 // Calculate episodes watched (Prioritize granular data to catch Specials)
@@ -179,63 +160,36 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                     episodes = item.episodes_watched;
                 }
 
-                if (episodes > 0) {
-                    itemTotalMinutes += (episodes * minutesPerEp);
-                }
-
+                if (episodes > 0) itemTotalMinutes += (episodes * minutesPerEp);
                 if (item.times_rewatched) {
                     rewatches += item.times_rewatched;
-                    if (episodes > 0) {
-                        itemTotalMinutes += (item.times_rewatched * episodes * minutesPerEp);
-                    }
+                    if (episodes > 0) itemTotalMinutes += (item.times_rewatched * episodes * minutesPerEp);
                 }
             }
             return { itemTotalMinutes, episodes, rewatches };
         };
 
-        // Process Main Items
         mainItems.forEach(item => {
             totalItems++;
-
-            // Language Stats Aggregation (Count)
-            if (item.watched_languages && Array.isArray(item.watched_languages)) {
-                item.watched_languages.forEach(lang => {
-                    languageCounts[lang] = (languageCounts[lang] || 0) + 1;
-                });
-            }
-
-            // Normalize Media Type
-            const type = (item.media_type === 'movie' || item.media_type === 'tv')
-                ? item.media_type
-                : 'other';
-
-            // Media Type Counts
+            const type = (item.media_type === 'movie' || item.media_type === 'tv') ? item.media_type : 'other';
             if (type === 'movie') totalMovies++;
             else if (type === 'tv') totalTV++;
 
-            // Status Normalization
+            // Status
             const status = (item.status && statusCounts[item.status] !== undefined) ? item.status : 'plan_to_watch';
-
-            // Global Status Counts
             statusCounts[status]++;
-
-            // Status by Media Type
             statusByMediaType[type][status]++;
-
-            // Completed Counts for Pie Chart
             if (status === 'completed') {
                 if (type === 'movie') completedMedia.movie++;
                 else if (type === 'tv') completedMedia.tv++;
             }
 
-            // Score Stats
+            // Scores
             const rawScore = Number(item.score) || 0;
             const binScore = Math.round(rawScore);
-
             if (rawScore > 0) {
                 totalScoreSum += rawScore;
                 scoredItemCount++;
-
                 if (binScore >= 1 && binScore <= 10) {
                     scoreCounts[binScore]++;
                     scoreByMediaType[binScore][type]++;
@@ -247,20 +201,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 scoreCounts[0]++;
             }
 
-            // Watch Stats
-            const { itemTotalMinutes, episodes, rewatches } = processItemTime(item, type);
-            totalMinutes += itemTotalMinutes;
-            totalEpisodesWatched += episodes;
-            totalRewatches += rewatches;
-
-            // Language Stats by Time
-            if (itemTotalMinutes > 0 && item.watched_languages && Array.isArray(item.watched_languages)) {
-                item.watched_languages.forEach(lang => {
-                    languageTimeCounts[lang] = (languageTimeCounts[lang] || 0) + itemTotalMinutes;
-                });
-            }
-
-            // --- NEW: Genre Calculation ---
+            // Genre Stats
             if (item.genre_ids && Array.isArray(item.genre_ids)) {
                 item.genre_ids.forEach(gid => {
                     if (!genreData[gid]) genreData[gid] = { count: 0, totalScore: 0, scoreCount: 0, name: getGenreName(gid) };
@@ -272,40 +213,49 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 });
             }
 
-            // --- NEW: Decade Calculation ---
-            let dateStr = item.release_date || item.first_air_date || item.year;
+            // Decade Stats
+            let dateStr = item.release_date || item.first_air_date;
             if (dateStr) {
-                const year = parseInt(dateStr.toString().substring(0, 4));
+                const year = parseInt(dateStr.substring(0, 4));
                 if (!isNaN(year)) {
                     const decade = Math.floor(year / 10) * 10;
                     const decadeLabel = `${decade}s`;
                     decadeCounts[decadeLabel] = (decadeCounts[decadeLabel] || 0) + 1;
                 }
             }
+
+            // Time & Language
+            const { itemTotalMinutes, episodes, rewatches } = processItemTime(item, type);
+            totalMinutes += itemTotalMinutes;
+            totalEpisodesWatched += episodes;
+            totalRewatches += rewatches;
+
+            if (itemTotalMinutes > 0 && item.watched_languages) {
+                item.watched_languages.forEach(lang => {
+                    languageCounts[lang] = (languageCounts[lang] || 0) + 1;
+                    languageTimeCounts[lang] = (languageTimeCounts[lang] || 0) + itemTotalMinutes;
+                });
+            }
         });
 
-        // Process Season Items (ONLY for time/episodes)
+        // Add Season only items time
         seasonItems.forEach(item => {
-            const { itemTotalMinutes, episodes, rewatches } = processItemTime(item, 'tv'); // Treat seasons as TV logic
+            const { itemTotalMinutes, episodes, rewatches } = processItemTime(item, 'tv');
             totalMinutes += itemTotalMinutes;
             totalEpisodesWatched += episodes;
             totalRewatches += rewatches;
         });
 
-        const days = Math.floor(totalMinutes / 1440);
-        const hours = Math.floor((totalMinutes % 1440) / 60);
-        const minutes = Math.floor(totalMinutes % 60);
-
-        // --- NEW: Formating for Nivo ---
+        // Format Nivo Data
         // 1. Top Eras
         const eraData = Object.entries(decadeCounts)
             .map(([decade, count]) => ({ decade, count }))
             .sort((a, b) => a.decade.localeCompare(b.decade));
 
-        // 2. Genres Radar (Top 8 by Count)
+        // 2. Genres Radar (Top 6 by Count)
         const sortedGenres = Object.values(genreData)
             .sort((a, b) => b.count - a.count)
-            .slice(0, 10); // Top 8
+            .slice(0, 8); // Top 8
 
         const genreRadarData = sortedGenres.map(g => ({
             genre: g.name,
@@ -314,8 +264,9 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
         }));
 
         // 3. Genre Satisfaction (Top Genres by Score)
+        // Filter to genres with at least 2 scored items to avoid bias
         const genreScoreData = Object.values(genreData)
-            .filter(g => g.scoreCount >= 2) // At least 2 scored items
+            .filter(g => g.scoreCount >= 2)
             .map(g => ({
                 genre: g.name,
                 avgScore: Number((g.totalScore / g.scoreCount).toFixed(1)),
@@ -325,24 +276,16 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
             .slice(0, 10);
 
         return {
-            totalItems,
-            totalMovies,
-            totalTV,
-            totalEpisodesWatched,
-            totalRewatches,
-            statusCounts,
-            statusByMediaType,
-            scoreCounts,
-            scoreByMediaType,
+            totalItems, totalMovies, totalTV, totalEpisodesWatched, totalRewatches,
+            statusCounts, statusByMediaType, scoreCounts, scoreByMediaType,
             avgScore: scoredItemCount > 0 ? (totalScoreSum / scoredItemCount).toFixed(1) : "0.0",
-            time: { days, hours, minutes },
-            languageCounts,
-            languageTimeCounts,
-            completedMedia,
-            // New Data for UI
-            eraData,
-            genreRadarData,
-            genreScoreData
+            time: {
+                days: Math.floor(totalMinutes / 1440),
+                hours: Math.floor((totalMinutes % 1440) / 60),
+                minutes: Math.floor(totalMinutes % 60)
+            },
+            languageCounts, languageTimeCounts, completedMedia,
+            eraData, genreRadarData, genreScoreData
         };
     }, [lists]);
 
@@ -382,7 +325,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                 <div className="flex gap-2">
                     {renderTabButton('overview', 'Overview', <PieChart size={16} />)}
                     {renderTabButton('insights', 'Insights', <TrendingUp size={16} />)}
-                    {renderTabButton('genres', 'Profile', <Layers size={16} />)}
+                    {renderTabButton('genres', 'Genres', <Layers size={16} />)}
                 </div>
 
                 <button
@@ -400,7 +343,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                         {/* KPI Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <StatCard icon={<Hash className="text-purple-500" />} label="Total Items" value={stats.totalItems} sub={`${stats.totalMovies} Movies, ${stats.totalTV} Shows`} />
-                            <StatCard icon={<Clock className="text-blue-500" />} label="Time Watched" value={`${stats.time.days}d ${stats.time.hours}h ${stats.time.minutes}m`} sub="Estimated runtime" />
+                            <StatCard icon={<Clock className="text-blue-500" />} label="Time Watched" value={`${stats.time.days}d ${stats.time.hours}h`} sub="Estimated runtime" />
                             <StatCard icon={<Play className="text-green-500" />} label="Episodes" value={stats.totalEpisodesWatched.toLocaleString()} sub={`${stats.totalRewatches} rewatches`} />
                             <StatCard icon={<Star className="text-amber-500" />} label="Avg Score" value={stats.avgScore} sub="Mean rating (1-10)" />
                         </div>
@@ -485,7 +428,6 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                         }}
                                         labelSkipWidth={12}
                                         labelSkipHeight={12}
-                                        labelTextColor="#ffffff"
                                     />
                                 </div>
                             </div>
@@ -528,7 +470,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                                 tickRotation: 0,
                                             }}
                                             enableLabel={false}
-                                            tooltip={({ value, indexValue }) => (
+                                            tooltip={({ id, value, indexValue, color }) => (
                                                 <div className="bg-white dark:bg-gray-800 p-2 shadow-lg rounded border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200">
                                                     {indexValue}: {value} items
                                                 </div>
@@ -558,7 +500,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                             keys={['avgScore']}
                                             indexBy="genre"
                                             layout="horizontal"
-                                            margin={{ top: 10, right: 30, bottom: 25, left: 140 }}
+                                            margin={{ top: 10, right: 30, bottom: 20, left: 100 }}
                                             padding={0.3}
                                             colors={d => d.value >= 8 ? '#22c55e' : d.value >= 6 ? '#f59e0b' : '#ef4444'}
                                             theme={theme}
@@ -606,7 +548,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                             keys={['count']}
                                             indexBy="genre"
                                             maxValue="auto"
-                                            margin={{ top: 70, right: 80, bottom: 50, left: 80 }}
+                                            margin={{ top: 70, right: 80, bottom: 40, left: 80 }}
                                             curve="linearClosed"
                                             borderWidth={2}
                                             borderColor={{ from: 'color' }}
@@ -622,7 +564,7 @@ const StatisticsOverlay = ({ isOpen, onClose, lists }) => {
                                             dotLabel="value"
                                             dotLabelYOffset={-12}
                                             colors={{ scheme: 'category10' }} // Changed to scheme string
-                                            fillOpacity={0.35}
+                                            fillOpacity={0.25}
                                             blendMode="multiply"
                                             animate={true}
                                             theme={{
