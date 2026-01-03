@@ -8,109 +8,128 @@ const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const COOLDOWN_HOURS = 24 * 4;
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
-// Sub-component for horizontal scrollable row with arrow buttons
+// Swiper imports
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { EffectCoverflow, Pagination, Navigation, Mousewheel, FreeMode } from 'swiper/modules';
+
+// Swiper styles
+import 'swiper/css';
+import 'swiper/css/effect-coverflow';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
+import 'swiper/css/free-mode';
+
+// Sub-component for horizontal scrollable row using Swiper
 const HorizontalScrollRow = ({ items, onItemClick }) => {
-    const scrollRef = useRef(null);
-    const [showLeftArrow, setShowLeftArrow] = useState(false);
-    const [showRightArrow, setShowRightArrow] = useState(true);
-
-    const handleScroll = () => {
-        if (scrollRef.current) {
-            const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-            setShowLeftArrow(scrollLeft > 0);
-            setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
-        }
-    };
-
-    const scroll = (direction) => {
-        if (scrollRef.current) {
-            const scrollAmount = scrollRef.current.clientWidth * 0.8;
-            scrollRef.current.scrollBy({
-                left: direction === 'left' ? -scrollAmount : scrollAmount,
-                behavior: 'smooth'
-            });
-        }
-    };
-
-    useEffect(() => {
-        handleScroll();
-    }, [items]);
-
     return (
-        <div className="relative group/scroll">
-            {/* Left Arrow */}
-            {showLeftArrow && (
-                <button
-                    onClick={() => scroll('left')}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white/90 dark:bg-gray-800/90 rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover/scroll:opacity-100 transition-opacity duration-300 hover:bg-white dark:hover:bg-gray-700 -ml-4"
-                >
-                    <ChevronLeft size={28} className="text-gray-700 dark:text-gray-200" />
-                </button>
-            )}
-
-            {/* Right Arrow */}
-            {showRightArrow && (
-                <button
-                    onClick={() => scroll('right')}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white/90 dark:bg-gray-800/90 rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover/scroll:opacity-100 transition-opacity duration-300 hover:bg-white dark:hover:bg-gray-700 -mr-4"
-                >
-                    <ChevronRight size={28} className="text-gray-700 dark:text-gray-200" />
-                </button>
-            )}
-
-            {/* Scrollable Container */}
-            <div
-                ref={scrollRef}
-                onScroll={handleScroll}
-                className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x snap-mandatory scroll-smooth"
+        <div className="w-full py-8">
+            <Swiper
+                effect={'coverflow'}
+                grabCursor={true}
+                centeredSlides={true}
+                slidesPerView={'auto'}
+                loop={true}
+                freeMode={{
+                    enabled: true,
+                    sticky: true,
+                    momentum: true,
+                }}
+                coverflowEffect={{
+                    rotate: 20,
+                    stretch: 0,
+                    depth: 200,
+                    modifier: 1,
+                    slideShadows: true,
+                }}
+                pagination={{ clickable: true }}
+                navigation={false}
+                mousewheel={{
+                    sensitivity: 2.5,
+                    releaseOnEdges: true,
+                }}
+                modules={[EffectCoverflow, Pagination, Navigation, Mousewheel, FreeMode]}
+                className="w-full !pb-12" // Added padding bottom for pagination
+                threshold={10}
+                breakpoints={{
+                    320: {
+                        slidesPerView: 'auto',
+                    },
+                    640: {
+                        slidesPerView: 'auto',
+                    },
+                    768: {
+                        slidesPerView: 'auto',
+                    },
+                    1024: {
+                        slidesPerView: 'auto',
+                    },
+                }}
             >
                 {items.map((item, itemIndex) => (
-                    <button
-                        key={itemIndex}
-                        onClick={() => onItemClick(item)}
-                        className="flex-shrink-0 w-40 snap-start group"
+                    <SwiperSlide
+                        key={item.tmdb_id || itemIndex}
+                        className="!w-64" // Fixed width for coverflow effect to look good
                     >
-                        {/* Poster */}
-                        <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-700 mb-2 shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                            {item.poster_path ? (
-                                <img
-                                    src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
-                                    alt={item.title}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                    No Image
-                                </div>
-                            )}
-
-                            {/* Overlay on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
-                                <div className="text-white text-xs">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <Sparkles size={12} />
-                                        <span className="font-medium">Click to Add</span>
+                        <div
+                            onClick={() => onItemClick(item)}
+                            className="group relative cursor-pointer"
+                        >
+                            {/* Poster */}
+                            <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-700 shadow-xl transition-all duration-300">
+                                {item.poster_path ? (
+                                    <img
+                                        src={`https://image.tmdb.org/t/p/w500${item.poster_path}`}
+                                        alt={item.title}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        No Image
                                     </div>
-                                    {item.vote_average && (
-                                        <div className="text-yellow-400 font-bold">
-                                            ★ {item.vote_average.toFixed(1)}
-                                        </div>
-                                    )}
+                                )}
+
+                                {/* Overlay on hover */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 text-left">
+                                    <h4 className="text-lg font-bold text-white line-clamp-2 leading-tight mb-1 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                                        {item.title}
+                                    </h4>
+                                    <div className="flex items-center gap-2 text-sm text-gray-300 mb-3 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
+                                        <span>{item.year}</span>
+                                        {item.vote_average && (
+                                            <span className="flex items-center gap-1 text-yellow-400 font-bold">
+                                                ★ {item.vote_average.toFixed(1)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-blue-400 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-100">
+                                        <Sparkles size={16} />
+                                        <span className="font-medium text-sm">Click to Add</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Title */}
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 text-left group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            {item.title}
-                        </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-left">
-                            {item.year}
-                        </p>
-                    </button>
+                    </SwiperSlide>
                 ))}
-            </div>
+            </Swiper>
+
+            {/* Custom styles for Swiper pagination and navigation if needed */}
+            <style>{`
+                .swiper-pagination {
+                    bottom: 0 !important;
+                }
+                .swiper-pagination-bullet {
+                    background: #9ca3af !important;
+                    width: 8px;
+                    height: 8px;
+                }
+                .swiper-pagination-bullet-active {
+                    background: #3b82f6 !important;
+                    width: 24px;
+                    border-radius: 4px;
+                    transition: width 0.3s ease;
+                }
+            `}</style>
         </div>
     );
 };

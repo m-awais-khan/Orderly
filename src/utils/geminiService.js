@@ -13,6 +13,7 @@ export const analyzeWatchlist = (lists) => {
         completed: [],
         watching: [],
         dropped: [],
+        not_interested: [],
         scores: {}
     };
 
@@ -36,9 +37,8 @@ export const analyzeWatchlist = (lists) => {
             analysis.watching.push(entry);
         } else if (item.status === 'dropped') {
             analysis.dropped.push(entry);
-            if (entry.score) {
-                analysis.scores[entry.title] = entry.score;
-            }
+        } else if (item.status === 'not_interested') {
+            analysis.not_interested.push(entry);
         }
     });
 
@@ -69,7 +69,7 @@ export const getRecommendations = async (watchlistSummary) => {
                     temperature: 0.7,
                     topK: 40,
                     topP: 0.95,
-                    maxOutputTokens: 8192,
+                    maxOutputTokens: 16384,
                 }
             },
             {
@@ -110,16 +110,21 @@ const buildPrompt = (summary) => {
         `${item.title} (${item.type}${item.score ? `, rated ${item.score}/10` : ''})`
     ).join(', ');
 
+    const notInterestedTitles = summary.not_interested.map(item =>
+        `${item.title} (${item.type}${item.score ? `, rated ${item.score}/10` : ''})`
+    ).join(', ');
+
     return `You are a movie and TV show recommendation expert. Analyze this user's watchlist and suggest personalized recommendations.
 
 WATCHLIST ANALYSIS:
 Completed (${summary.completed.length} items): ${completedTitles || 'None'}
 Currently Watching (${summary.watching.length} items): ${watchingTitles || 'None'}
 Dropped (${summary.dropped.length} items): ${droppedTitles || 'None'}
+Not Interested (${summary.not_interested.length} items): ${notInterestedTitles || 'None'}
 
 TASK:
 1. Identify 3-5 most relevant genre + media type combinations based on the user's preferences
-2. For each category, suggest exactly 10 titles (mix of movies and TV shows)
+2. For each category, suggest exactly 15 titles (mix of movies and TV shows)
 3. Avoid suggesting anything already in their watchlist
 4. Consider their ratings - prioritize genres/types they rated highly
 5. Be diverse - include popular, hidden gems, and recent releases
@@ -170,7 +175,7 @@ const parseAIResponse = (aiText) => {
         }
 
         // Ensure we have 3-5 categories
-        parsed.categories = parsed.categories.slice(0, 5);
+        parsed.categories = parsed.categories.slice(0, 7);
 
         // Validate each category has items array
         parsed.categories = parsed.categories.map(cat => ({
