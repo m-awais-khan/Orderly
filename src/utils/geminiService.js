@@ -195,43 +195,85 @@ const parseAIResponse = (aiText) => {
  * @param {Object} watchlistSummary - Analyzed watchlist data
  * @returns {Promise<Object>} Single movie recommendation
  */
+// Helper: Get random N items from array
+const getRandomSamples = (array, n) => {
+    if (!array) return [];
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, n);
+};
+
 export const getDailyChallenge = async (watchlistSummary) => {
     if (!GEMINI_API_KEY) {
         throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const prompt = buildDailyChallengePrompt(watchlistSummary);
+    const MAX_RETRIES = 3;
+    let attempts = 0;
 
-    try {
-        const response = await axios.post(
-            `${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`,
-            {
-                contents: [{
-                    parts: [{ text: prompt }]
-                }],
-                generationConfig: {
-                    temperature: 0.4, // Lower temperature for more consistent JSON
-                    maxOutputTokens: 8192, // Increased to prevent truncation
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+    // Normalize comparison to avoid duplicates
+    const normalize = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+    const completedSet = new Set((watchlistSummary.completed || []).map(i => normalize(i.title)));
 
-        const aiText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!aiText) throw new Error('Invalid response from Gemini API');
+    let lastError = null;
 
-        return parseDailyChallengeResponse(aiText);
-    } catch (error) {
-        console.error('Gemini Daily Challenge Error:', error);
-        throw new Error('Failed to get daily challenge');
+    while (attempts < MAX_RETRIES) {
+        attempts++;
+
+        // 1. Pick 10 random items from completed list
+        const randomCompleted = getRandomSamples(watchlistSummary.completed, 10);
+
+        // 2. Build prompt with these specific random items
+        const prompt = buildDailyChallengePrompt(randomCompleted);
+
+        try {
+            const response = await axios.post(
+                `${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`,
+                {
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7, // Higher temp for variety since we are checking duplicates
+                        maxOutputTokens: 16384,
+                    }
+                },
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            const aiText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!aiText) throw new Error('Invalid response from Gemini API');
+
+            const result = parseDailyChallengeResponse(aiText);
+
+            // 3. Check for duplicates
+            if (!completedSet.has(normalize(result.title))) {
+                return result; // Success: Unique recommendation
+            }
+
+            console.warn(`[DailyChallenge] Generated duplicate: "${result.title}". Retrying (${attempts}/${MAX_RETRIES})...`);
+
+        } catch (error) {
+            console.error('[DailyChallenge] Error:', error);
+            lastError = error;
+        }
     }
+
+    throw lastError || new Error('Failed to generate a unique Daily Challenge after retries.');
 };
 
 /**
  * Build prompt for Daily Challenge
  */
-const buildDailyChallengePrompt = (summary) => {
-    const completedSample = summary.completed.slice(0, 10).map(i => i.title).join(', ');
+/**
+ * Build prompt for Daily Challenge
+ * @param {Array} completedItems - Array of 10 random completed items
+ */
+const buildDailyChallengePrompt = (completedItems) => {
+    const completedSample = (completedItems || []).map(i => i.title).join(', ');
 
     return `You are a movie curator giving a "Daily Movie Challenge".
 User's taste based on recent watches: ${completedSample || 'General popular movies'}.
