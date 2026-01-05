@@ -6,7 +6,7 @@ const TempGate = ({ children }) => {
     const [error, setError] = useState(false);
 
     // Hardcoded password - Change this if needed
-    const GATE_PASSWORD = "admin";
+    const GATE_PASSWORD = "privateHaiBhai";
     const SESSION_KEY = "temp_access_granted";
 
     useEffect(() => {
