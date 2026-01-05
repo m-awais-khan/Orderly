@@ -5,6 +5,7 @@ import WatchListManager from "./WatchListManager";
 import AuthPage from "./AuthPage";
 import LandingPage from "./LandingPage";
 import MobileBlocker from "./MobileBlocker";
+import TempGate from "./components/TempGate";
 
 const AppContent = () => {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -192,7 +193,9 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <BrowserRouter>
-        <AppContent />
+        <TempGate>
+          <AppContent />
+        </TempGate>
       </BrowserRouter>
     </GoogleOAuthProvider>
   );
