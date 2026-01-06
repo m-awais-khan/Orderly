@@ -6,8 +6,10 @@ import { analyzeWatchlist, getRecommendations, getDailyChallenge } from '../util
 import AddToListModal from './AddToListModal';
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const COOLDOWN_HOURS = 24 * 7;
-const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
+const RECOMMENDATIONS_COOLDOWN_HOURS = 24 * 7;
+const RECOMMENDATIONS_COOLDOWN_MS = RECOMMENDATIONS_COOLDOWN_HOURS * 60 * 60 * 1000;
+const CHALLENGE_COOLDOWN_HOURS = 24;
+const CHALLENGE_COOLDOWN_MS = CHALLENGE_COOLDOWN_HOURS * 60 * 60 * 1000;
 
 // Swiper imports
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -97,8 +99,8 @@ const HorizontalScrollRow = ({ items, onItemClick }) => {
                                     </h4>
                                     <div className="flex items-center gap-2 text-sm text-gray-300 mb-3 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
                                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${item.type === 'movie'
-                                                ? 'bg-blue-500/40 text-blue-100 border border-blue-400/50'
-                                                : 'bg-purple-500/40 text-purple-100 border border-purple-400/50'
+                                            ? 'bg-blue-500/40 text-blue-100 border border-blue-400/50'
+                                            : 'bg-purple-500/40 text-purple-100 border border-purple-400/50'
                                             }`}>
                                             {item.type === 'movie' ? 'Movie' : 'TV'}
                                         </span>
@@ -159,6 +161,9 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
     const [isChallengeHovered, setIsChallengeHovered] = useState(false);
     const [challengeLoading, setChallengeLoading] = useState(false);
     const [challengeError, setChallengeError] = useState(null);
+    const [challengeCooldownRemaining, setChallengeCooldownRemaining] = useState(0);
+    const [challengeLastFetchTime, setChallengeLastFetchTime] = useState(null);
+    const [isCheckingChallengeTimestamp, setIsCheckingChallengeTimestamp] = useState(true);
 
     // localStorage key for caching recommendations
     const getStorageKey = () => `ai_recommendations_cache_${userId || 'default'}`;
@@ -227,7 +232,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
             });
             console.log('AI Cooldown: Server response:', response.data);
             setLastFetchTime(Date.now());
-            setCooldownRemaining(COOLDOWN_MS);
+            setCooldownRemaining(RECOMMENDATIONS_COOLDOWN_MS);
         } catch (err) {
             console.error('Failed to update cooldown:', err);
         }
@@ -263,7 +268,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                     if (lastFetch) {
                         setLastFetchTime(new Date(lastFetch).getTime());
                         const elapsed = Date.now() - new Date(lastFetch).getTime();
-                        const remaining = COOLDOWN_MS - elapsed;
+                        const remaining = RECOMMENDATIONS_COOLDOWN_MS - elapsed;
                         if (remaining > 0) {
                             setCooldownRemaining(remaining);
                             hasCooldown = true;
@@ -288,7 +293,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
         const interval = setInterval(() => {
             if (lastFetchTime) {
                 const elapsed = Date.now() - lastFetchTime;
-                const remaining = COOLDOWN_MS - elapsed;
+                const remaining = RECOMMENDATIONS_COOLDOWN_MS - elapsed;
                 setCooldownRemaining(remaining > 0 ? remaining : 0);
             }
         }, 60000);
@@ -296,9 +301,56 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
         return () => clearInterval(interval);
     }, [isOpen, token]);
 
-    // Handle Daily Challenge Logic
+    // Handle Daily Challenge Logic & Timer
     useEffect(() => {
-        if (!isOpen || activeTab !== 'challenge' || dailyChallenge) return;
+        if (!isOpen) return;
+
+        // Fetch Daily Challenge Timestamp Persistence
+        const fetchChallengeTimestamp = async () => {
+            if (!token) return;
+            try {
+                const response = await axios.get('/api/daily-challenge-timestamp', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const lastFetch = response.data.lastFetch;
+                if (lastFetch) {
+                    setChallengeLastFetchTime(new Date(lastFetch).getTime());
+                    const elapsed = Date.now() - new Date(lastFetch).getTime();
+                    const remaining = CHALLENGE_COOLDOWN_MS - elapsed;
+                    setChallengeCooldownRemaining(remaining > 0 ? remaining : 0);
+                }
+            } catch (err) {
+                console.error('Failed to fetch challenge timestamp:', err);
+            } finally {
+                setIsCheckingChallengeTimestamp(false);
+            }
+        };
+
+        fetchChallengeTimestamp();
+
+        // Interval for Challenge Timer
+        const interval = setInterval(() => {
+            setChallengeCooldownRemaining(prev => {
+                const newRemaining = prev - 60000;
+                return newRemaining > 0 ? newRemaining : 0;
+            });
+        }, 60000);
+
+        return () => clearInterval(interval);
+    }, [isOpen, token]);
+
+    useEffect(() => {
+        if (!isOpen || activeTab !== 'challenge') return;
+
+        // Wait for server check
+        if (isCheckingChallengeTimestamp) return;
+
+        // If cooldown is active, don't generate new
+        // If cooldown is active, we might still want to load cache if available (e.g. refresh page)
+        // So we DON'T return early here anymore. We let loadDailyChallenge handle the logic.
+        // if (challengeCooldownRemaining > 0 && !dailyChallenge) { ... }
+
+        if (dailyChallenge) return; // Already have one loaded
 
         const loadDailyChallenge = async () => {
             setChallengeLoading(true);
@@ -308,17 +360,35 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
             const today = new Date().toISOString().split('T')[0];
             const challengeKey = `daily_challenge_${userIdKey}_${today}`;
 
-            // Check LocalStorage
+
+            // 1. Try to load from cache
+            let cachedItem = null;
             try {
                 const cachedChallenge = localStorage.getItem(challengeKey);
                 if (cachedChallenge) {
-                    setDailyChallenge(JSON.parse(cachedChallenge));
-                    setChallengeLoading(false);
-                    return;
+                    cachedItem = JSON.parse(cachedChallenge);
                 }
             } catch (err) {
                 console.error('Failed to load challenge from cache:', err);
             }
+
+            // 2. Decide: Use Cache or Fetch New?
+            // If cooldown is active (server says wait), we MUST use cache or show timer.
+            if (challengeCooldownRemaining > 0) {
+                if (cachedItem) {
+                    setDailyChallenge(cachedItem);
+                    setChallengeLoading(false);
+                    return;
+                }
+                // If no cache but cooldown active -> User on new device? Show Timer.
+                setChallengeLoading(false);
+                return;
+            }
+
+            // 3. If cooldown expired (== 0), we fetch NEW, ignoring old cache (unless we just fetched it today? No, cooldown 0 implies we can re-roll).
+            // However, to prevent infinite re-rolls on refresh if cooldown is 0 (like in testing), we should check if the cached item is "fresh" enough?
+            // Actually, if cooldown is 0, we imply "Time to get a new one".
+            // So we proceed to fetch new.
 
             // Fetch New Challenge
             try {
@@ -332,6 +402,17 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                     const finalItem = { ...enrichedItem, ...challengeItem, date: today };
                     setDailyChallenge(finalItem);
                     localStorage.setItem(challengeKey, JSON.stringify(finalItem));
+
+                    // Update Server Persistence
+                    if (token) {
+                        axios.post('/api/daily-challenge-timestamp',
+                            { timestamp: new Date() },
+                            { headers: { 'Authorization': `Bearer ${token}` } }
+                        ).then(() => {
+                            setChallengeLastFetchTime(Date.now());
+                            setChallengeCooldownRemaining(CHALLENGE_COOLDOWN_MS);
+                        }).catch(err => console.error('Failed to persist challenge time:', err));
+                    }
                 } else {
                     throw new Error('Failed to find challenge movie on TMDB');
                 }
@@ -344,7 +425,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
         };
 
         loadDailyChallenge();
-    }, [isOpen, activeTab, userId, lists]);
+    }, [isOpen, activeTab, userId, lists, dailyChallenge, challengeCooldownRemaining, token, isCheckingChallengeTimestamp]);
 
 
     const fetchRecommendations = async () => {
@@ -508,7 +589,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
     };
 
     // Format time remaining
-    const formatTimeRemaining = (ms) => {
+    const formatCooldown = (ms) => {
         const hours = Math.floor(ms / (1000 * 60 * 60));
         const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
         if (hours > 0) {
@@ -568,11 +649,30 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                                     }`}
-                                title={canRefresh ? 'Get new recommendations' : `Available in ${formatTimeRemaining(cooldownRemaining)}`}
+                                title={canRefresh ? 'Get new recommendations' : `Available in ${formatCooldown(cooldownRemaining)}`}
                             >
                                 {!canRefresh && <Clock size={16} />}
                                 {canRefresh && <RefreshCw size={16} />}
-                                <span className="hidden lg:inline">{canRefresh ? 'Refresh' : formatTimeRemaining(cooldownRemaining)}</span>
+                                <span className="hidden lg:inline">{canRefresh ? 'Refresh' : formatCooldown(cooldownRemaining)}</span>
+                            </button>
+                        )}
+
+                        {/* Daily Challenge Refresh Button */}
+                        {activeTab === 'challenge' && dailyChallenge && (
+                            <button
+                                onClick={() => setDailyChallenge(null)}
+                                disabled={challengeCooldownRemaining > 0 || challengeLoading}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
+                                    ${challengeCooldownRemaining === 0 && !challengeLoading
+                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                title={challengeCooldownRemaining === 0 ? 'Get new challenge' : `Available in ${formatCooldown(challengeCooldownRemaining)}`}
+                            >
+                                {challengeCooldownRemaining > 0 ? <Clock size={16} /> : <RefreshCw size={16} />}
+                                <span className="hidden lg:inline">
+                                    {challengeCooldownRemaining === 0 ? 'Refresh' : formatCooldown(challengeCooldownRemaining)}
+                                </span>
                             </button>
                         )}
                         <button
@@ -651,7 +751,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                                         You can get new AI recommendations in:
                                     </p>
                                     <div className="text-4xl font-bold text-blue-500 mb-6">
-                                        {formatTimeRemaining(cooldownRemaining)}
+                                        {formatCooldown(cooldownRemaining)}
                                     </div>
                                     <p className="text-sm text-gray-400 dark:text-gray-500 text-center max-w-md">
                                         The 24-hour cooldown helps manage API usage. Come back later for fresh personalized suggestions!
@@ -690,6 +790,20 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                                 <div className="flex flex-col items-center">
                                     <Loader2 size={48} className="text-purple-500 animate-spin mb-4" />
                                     <p className="text-gray-600 dark:text-gray-400">Curating your daily challenge...</p>
+                                </div>
+                            ) : challengeCooldownRemaining > 0 && !dailyChallenge ? (
+                                // Timer State (Server says wait, but no local cache)
+                                <div className="flex flex-col items-center gap-6 z-10 text-center p-8 border border-white/10 rounded-2xl bg-white/5 backdrop-blur-sm max-w-md mx-auto">
+                                    <div className="p-4 bg-white/10 rounded-full animate-pulse-slow">
+                                        <Clock size={48} className="text-gray-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Challenge Accepted</h3>
+                                        <p className="text-gray-500 dark:text-gray-400">You have already received your daily movie challenge. Come back later for a new one!</p>
+                                    </div>
+                                    <div className="text-4xl font-mono font-bold text-blue-500 tracking-wider">
+                                        {formatCooldown(challengeCooldownRemaining)}
+                                    </div>
                                 </div>
                             ) : challengeError ? (
                                 <div className="text-center text-red-500 p-6">
@@ -797,6 +911,13 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                                     <div className="flex items-center justify-center gap-2 text-gray-400 mt-12 text-sm">
                                         <Calendar size={14} />
                                         <span>Challenge for {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                                        {/* Show timer if active (and we are showing the movie) */}
+                                        {challengeCooldownRemaining > 0 && (
+                                            <div className="ml-4 px-3 py-1 rounded-full bg-black/40 border border-white/10 flex items-center gap-2 text-gray-400 text-sm">
+                                                <Clock size={12} />
+                                                <span>Next: {formatCooldown(challengeCooldownRemaining)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : null}

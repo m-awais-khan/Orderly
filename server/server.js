@@ -95,6 +95,7 @@ const AppDataSchema = new mongoose.Schema({
     selectedList: { type: String, default: null },
     darkMode: { type: Boolean, default: false },
     lastAIRecommendationFetch: { type: Date, default: null },
+    lastDailyChallengeFetch: { type: Date, default: null },
     lastUpdateCheck: { type: Date, default: null },
     listDescriptions: { type: Object, default: {} },
     sharedLists: [{
@@ -496,6 +497,37 @@ app.post('/api/ai-cooldown', protect, async (req, res) => {
     } catch (error) {
         console.error('Error updating AI cooldown:', error);
         res.status(500).json({ error: 'Failed to update cooldown' });
+    }
+});
+
+// --- Daily Challenge Timestamp ---
+
+// GET last Daily Challenge fetch timestamp
+app.get('/api/daily-challenge-timestamp', protect, async (req, res) => {
+    try {
+        const data = await AppData.findOne({ userId: req.user._id });
+        res.json({ lastFetch: data?.lastDailyChallengeFetch || null });
+    } catch (error) {
+        console.error('Error getting Daily Challenge timestamp:', error);
+        res.json({ lastFetch: null });
+    }
+});
+
+// POST update Daily Challenge fetch timestamp
+app.post('/api/daily-challenge-timestamp', protect, async (req, res) => {
+    try {
+        const { timestamp } = req.body;
+        const newTime = timestamp ? new Date(timestamp) : new Date();
+
+        await AppData.findOneAndUpdate(
+            { userId: req.user._id },
+            { lastDailyChallengeFetch: newTime },
+            { upsert: true }
+        );
+        res.json({ success: true, lastFetch: newTime });
+    } catch (error) {
+        console.error('Error updating Daily Challenge timestamp:', error);
+        res.status(500).json({ error: 'Failed to update timestamp' });
     }
 });
 

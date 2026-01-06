@@ -297,7 +297,8 @@ FORMAT:
             "year": 2000,
             "type": "movie",
             "reason": "Short reason why."
-        }`;
+        }
+IMPORTANT: Return ONLY valid JSON. Use double quotes for all keys and string values. Do not use single quotes for JSON strings.`;
 };
 
 /**
@@ -340,7 +341,31 @@ const parseDailyChallengeResponse = (aiText) => {
             throw new Error('No valid JSON object character found');
         }
 
-        const parsed = JSON.parse(jsonString);
+        // Sanitization: Replace single quotes with double quotes if they look like JSON keys/values
+        // This is a naive fix for the specific issue of LLMs returning 'key': 'value'
+        // We only target keys and values wrapped in single quotes that are likely safely replaceable
+        let sanitized = jsonString;
+
+        // If parsing fails initially, try to fix single quotes
+        try {
+            return JSON.parse(jsonString);
+        } catch (e) {
+            // Replace 'key': with "key":
+            sanitized = sanitized.replace(/'([a-zA-Z0-9_]+)':/g, '"$1":');
+            // Replace : 'value' with : "value" (careful with internal quotes)
+            // A safer approach for values is hard with regex. 
+            // Only try if the error likely indicates single quotes.
+
+            // Try another approach: use Function constructor (dangerous but effective for loose JS objects) if clearly isolated
+            // But let's stick to regex for common single quote keys first.
+
+            // For simple string values: : '...' -> : "..."
+            sanitized = sanitized.replace(/: '([^']*)'/g, ': "$1"');
+
+            // Retry parse
+            const parsed = JSON.parse(sanitized);
+            return parsed;
+        }
 
         if (!parsed.title || !parsed.year) {
             throw new Error('Invalid challenge format: missing title or year');
