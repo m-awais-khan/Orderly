@@ -154,6 +154,7 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
     const [cooldownRemaining, setCooldownRemaining] = useState(0);
     const [lastFetchTime, setLastFetchTime] = useState(null);
     const [hasNoItems, setHasNoItems] = useState(false);
+    const [isCheckingCooldown, setIsCheckingCooldown] = useState(true);
 
     // Daily Challenge State
     const [activeTab, setActiveTab] = useState('recommendations'); // 'recommendations' | 'challenge'
@@ -238,6 +239,14 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
         }
     };
 
+    // Reset checking state when closed to prevent flash on next open
+    useEffect(() => {
+        if (!isOpen) {
+            setIsCheckingCooldown(true);
+            setIsCheckingChallengeTimestamp(true);
+        }
+    }, [isOpen]);
+
     // Fetch cooldown status when opening and decide whether to auto-fetch
     useEffect(() => {
         if (!isOpen) return;
@@ -278,7 +287,11 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                     }
                 } catch (err) {
                     console.error('Failed to fetch cooldown status:', err);
+                } finally {
+                    setIsCheckingCooldown(false);
                 }
+            } else {
+                setIsCheckingCooldown(false);
             }
 
             // Only auto-fetch if no cooldown AND no cached recommendations
@@ -643,17 +656,32 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                         {activeTab === 'recommendations' && recommendations && (
                             <button
                                 onClick={handleRefresh}
-                                disabled={!canRefresh}
+                                disabled={!canRefresh || isCheckingCooldown}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
-                                    ${canRefresh
+                                    ${canRefresh && !isCheckingCooldown
                                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                                     }`}
-                                title={canRefresh ? 'Get new recommendations' : `Available in ${formatCooldown(cooldownRemaining)}`}
+                                title={
+                                    isCheckingCooldown
+                                        ? 'Syncing with server...'
+                                        : canRefresh
+                                            ? 'Get new recommendations'
+                                            : `Available in ${formatCooldown(cooldownRemaining)}`
+                                }
                             >
-                                {!canRefresh && <Clock size={16} />}
-                                {canRefresh && <RefreshCw size={16} />}
-                                <span className="hidden lg:inline">{canRefresh ? 'Refresh' : formatCooldown(cooldownRemaining)}</span>
+                                {isCheckingCooldown ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-gray-400 border-t-blue-500 rounded-full animate-spin" />
+                                        <span className="hidden lg:inline">Checking...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {!canRefresh && <Clock size={16} />}
+                                        {canRefresh && <RefreshCw size={16} />}
+                                        <span className="hidden lg:inline">{canRefresh ? 'Refresh' : formatCooldown(cooldownRemaining)}</span>
+                                    </>
+                                )}
                             </button>
                         )}
 
@@ -661,18 +689,33 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                         {activeTab === 'challenge' && dailyChallenge && (
                             <button
                                 onClick={() => setDailyChallenge(null)}
-                                disabled={challengeCooldownRemaining > 0 || challengeLoading}
+                                disabled={challengeCooldownRemaining > 0 || challengeLoading || isCheckingChallengeTimestamp}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
-                                    ${challengeCooldownRemaining === 0 && !challengeLoading
+                                    ${challengeCooldownRemaining === 0 && !challengeLoading && !isCheckingChallengeTimestamp
                                         ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                                     }`}
-                                title={challengeCooldownRemaining === 0 ? 'Get new challenge' : `Available in ${formatCooldown(challengeCooldownRemaining)}`}
+                                title={
+                                    isCheckingChallengeTimestamp
+                                        ? 'Syncing with server...'
+                                        : challengeCooldownRemaining === 0
+                                            ? 'Get new challenge'
+                                            : `Available in ${formatCooldown(challengeCooldownRemaining)}`
+                                }
                             >
-                                {challengeCooldownRemaining > 0 ? <Clock size={16} /> : <RefreshCw size={16} />}
-                                <span className="hidden lg:inline">
-                                    {challengeCooldownRemaining === 0 ? 'Refresh' : formatCooldown(challengeCooldownRemaining)}
-                                </span>
+                                {isCheckingChallengeTimestamp ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-gray-400 border-t-purple-500 rounded-full animate-spin" />
+                                        <span className="hidden lg:inline">Checking...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {challengeCooldownRemaining > 0 ? <Clock size={16} /> : <RefreshCw size={16} />}
+                                        <span className="hidden lg:inline">
+                                            {challengeCooldownRemaining === 0 ? 'Refresh' : formatCooldown(challengeCooldownRemaining)}
+                                        </span>
+                                    </>
+                                )}
                             </button>
                         )}
                         <button
