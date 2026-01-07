@@ -3623,7 +3623,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                 )}
 
                 {/* Grid View Reorder Hint */}
-                {viewMode === 'grid' && !isListLocked && activeDisplayItems.length > 1 && (
+                {viewMode === 'grid' && !isListLocked && !isSmartList && activeDisplayItems.length > 1 && (
                   <div className="flex items-center justify-center gap-2 mb-6 text-gray-400 dark:text-gray-500 text-xs animate-fade-in">
                     <Info size={14} />
                     <span>Switch to <strong className="font-medium text-gray-600 dark:text-gray-300">List View</strong> to drag and reorder items</span>
