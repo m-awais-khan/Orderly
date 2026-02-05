@@ -30,7 +30,7 @@ const WarningsPanel = ({ lists, onClose, onNavigate, isUpdateDue, onResetUpdateC
             });
         });
 
-        return [
+        const baseWarnings = [
             {
                 id: 'no_rating',
                 title: 'Completed items with no rating',

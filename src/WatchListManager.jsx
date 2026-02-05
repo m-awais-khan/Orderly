@@ -112,25 +112,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     return smart;
   }, [lists]);
 
-  // Calculate Warning Count (Replicates logic from WarningsPanel)
-  const warningCount = useMemo(() => {
-    let count = 0;
-    Object.values(lists).forEach(items => {
-      items.forEach(item => {
-        if (item.status === 'completed') {
-          // Check 1: No Rating
-          if (!item.score || item.score === 0) {
-            count++;
-          }
-          // Check 2: No Language Selected
-          if (!item.watched_languages || item.watched_languages.length === 0) {
-            count++;
-          }
-        }
-      });
-    });
-    return count;
-  }, [lists]);
+
 
 
 
@@ -196,6 +178,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     return lists[selectedList] || [];
   }, [selectedList, lists, smartLists]);
 
+
   // Update Check Logic
   const isUpdateDue = useMemo(() => {
     if (!lastUpdateCheck) return false;
@@ -203,6 +186,33 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 30;
   }, [lastUpdateCheck]);
+
+  // Calculate Warning Count (Replicates logic from WarningsPanel)
+  const warningCount = useMemo(() => {
+    let count = 0;
+    Object.values(lists).forEach(items => {
+      items.forEach(item => {
+        if (item.status === 'completed') {
+          // Check 1: No Rating
+          if (!item.score || item.score === 0) {
+            count++;
+          }
+          // Check 2: No Language Selected
+          if (!item.watched_languages || item.watched_languages.length === 0) {
+            count++;
+          }
+        }
+      });
+    });
+
+    if (isUpdateDue) {
+      count++;
+    }
+
+    return count;
+  }, [lists, isUpdateDue]);
+
+
 
   // --- UI Helpers ---
   const showToast = (message, type = 'info') => {
@@ -2777,7 +2787,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
               {token && (
                 <>
                   {/* Active Warnings - Always Visible Outside Menu */}
-                  {(warningCount > 0 || isUpdateDue) && (
+                  {(warningCount > 0) && (
                     <button
                       onClick={() => setShowWarnings(true)}
                       className="mr-3 relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
@@ -2785,7 +2795,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     >
                       <AlertTriangle size={20} />
                       <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm animate-pulse">
-                        {(warningCount + (isUpdateDue ? 1 : 0)) > 9 ? '9+' : (warningCount + (isUpdateDue ? 1 : 0))}
+                        {warningCount > 9 ? '9+' : warningCount}
                       </span>
                     </button>
                   )}
@@ -2828,7 +2838,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                     </button>
 
                     {/* Warning Button inside menu (Only if NO active warnings) */}
-                    {!(warningCount > 0 || isUpdateDue) && (
+                    {!(warningCount > 0) && (
                       <button
                         onClick={() => setShowWarnings(true)}
                         className="relative p-2.5 rounded-xl transition-all duration-300 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400 hover:shadow-md hover:scale-105 active:scale-95 bg-yellow-50/50 dark:bg-yellow-900/10"
