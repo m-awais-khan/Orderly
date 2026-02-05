@@ -535,13 +535,15 @@ app.post('/api/daily-challenge-timestamp', protect, async (req, res) => {
 // --- TMDB Proxy Route ---
 const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || process.env.TMDB_API_KEY;
 
-app.get('/api/tmdb/(.*)', async (req, res) => {
+app.use('/api/tmdb', async (req, res) => {
     try {
-        const endpoint = req.params[0]; // Captures everything after /api/tmdb/
+        const endpoint = req.path; // e.g. /search/movie
         const queryParams = new URLSearchParams(req.query);
         queryParams.append('api_key', TMDB_API_KEY);
 
-        const url = `https://api.themoviedb.org/3/${endpoint}?${queryParams.toString()}`;
+        // TMDB base URL is https://api.themoviedb.org/3
+        // endpoint starts with /, so full URL: https://api.themoviedb.org/3/search/movie
+        const url = `https://api.themoviedb.org/3${endpoint}?${queryParams.toString()}`;
 
         const response = await fetch(url);
 
