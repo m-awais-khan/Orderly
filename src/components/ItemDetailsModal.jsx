@@ -26,7 +26,7 @@ import {
     List
 } from "lucide-react";
 
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+// API_KEY removed (handled by proxy)
 const detailsCache = {};
 
 const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listName, droppedSeasonNumbers = [], lists = {}, readOnly = false }) => {
@@ -319,11 +319,11 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                 if (item.media_type === 'tv_season' || (item.media_type === 'tv' && item.season_number)) {
                     isSeason = true;
                     cacheKey = `tv_season_${tmdbId}_${item.season_number}`;
-                    url = `https://api.themoviedb.org/3/tv/${tmdbId}/season/${item.season_number}`;
+                    url = `/api/tmdb/tv/${tmdbId}/season/${item.season_number}`;
                 } else {
                     const type = item.media_type === "tv" ? "tv" : "movie";
                     cacheKey = `${type}_${tmdbId}`;
-                    url = `https://api.themoviedb.org/3/${type}/${tmdbId}`;
+                    url = `/api/tmdb/${type}/${tmdbId}`;
                 }
 
                 // Check Cache
@@ -335,7 +335,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
                 const response = await axios.get(url, {
                     params: {
-                        api_key: API_KEY,
+                        // api_key removed
                         append_to_response: "credits,images,external_ids,content_ratings,release_dates"
                     }
                 });
@@ -457,8 +457,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                         if (!foundManual) {
                             try {
                                 const tmdbId = item.tmdb_id || item.id;
-                                const res = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${sNum}`, {
-                                    params: { api_key: API_KEY }
+                                const res = await axios.get(`/api/tmdb/tv/${tmdbId}/season/${sNum}`, {
+                                    params: {}
                                 });
                                 // Temporarily update our local reference (can't rely on state update being immediate for calculation)
                                 seasonEpisodesCache[key] = res.data.episodes;
@@ -606,8 +606,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
 
         try {
             const tmdbId = item.tmdb_id || item.id;
-            const response = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`, {
-                params: { api_key: API_KEY }
+            const response = await axios.get(`/api/tmdb/tv/${tmdbId}/season/${seasonNumber}`, {
+                params: {}
             });
             // Update cache
             setSeasonEpisodesCache(prev => ({ ...prev, [cacheKey]: response.data.episodes }));

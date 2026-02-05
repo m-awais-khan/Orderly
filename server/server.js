@@ -532,6 +532,58 @@ app.post('/api/daily-challenge-timestamp', protect, async (req, res) => {
 });
 
 
+// --- TMDB Proxy Route ---
+const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || process.env.TMDB_API_KEY;
+
+app.get('/api/tmdb/*', async (req, res) => {
+    try {
+        const endpoint = req.params[0]; // Captures everything after /api/tmdb/
+        const queryParams = new URLSearchParams(req.query);
+        queryParams.append('api_key', TMDB_API_KEY);
+
+        const url = `https://api.themoviedb.org/3/${endpoint}?${queryParams.toString()}`;
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `TMDB Error: ${response.statusText}` });
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('TMDB Proxy Error:', error);
+        res.status(500).json({ error: 'Failed to fetch from TMDB' });
+    }
+});
+
+// --- Gemini Proxy Route ---
+const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+
+app.post('/api/gemini/generate', async (req, res) => {
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(req.body)
+        });
+
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `Gemini API Error: ${response.statusText}` });
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Gemini Proxy Error:', error);
+        res.status(500).json({ error: 'Failed to fetch from Gemini' });
+    }
+});
+
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);

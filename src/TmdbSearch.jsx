@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Search, Loader } from "lucide-react";
 
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const BASE_URL = "https://api.themoviedb.org/3/search/multi";
+const BASE_URL = "/api/tmdb/search/multi";
 const DEBOUNCE_DELAY = 1000;
 const MAX_RESULTS = 10;
 
@@ -39,8 +38,8 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
       if (/^\d+$/.test(trimmedQuery)) {
         // Try fetching as Movie
         requests.push(
-          axios.get(`https://api.themoviedb.org/3/movie/${trimmedQuery}`, {
-            params: { api_key: API_KEY },
+          axios.get(`/api/tmdb/movie/${trimmedQuery}`, {
+            params: {},
           }).then(res => {
             directResults.push({ ...res.data, media_type: 'movie' });
           }).catch(() => { }) // Ignore 404
@@ -48,8 +47,8 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
 
         // Try fetching as TV Show
         requests.push(
-          axios.get(`https://api.themoviedb.org/3/tv/${trimmedQuery}`, {
-            params: { api_key: API_KEY },
+          axios.get(`/api/tmdb/tv/${trimmedQuery}`, {
+            params: {},
           }).then(res => {
             directResults.push({ ...res.data, media_type: 'tv' });
           }).catch(() => { }) // Ignore 404
@@ -59,7 +58,7 @@ const TmdbSearch = ({ onItemSelected, disabled }) => {
       // 2. Always perform normal text search (in case "2012" is a title, etc.)
       const searchRequest = axios.get(BASE_URL, {
         params: {
-          api_key: API_KEY,
+          // api_key removed (handled by proxy)
           query: trimmedQuery,
           include_adult: true,
         },

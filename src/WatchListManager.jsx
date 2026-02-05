@@ -1146,15 +1146,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           // AUTO-COMPLETE LOGIC (Same as Add Item and Details Modal)
           if (status === 'completed' && (updatedItem.media_type === 'tv' || updatedItem.media_type === 'tv_season')) {
             try {
-              const apiKey = import.meta.env.VITE_TMDB_API_KEY;
-              if (apiKey) {
+              // apiKey removed
+              if (true) {
                 let url;
                 if (updatedItem.media_type === 'tv_season') {
                   if (updatedItem.tmdb_id && updatedItem.season_number !== undefined) {
-                    url = `https://api.themoviedb.org/3/tv/${updatedItem.tmdb_id}/season/${updatedItem.season_number}?api_key=${apiKey}`;
+                    url = `/api/tmdb/tv/${updatedItem.tmdb_id}/season/${updatedItem.season_number}`;
                   }
                 } else {
-                  url = `https://api.themoviedb.org/3/tv/${updatedItem.id}?api_key=${apiKey}`;
+                  url = `/api/tmdb/tv/${updatedItem.id}`;
                 }
 
                 if (url) {
@@ -1261,15 +1261,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     // AUTO-COMPLETE LOGIC: Fetch details to get total episodes
     if (newItem.media_type === 'tv' || newItem.media_type === 'tv_season') {
       try {
-        const apiKey = import.meta.env.VITE_TMDB_API_KEY;
-        if (apiKey) {
+        // apiKey removed
+        if (true) {
           let url;
           if (newItem.media_type === 'tv_season') {
             if (newItem.tmdb_id && newItem.season_number !== undefined) {
-              url = `https://api.themoviedb.org/3/tv/${newItem.tmdb_id}/season/${newItem.season_number}?api_key=${apiKey}`;
+              url = `/api/tmdb/tv/${newItem.tmdb_id}/season/${newItem.season_number}`;
             }
           } else {
-            url = `https://api.themoviedb.org/3/tv/${newItem.id}?api_key=${apiKey}`;
+            url = `/api/tmdb/tv/${newItem.id}`;
           }
 
           if (url) {
@@ -1331,9 +1331,9 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     // Fetch runtime for movies
     if (newItem.media_type === 'movie') {
       try {
-        const apiKey = import.meta.env.VITE_TMDB_API_KEY;
-        if (apiKey) {
-          const url = `https://api.themoviedb.org/3/movie/${newItem.id}?api_key=${apiKey}`;
+        // apiKey removed
+        if (true) {
+          const url = `/api/tmdb/movie/${newItem.id}`;
           const response = await axios.get(url);
           if (response.data) {
             if (response.data.title) newItem.text = response.data.title; // Canonical Title Update

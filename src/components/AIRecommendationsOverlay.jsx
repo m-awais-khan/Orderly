@@ -5,7 +5,7 @@ import axios from 'axios';
 import { analyzeWatchlist, getRecommendations, getDailyChallenge } from '../utils/geminiService';
 import AddToListModal from './AddToListModal';
 
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+// TMDB_API_KEY removed (handled by proxy)
 const RECOMMENDATIONS_COOLDOWN_HOURS = 24 * 7;
 const RECOMMENDATIONS_COOLDOWN_MS = RECOMMENDATIONS_COOLDOWN_HOURS * 60 * 60 * 1000;
 const CHALLENGE_COOLDOWN_HOURS = 24;
@@ -500,10 +500,10 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
                 // Search TMDB for the title
                 const searchType = item.type === 'movie' ? 'movie' : 'tv';
                 const response = await axios.get(
-                    `https://api.themoviedb.org/3/search/${searchType}`,
+                    `/api/tmdb/search/${searchType}`,
                     {
                         params: {
-                            api_key: TMDB_API_KEY,
+                            // api_key removed
                             query: item.title,
                             year: item.year
                         }
@@ -563,9 +563,9 @@ const AIRecommendationsOverlay = ({ isOpen, onClose, lists, onAddItem, userId, t
         try {
             const searchType = item.type === 'movie' ? 'movie' : 'tv';
             const detailsResponse = await axios.get(
-                `https://api.themoviedb.org/3/${searchType}/${item.tmdb_id}`,
+                `/api/tmdb/${searchType}/${item.tmdb_id}`,
                 {
-                    params: { api_key: TMDB_API_KEY }
+                    params: {}
                 }
             );
 

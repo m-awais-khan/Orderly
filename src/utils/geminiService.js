@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+// GEMINI_API_KEY removed (handled by proxy)
+const GEMINI_API_ENDPOINT = '/api/gemini/generate';
 
 /**
  * Analyze user's watchlist and prepare a summary for AI
@@ -51,16 +51,14 @@ export const analyzeWatchlist = (lists) => {
  * @returns {Promise<Object>} AI recommendations with categories
  */
 export const getRecommendations = async (watchlistSummary) => {
-    if (!GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY is not configured in environment variables');
-    }
+    // Key check removed (handled by server)
 
     // Build the prompt
     const prompt = buildPrompt(watchlistSummary);
 
     try {
         const response = await axios.post(
-            `${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`,
+            GEMINI_API_ENDPOINT,
             {
                 contents: [{
                     parts: [{ text: prompt }]
@@ -207,9 +205,7 @@ const getRandomSamples = (array, n) => {
 };
 
 export const getDailyChallenge = async (watchlistSummary) => {
-    if (!GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY is not configured');
-    }
+    // Key check removed
 
     const MAX_RETRIES = 3;
     let attempts = 0;
@@ -231,7 +227,7 @@ export const getDailyChallenge = async (watchlistSummary) => {
 
         try {
             const response = await axios.post(
-                `${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`,
+                GEMINI_API_ENDPOINT,
                 {
                     contents: [{
                         parts: [{ text: prompt }]
