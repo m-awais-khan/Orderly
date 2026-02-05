@@ -535,7 +535,7 @@ app.post('/api/daily-challenge-timestamp', protect, async (req, res) => {
 // --- TMDB Proxy Route ---
 const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || process.env.TMDB_API_KEY;
 
-app.get('/api/tmdb/*', async (req, res) => {
+app.get('/api/tmdb/(.*)', async (req, res) => {
     try {
         const endpoint = req.params[0]; // Captures everything after /api/tmdb/
         const queryParams = new URLSearchParams(req.query);
