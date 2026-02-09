@@ -1773,7 +1773,6 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                                                     setNewSegment(prev => ({
                                                                                                         ...prev,
                                                                                                         seasonNumber: val,
-                                                                                                        seasonNumber: val,
                                                                                                         name: prev.originalName
                                                                                                     }));
                                                                                                 }}
