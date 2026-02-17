@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 improvements.txt
 .env
+
+# Ignore Modern Watchlist folder
+Modern Watchlist/

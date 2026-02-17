@@ -1966,7 +1966,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                 'Indonesian': '🇮🇩', 'Malay': '🇲🇾', 'Filipino': '🇵🇭', 'Dutch': '🇳🇱',
                                                 'Polish': '🇵🇱', 'Swedish': '🇸🇪', 'Norwegian': '🇳🇴', 'Danish': '🇩🇰',
                                                 'Finnish': '🇫🇮', 'Greek': '🇬🇷', 'Hebrew': '🇮🇱', 'Czech': '🇨🇿',
-                                                'Romanian': '🇷🇴', 'Hungarian': '🇭🇺'
+                                                'Romanian': '🇷🇴', 'Hungarian': '🇭🇺', 'Punjabi': '🇮🇳🇵🇰'
                                             };
                                             return (
                                                 <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 text-blue-300 text-xs rounded-full">
