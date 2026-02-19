@@ -2023,7 +2023,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onSave, onDropSeason, listNam
                                                                 { code: 'Portuguese', flag: '🇧🇷' },
                                                                 { code: 'Italian', flag: '🇮🇹' },
                                                                 { code: 'Thai', flag: '🇹🇭' },
-                                                                { code: 'Turkish', flag: '🇹🇷' }
+                                                                { code: 'Turkish', flag: '🇹🇷' },
+                                                                { code: 'Punjabi', flag: '🇮🇳🇵🇰' }
                                                             ].filter(lang => !formData.watched_languages?.includes(lang.code)).map(lang => (
                                                                 <button
                                                                     key={lang.code}
