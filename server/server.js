@@ -98,6 +98,7 @@ const AppDataSchema = new mongoose.Schema({
     lastDailyChallengeFetch: { type: Date, default: null },
     lastUpdateCheck: { type: Date, default: null },
     listDescriptions: { type: Object, default: {} },
+    listTags: { type: Object, default: {} },
     sharedLists: [{
         listName: String,
         shareId: String,
@@ -403,10 +404,11 @@ app.get('/api/data', protect, async (req, res) => {
                 sharedLists: data.sharedLists || [],
                 darkMode: data.darkMode, // Include dark mode here
                 listDescriptions: data.listDescriptions || {},
+                listTags: data.listTags || {},
                 lastUpdateCheck: data.lastUpdateCheck || null
             });
         } else {
-            res.json({ lists: {}, folders: {}, selectedList: null, darkMode: false, sharedLists: [], listDescriptions: {}, lastUpdateCheck: null });
+            res.json({ lists: {}, folders: {}, selectedList: null, darkMode: false, sharedLists: [], listDescriptions: {}, listTags: {}, lastUpdateCheck: null });
         }
     } catch (error) {
         console.error('Error reading data:', error);
@@ -417,11 +419,11 @@ app.get('/api/data', protect, async (req, res) => {
 // POST Data (Save all state)
 app.post('/api/data', protect, async (req, res) => {
     try {
-        const { lists, folders, selectedList, listDescriptions, lastUpdateCheck } = req.body;
+        const { lists, folders, selectedList, listDescriptions, listTags, lastUpdateCheck } = req.body;
         // Allows partial updates if we wanted, but for now we replace the structure
         await AppData.findOneAndUpdate(
             { userId: req.user._id },
-            { lists, folders, selectedList, listDescriptions, lastUpdateCheck },
+            { lists, folders, selectedList, listDescriptions, listTags, lastUpdateCheck },
             { upsert: true, new: true }
         );
         res.json({ success: true });

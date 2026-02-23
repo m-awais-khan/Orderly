@@ -43,6 +43,7 @@ import {
   RotateCcw,
   CornerUpRight,
   User,
+  Tag,
 } from "lucide-react";
 
 import Toast from "./components/Toast";
@@ -126,6 +127,8 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
   const [showAddFolder, setShowAddFolder] = useState(false); // State for add folder input
   const [newFolderName, setNewFolderName] = useState(""); // State for new folder name
   const [listDescriptions, setListDescriptions] = useState({}); // State for list descriptions
+  const [listTags, setListTags] = useState({}); // State for list tags
+  const [editingTagList, setEditingTagList] = useState(null); // State for editing tag list
   const [editingDescription, setEditingDescription] = useState(false); // State for editing description
   const [movingList, setMovingList] = useState(null); // State for list being moved
   const [movingFolder, setMovingFolder] = useState(null); // State for folder being moved
@@ -443,13 +446,14 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           setSelectedList(parsed.selectedList || null);
           setSharedLists(parsed.sharedLists || []);
           setListDescriptions(parsed.listDescriptions || {});
+          setListTags(parsed.listTags || {});
 
           setSharedLists(parsed.sharedLists || []);
           setListDescriptions(parsed.listDescriptions || {});
           setLastUpdateCheck(parsed.lastUpdateCheck || Date.now());
 
           // Re-save to ensure it's in the correct user-key and synced to API if possible
-          saveData(parsed.lists, parsed.selectedList, parsed.folders, parsed.listDescriptions, parsed.lastUpdateCheck || Date.now());
+          saveData(parsed.lists, parsed.selectedList, parsed.folders, parsed.listDescriptions, parsed.lastUpdateCheck || Date.now(), parsed.listTags || {});
           return;
         }
       }
@@ -462,6 +466,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         setSharedLists(data.sharedLists || []);
         setSharedLists(data.sharedLists || []);
         setListDescriptions(data.listDescriptions || {});
+        setListTags(data.listTags || {});
         setLastUpdateCheck(data.lastUpdateCheck || Date.now());
       }
 
@@ -580,7 +585,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     }
   };
 
-  const saveData = async (newLists, newSelected, newFolders, newDescriptions = null, newLastUpdateCheck = null) => {
+  const saveData = async (newLists, newSelected, newFolders, newDescriptions = null, newLastUpdateCheck = null, newTags = null) => {
     try {
       const payload = {
         lists: newLists,
@@ -588,6 +593,7 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
         folders: newFolders,
         sharedLists: sharedLists, // Also persist shared lists reference
         listDescriptions: newDescriptions !== null ? newDescriptions : listDescriptions,
+        listTags: newTags !== null ? newTags : listTags,
         lastUpdateCheck: (newLastUpdateCheck !== null) ? newLastUpdateCheck : (lastUpdateCheck || Date.now())
       };
 
@@ -623,6 +629,17 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
     const newDescriptions = { ...listDescriptions, [listName]: description };
     setListDescriptions(newDescriptions);
     saveData(lists, selectedList, folders, newDescriptions);
+  };
+
+  const updateListTag = (listName, tag) => {
+    const newTags = { ...listTags };
+    if (!tag || tag.trim() === "") {
+      delete newTags[listName];
+    } else {
+      newTags[listName] = tag.trim();
+    }
+    setListTags(newTags);
+    saveData(lists, selectedList, folders, null, null, newTags);
   };
 
   // --- Global Search Logic ---
@@ -934,6 +951,11 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <span className="truncate flex-1">{listName}</span>
+                      {listTags[listName] && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-blue-100/50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'}`}>
+                          {listTags[listName]}
+                        </span>
+                      )}
                       {sharedLists.find(s => s.listName === listName) && (
                         <Share2 size={12} className={selectedList === listName ? "text-blue-200" : "text-blue-500"} />
                       )}
@@ -1037,11 +1059,19 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       );
     });
 
+    // Also update listTags
+    const newTags = { ...listTags };
+    if (newTags[oldName]) {
+      newTags[trimmedNewName] = newTags[oldName];
+      delete newTags[oldName];
+      setListTags(newTags);
+    }
+
     setLists(newLists);
     setFolders(newFolders);
     setSelectedList(trimmedNewName); // Keep the newly named list selected
     setEditingListName(null); // Exit editing mode
-    saveData(newLists, trimmedNewName, newFolders);
+    saveData(newLists, trimmedNewName, newFolders, null, null, newTags);
   };
 
   const deleteList = (listName) => {
@@ -1068,10 +1098,15 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
       );
     });
 
+    // Also update listTags
+    const newTags = { ...listTags };
+    delete newTags[listName];
+    setListTags(newTags);
+
     setLists(newLists);
     setFolders(newFolders);
     setSelectedList(newSelected);
-    saveData(newLists, newSelected, newFolders);
+    saveData(newLists, newSelected, newFolders, null, null, newTags);
   };
 
   // --- Auto-Scroll Logic ---
@@ -1840,11 +1875,16 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
           // Update lock state
           setIsListLocked(importedObject.isListLocked);
 
+          setListTags(importedObject.listTags || {});
+
           // 5. Update Local Storage to match the imported state
           saveData(
             importedObject.lists,
             importedObject.selectedList,
-            importedObject.folders || {}
+            importedObject.folders || {},
+            importedObject.listDescriptions || null,
+            importedObject.lastUpdateCheck || null,
+            importedObject.listTags || {}
           );
 
           showToast("Data imported successfully!", "success");
@@ -3126,6 +3166,11 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                           <>
                             <div className="flex items-center flex-1 min-w-0 gap-3">
                               <span className="font-medium truncate">{listName}</span>
+                              {listTags[listName] && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${selectedList === listName ? 'bg-white/20 text-white' : 'bg-blue-100/50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'}`}>
+                                  {listTags[listName]}
+                                </span>
+                              )}
                               {sharedLists.find(s => s.listName === listName) && (
                                 <Share2 size={12} className={selectedList === listName ? "text-blue-200" : "text-blue-500"} />
                               )}
@@ -3339,22 +3384,71 @@ const WatchListManager = ({ token, user, onLogout, isRestrictedMobile = false })
                                     <X size={20} />
                                   </button>
                                 </div>
+                              ) : editingTagList === selectedList ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    defaultValue={listTags[selectedList] || ""}
+                                    className="px-3 py-2 rounded-lg border-2 border-purple-500 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[150px]"
+                                    autoFocus
+                                    placeholder="Enter tag..."
+                                    onKeyPress={(e) => {
+                                      if (e.key === "Enter") {
+                                        updateListTag(selectedList, e.target.value);
+                                        setEditingTagList(null);
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      updateListTag(selectedList, e.target.value);
+                                      setEditingTagList(null);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <button
+                                    onClick={() => setEditingTagList(null)}
+                                    className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
+                                    title="Cancel"
+                                  >
+                                    <X size={20} />
+                                  </button>
+                                </div>
                               ) : (
                                 <>
-                                  <span>{selectedList}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span>{selectedList}</span>
+                                    {listTags[selectedList] && (
+                                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-sm ml-1">
+                                        {listTags[selectedList]}
+                                      </span>
+                                    )}
+                                  </div>
                                   {!isListLocked && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setEditingInMainContent(true);
-                                      }}
-                                      className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
-                                      title="Rename List"
-                                      type="button"
-                                    >
-                                      <Edit2 size={20} />
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          setEditingInMainContent(true);
+                                        }}
+                                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                                        title="Rename List"
+                                        type="button"
+                                      >
+                                        <Edit2 size={20} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          setEditingTagList(selectedList);
+                                        }}
+                                        className="p-2 text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-all duration-200"
+                                        title="Edit Tag"
+                                        type="button"
+                                      >
+                                        <Tag size={20} />
+                                      </button>
+                                    </>
                                   )}
 
                                   {/* Referenced By Badges */}
